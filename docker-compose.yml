@@ -30,7 +30,6 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: django_reg_tekon
-    user: "1000:1000"
     command: ./entrypoint.sh
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings
