@@ -1,0 +1,19 @@
+
+    <dl class="grid grid-cols-[200px_1fr] text-sm space-y-0.5">
+        <dt>Desfase Mandato-Inspección:</dt>
+        <dd class="w-fit font-bold
+        {% if steps.1.1.elements.map.distancia is not None %}
+            {% if steps.1.1.elements.map.distancia < 5 %}
+                text-success
+            {% elif steps.1.1.elements.map.distancia < 30 %}
+                text-warning
+            {% else %}
+                text-error
+            {% endif %}
+        {% else %}
+            text-error
+        {% endif %}
+        ">
+        {{ steps.1.1.elements.map.distancia|default:"Sin datos" }} m
+        </dd>
+    </dl>

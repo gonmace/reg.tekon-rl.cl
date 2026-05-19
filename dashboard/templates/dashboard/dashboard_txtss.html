@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Technical Site Survey{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-base-100">
+    <!-- Header -->
+    <div class="bg-base-200 border-b border-base-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
+                <div>
+                    <h1 class="text-2xl font-bold text-base-content">Dashboard Technical Site Survey</h1>
+                    <p class="text-base-content/70 text-sm">Documentación técnica de seguridad y seguimiento</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{% url 'dashboard:dashboard' %}" class="btn btn-outline btn-sm">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        Volver al Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido Principal -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Filtros -->
+        <div class="card bg-base-100 shadow-lg mb-6">
+            <div class="card-body">
+                <h3 class="text-lg font-semibold text-base-content mb-4">Filtros de Búsqueda</h3>
+                <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="label">
+                            <span class="label-text">Buscar Sitio</span>
+                        </label>
+                        <input type="text" name="search" value="{{ search_query }}" 
+                               class="input input-bordered w-full" 
+                               placeholder="Nombre del sitio...">
+                    </div>
+                    <div>
+                        <label class="label">
+                            <span class="label-text">Filtrar por Título</span>
+                        </label>
+                        <select name="search" class="select select-bordered w-full">
+                            <option value="">Todos los títulos</option>
+                            <option value="inicial" {% if search_query == 'inicial' %}selected{% endif %}>Inicial</option>
+                            <option value="seguimiento" {% if search_query == 'seguimiento' %}selected{% endif %}>Seguimiento</option>
+                            <option value="final" {% if search_query == 'final' %}selected{% endif %}>Final</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="label">
+                            <span class="label-text">Fecha Desde</span>
+                        </label>
+                        <input type="date" name="fecha_desde" value="{{ fecha_desde }}" 
+                               class="input input-bordered w-full">
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="btn btn-primary w-full">
+                            <i class="fas fa-search mr-2"></i>
+                            Filtrar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tabla de Registros -->
+        <div class="card bg-base-100 shadow-lg">
+            <div class="card-body">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-base-content">
+                        Registros Technical Site Survey ({{ page_obj.paginator.count }} total)
+                    </h3>
+                    <div class="text-sm text-base-content/60">
+                        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                    </div>
+                </div>
+
+                {% if page_obj %}
+                    <div class="overflow-x-auto">
+                        <table class="table table-zebra w-full">
+                            <thead>
+                                <tr>
+                                    <th>Sitio</th>
+                                    <th>Título</th>
+                                    <th>Fecha Registro</th>
+                                    <th>Descripción</th>
+                                    <th>Responsable</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for registro in page_obj %}
+                                <tr>
+                                    <td>
+                                        <div class="font-medium">{{ registro.sitio.name }}</div>
+                                        <div class="text-sm text-base-content/60">{{ registro.sitio.region }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-info">{{ registro.title|truncatechars:20 }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="font-medium">{{ registro.created_at|date:"d/m/Y" }}</div>
+                                        <div class="text-sm text-base-content/60">{{ registro.created_at|date:"H:i" }}</div>
+                                    </td>
+                                    <td>
+                                        <div class="max-w-xs truncate" title="{{ registro.description|default:'Sin descripción' }}">
+                                            {{ registro.description|default:"Sin descripción"|truncatechars:50 }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="font-medium">{{ registro.user.get_full_name|default:registro.user.username }}</div>
+                                        <div class="text-sm text-base-content/60">{{ registro.user.email|default:"" }}</div>
+                                    </td>
+                                    <td>
+                                        <div class="dropdown dropdown-end">
+                                            <label tabindex="0" class="btn btn-ghost btn-xs">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </label>
+                                            <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52">
+                                                <li>
+                                                    <a href="#" class="text-sm">
+                                                        <i class="fas fa-eye mr-2"></i>
+                                                        Ver detalles
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#" class="text-sm">
+                                                        <i class="fas fa-download mr-2"></i>
+                                                        Descargar
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#" class="text-sm">
+                                                        <i class="fas fa-edit mr-2"></i>
+                                                        Editar
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    {% if page_obj.has_other_pages %}
+                    <div class="flex justify-center mt-6">
+                        <div class="join">
+                            {% if page_obj.has_previous %}
+                                <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if tipo_documento %}&tipo_documento={{ tipo_documento }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}" 
+                                   class="join-item btn btn-outline btn-sm">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            {% endif %}
+                            
+                            {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                    <span class="join-item btn btn-sm btn-active">{{ num }}</span>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                    <a href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if tipo_documento %}&tipo_documento={{ tipo_documento }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}" 
+                                       class="join-item btn btn-outline btn-sm">{{ num }}</a>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if page_obj.has_next %}
+                                <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if tipo_documento %}&tipo_documento={{ tipo_documento }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}" 
+                                   class="join-item btn btn-outline btn-sm">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-8">
+                        <i class="fas fa-file-alt text-4xl text-base-content/30 mb-4"></i>
+                        <p class="text-base-content/60">No se encontraron registros Technical Site Survey con los filtros aplicados</p>
+                        <a href="{% url 'executive_dashboard:txtss' %}" class="btn btn-outline btn-sm mt-4">
+                            Limpiar filtros
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

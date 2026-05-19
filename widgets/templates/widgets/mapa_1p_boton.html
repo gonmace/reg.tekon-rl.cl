@@ -1,0 +1,31 @@
+{% comment %}
+widgets/mapa_1p_boton.html
+{% endcomment %}
+{% if widget.coordinates %}
+  {% if widget.coordinates.coord1 %}
+    <button id="map-btn-{{ widget.step_name }}"
+            class="btn btn-{{ widget.color }} btn-circle sombra active:scale-95 transition-transform duration-100"
+            title="Mapa de {{ widget.title }}"
+            data-coord1-lat="{{ widget.coordinates.coord1.lat }}"
+            data-coord1-lon="{{ widget.coordinates.coord1.lon }}"
+            data-coord1-label="{{ widget.coordinates.coord1.label }}"
+            data-coord1-color="{{ widget.coordinates.coord1.color }}"
+            data-coord1-size="{{ widget.coordinates.coord1.size }}"
+            data-site-registro="{{ widget.registro_id }}"
+            data-step-title="{{ widget.title }}"
+            data-etapa="{{ widget.etapa }}"
+            data-map-type="single">
+      {% include 'svgs/map-marker.svg' %}
+    </button>
+  {% else %}
+    <button class="btn btn-paso-ghost btn-circle" title="Sin coordenadas" disabled>
+      {% include 'svgs/map-marker.svg' %}
+    </button>
+  {% endif %}
+{% else %}
+  <a href="{{ widget.url }}"
+     class="btn btn-{{ widget.color }} btn-circle"
+     title="Mapa 1 punto">
+    <i class="{{ widget.icon }} text-xl"></i>
+  </a>
+{% endif %}

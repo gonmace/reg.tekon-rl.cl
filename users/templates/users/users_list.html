@@ -1,0 +1,64 @@
+{% extends 'components/common/data_table_page.html' %}
+{% load static django_tables2 %}
+
+{% block title %}Usuarios{% endblock %}
+
+{% block table_title %}
+  Usuarios
+  {% if user_role_counts %}
+    <span class="inline-flex items-center justify-center bg-error text-error-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1.5 align-middle" title="Gerencia">{{ user_role_counts.GERENCIA|default:0 }}</span>
+    <span class="inline-flex items-center justify-center bg-warning text-warning-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle" title="Coordinador">{{ user_role_counts.COORD|default:0 }}</span>
+    <span class="inline-flex items-center justify-center bg-info text-info-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle" title="ITO">{{ user_role_counts.ITO|default:0 }}</span>
+    <span class="inline-flex items-center justify-center bg-accent text-accent-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle" title="Buscador">{{ user_role_counts.SEARCHER|default:0 }}</span>
+    <span class="inline-flex items-center justify-center bg-neutral text-neutral-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle" title="Visita">{{ user_role_counts.VISITA|default:0 }}</span>
+  {% endif %}
+{% endblock %}
+{% block table_subtitle %}{% endblock %}
+
+{% block table_search %}
+  <div class="table-search">
+    <i class="fa-solid fa-magnifying-glass table-search-icon"></i>
+    <input type="search" name="q" value="{{ request.GET.q }}"
+           hx-get="{% url 'users:list' %}"
+           hx-trigger="keyup changed delay:300ms, search"
+           hx-target="#users-table-wrapper"
+           hx-push-url="true"
+           hx-indicator="#users-loader"
+           class="input input-sm" placeholder="Buscar usuario..." autocomplete="off" />
+  </div>
+  <span id="users-loader" class="htmx-indicator loading loading-spinner loading-sm text-primary"></span>
+{% endblock %}
+
+{% block table_actions %}
+  <button id="addUserBtn" class="btn btn-add btn-sm">
+    <i class="fa-solid fa-plus mr-1"></i> Nuevo Usuario
+  </button>
+{% endblock %}
+
+{% block table_content %}
+  <div id="users-table-wrapper"
+       hx-boost="true"
+       hx-target="#users-table-wrapper"
+       hx-swap="innerHTML"
+       hx-push-url="true"
+       hx-indicator="#users-loader">
+    {% render_table table %}
+  </div>
+{% endblock %}
+
+{% block extra_modals %}
+<dialog id="userModal" class="modal">
+  <div class="modal-box w-full sm:w-11/12 max-w-2xl">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+    </form>
+    <h3 id="userModalTitle" class="font-bold text-lg mb-4">Nuevo Usuario</h3>
+    <div id="userModalContent"></div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock extra_modals %}
+
+{% block extra_js %}
+<script src="{% static 'js/users-simple.js' %}"></script>
+{% endblock %}

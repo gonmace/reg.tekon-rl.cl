@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" class="p-1.5" viewBox="0 0 14.6 16">
+    <g style="fill:currentColor">
+        <g style="fill:currentColor">
+            <g transform="translate(6 7) scale(.35114)" />
+        </g>
+        <g style="fill:currentColor">
+            <g transform="translate(9 6) scale(.41166)">
+                <path fill="currentColor" fill-rule="evenodd"
+                    d="M111 419a2 2 0 1 1 0-3 2 2 0 0 1 0 3zm0-4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 12c-1 0-6-7-6-9a6 6 0 0 1 11 0l-5 9zm0-16c-4 0-7 3-7 7 0 3 6 11 7 11s7-8 7-11c0-4-3-7-7-7z"
+                    style="stroke-width:.563967" transform="translate(-104 -411)" />
+            </g>
+        </g>
+        <g style="fill:currentColor">
+            <g transform="matrix(.40198 0 0 .40198 0 0)">
+                <path fill="currentColor" fill-rule="evenodd"
+                    d="M111 419a2 2 0 1 1 0-3 2 2 0 0 1 0 3zm0-4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 12c-1 0-6-7-6-9a6 6 0 0 1 11 0l-5 9zm0-16c-4 0-7 3-7 7 0 3 6 11 7 11s7-8 7-11c0-4-3-7-7-7z"
+                    style="stroke-width:.563967" transform="translate(-104 -411)" />
+            </g>
+        </g>
+        <g style="fill:currentColor">
+            <g transform="translate(1 1) scale(.35114)" />
+        </g>
+        <path d="m12 29 34 23" style="fill:currentColor;stroke:currentColor;stroke-opacity:1;stroke-width:2"
+            transform="matrix(.26458 0 0 .26458 -1 0)" />
+    </g>
+</svg>

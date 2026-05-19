@@ -1,0 +1,35 @@
+<form id="reg-txtss-edit-form" data-registro-id="{{ registro.id }}">
+  {% csrf_token %}
+
+  <div class="form-control mb-3">
+    <label class="label"><span class="label-text font-medium">Buscador</span></label>
+    <select name="user_id" class="select select-bordered w-full focus:select-primary">
+      <option value="">Sin asignar</option>
+      {% for u in users %}
+        <option value="{{ u.pk }}" {% if u.pk == registro.user_id %}selected{% endif %}>
+          {% if u.first_name %}{{ u.first_name }} {{ u.last_name }} ({{ u.username }}){% else %}{{ u.username }}{% endif %}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="form-control mb-3">
+    <label class="label"><span class="label-text font-medium">Alternativa</span></label>
+    <select name="alternativa" class="select select-bordered w-full focus:select-primary">
+      <option value="">—</option>
+      {% for val, label in alternativa_choices %}
+        <option value="{{ val }}" {% if val == registro.alternativa %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="flex gap-2 justify-center mt-5">
+    <button type="button" class="btn btn-cancel"
+            onclick="document.getElementById('reg-txtss-edit-modal').close()">
+      Cancelar
+    </button>
+    <button type="submit" class="btn btn-save flex-grow" id="reg-txtss-edit-submit">
+      Guardar
+    </button>
+  </div>
+</form>

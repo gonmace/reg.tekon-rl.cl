@@ -1,0 +1,405 @@
+{% comment %}
+widgets/ubicacion_widget.html
+Widget de captura de coordenadas geográficas (latitud / longitud).
+Incluye botón para abrir mapa Leaflet interactivo con captura GPS de alta precisión
+y conversión desde coordenadas en formato DMS (grados/minutos/segundos).
+Al hacer clic en "Capturar Coordenadas" sin marcador manual, usa el GPS del dispositivo.
+Sin botón submit — debe estar dentro de un form externo.
+
+Nombre:
+  Ubicación GPS
+
+Tipo:
+  form
+
+Uso:
+  include 'widgets/ubicacion_widget.html'
+
+Parámetros:
+  lat_field — BoundField de Django para latitud  (nombre de campo: 'lat' — id: 'id_lat')
+  lon_field — BoundField de Django para longitud (nombre de campo: 'lon' — id: 'id_lon')
+
+Estados:
+  0 — Sin campos lat/lon configurados
+  1 — Campos vacíos, sin coordenadas ingresadas
+  3 — Latitud y longitud con valores válidos
+{% endcomment %}
+{% load static %}
+{% with wid=lat_field.html_name|default:"ubicacion" %}
+
+<!-- ── Modal del mapa ───────────────────────────────────────────────────── -->
+<dialog id="mapa-{{ wid }}" class="modal modal-middle">
+  <div class="w-full max-w-full sm:max-w-5xl h-screen sm:h-4/5 bg-base-100 rounded-lg">
+    <div class="flex flex-col h-full rounded-lg shadow-xl overflow-hidden">
+
+      <!-- Header -->
+      <div class="flex justify-between items-center px-4 py-2 border-b border-base-300 shrink-0">
+        <h3 class="font-bold text-base">Seleccionar ubicación</h3>
+        <button type="button" id="btn-cerrar-mapa-{{ wid }}" class="btn btn-sm btn-circle btn-ghost">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Mapa -->
+      <div class="relative flex-1 overflow-hidden">
+        <div id="map-{{ wid }}" class="w-full h-full min-h-[300px]"></div>
+        <div class="absolute top-2 left-2 bg-base-100/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-base-content/60 shadow pointer-events-none sm:hidden">
+          Toca el mapa para colocar el marcador manualmente
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="px-4 py-2 border-t border-base-300 shrink-0 flex items-center justify-between gap-3">
+        <div class="join shrink-0">
+          <button type="button" id="btn-sat-{{ wid }}" class="btn btn-xs join-item btn-neutral">Satélite</button>
+          <button type="button" id="btn-str-{{ wid }}" class="btn btn-xs join-item">Calles</button>
+        </div>
+        <span id="gps-status-{{ wid }}" class="text-xs text-error flex-1 text-center"></span>
+        <button type="button" id="btn-capturar-{{ wid }}" class="btn btn-success btn-sm gap-2 shrink-0">
+          <i class="fa-solid fa-location-crosshairs"></i>
+          Capturar Coordenadas
+        </button>
+      </div>
+
+    </div>
+  </div>
+</dialog>
+
+<!-- ── Campos + botón mapa ──────────────────────────────────────────────── -->
+<p class="label-text text-sm text-base-content flex items-center gap-2 mb-2">
+  <i class="fa-solid fa-map-marker-alt text-base-content/60"></i>
+  {{ label|default:"Ubicación GPS" }}
+</p>
+<div class="flex flex-row items-end gap-3 mb-3">
+
+  <button type="button" id="btn-ubicar-{{ wid }}"
+          class="btn btn-ghost p-0 h-10 m-0 sm:h-12 w-10 sm:w-12 my-auto shrink-0">
+    <svg width="64px" height="64px" viewBox="0 0 1024 1024" class="icon sombra"
+         version="1.1" xmlns="http://www.w3.org/2000/svg" fill="#000000">
+      <g><path d="M640 213.333333L384 128 128 213.333333v682.666667l256-85.333333 256 85.333333 256-85.333333V128z" fill="#FFECB3"></path></g>
+      <g><path d="M384 128v682.666667l256 85.333333V213.333333z" fill="#FFE082"></path></g>
+      <g><path d="M640 320c-82.496 0-149.333333 70.250667-149.333333 156.821333S640 768 640 768s149.333333-204.629333 149.333333-291.178667S722.496 320 640 320z" fill="#F44336"></path></g>
+      <g><path d="M640 469.333333m-64 0a64 64 0 1 0 128 0 64 64 0 1 0-128 0Z" fill="#FFEBEE"></path></g>
+    </svg>
+  </button>
+
+  <!-- Latitud -->
+  <div class="form-control w-full">
+    {% if lat_field.label %}
+      <label for="{{ lat_field.id_for_label }}" class="label">
+        <span class="label-text text-sm text-base-content">{{ lat_field.label }}*</span>
+      </label>
+    {% endif %}
+    <div class="join w-full">
+      <input type="text"
+             name="{{ lat_field.html_name }}"
+             id="{{ lat_field.id_for_label }}"
+             value="{{ lat_field.value|default_if_none:'' }}"
+             placeholder="{{ lat_field.field.widget.attrs.placeholder|default:'' }}"
+             class="input join-item w-full sombra {% if lat_field.value %}input-success{% else %}input-error{% endif %}">
+      <button type="button" class="btn btn-warning join-item text-3xl sombra"
+              data-dms-target="{{ lat_field.name }}" data-wid="{{ wid }}">°</button>
+    </div>
+    {% if lat_field.help_text %}
+      <span id="help-text-{{ lat_field.name }}-{{ wid }}" class="text-xs text-base-content mt-1">{{ lat_field.help_text }}</span>
+    {% endif %}
+    {% if lat_field.errors %}
+      <span class="text-xs text-error mt-1">{{ lat_field.errors|join:", " }}</span>
+    {% endif %}
+  </div>
+
+  <!-- Longitud -->
+  <div class="form-control w-full">
+    {% if lon_field.label %}
+      <label for="{{ lon_field.id_for_label }}" class="label">
+        <span class="label-text text-sm text-base-content">{{ lon_field.label }}*</span>
+      </label>
+    {% endif %}
+    <div class="join w-full">
+      <input type="text"
+             name="{{ lon_field.html_name }}"
+             id="{{ lon_field.id_for_label }}"
+             value="{{ lon_field.value|default_if_none:'' }}"
+             placeholder="{{ lon_field.field.widget.attrs.placeholder|default:'' }}"
+             class="input join-item w-full sombra {% if lon_field.value %}input-success{% else %}input-error{% endif %}">
+      <button type="button" class="btn btn-warning join-item text-3xl sombra"
+              data-dms-target="{{ lon_field.name }}" data-wid="{{ wid }}">°</button>
+    </div>
+    {% if lon_field.help_text %}
+      <span id="help-text-{{ lon_field.name }}-{{ wid }}" class="text-xs text-base-content mt-1">{{ lon_field.help_text }}</span>
+    {% endif %}
+    {% if lon_field.errors %}
+      <span class="text-xs text-error mt-1">{{ lon_field.errors|join:", " }}</span>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ── Leaflet ──────────────────────────────────────────────────────────── -->
+<link rel="stylesheet" href="{% static 'css/leaflet.css' %}">
+<script src="{% static 'js/leaflet.js' %}"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  var WID         = '{{ wid }}';
+  var modal       = document.getElementById('mapa-' + WID);
+  var btnUbicar   = document.getElementById('btn-ubicar-' + WID);
+  var btnCerrar   = document.getElementById('btn-cerrar-mapa-' + WID);
+  var btnCapturar = document.getElementById('btn-capturar-' + WID);
+  var btnSat      = document.getElementById('btn-sat-' + WID);
+  var btnStr      = document.getElementById('btn-str-' + WID);
+  var gpsStatus   = document.getElementById('gps-status-' + WID);
+  var latInput    = document.getElementById('{{ lat_field.id_for_label }}');
+  var lonInput    = document.getElementById('{{ lon_field.id_for_label }}');
+
+  var map           = null;
+  var osmLayer      = null;
+  var esriLayer     = null;
+  var currentTile   = 'satellite';
+  var currentMarker = null;
+  var isMobile      = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  // ── Estado visual de los inputs ─────────────────────────────────────────────
+  function updateInputState(input) {
+    if (input.value.trim()) {
+      input.classList.remove('input-error');
+      input.classList.add('input-success');
+    } else {
+      input.classList.remove('input-success');
+      input.classList.add('input-error');
+    }
+  }
+
+  function emitState() {
+    var level = (latInput.value.trim() && lonInput.value.trim()) ? 3 : 1;
+    window.parent.postMessage({ type: 'widget-state', level: level }, '*');
+  }
+
+  latInput.addEventListener('input', function () { updateInputState(latInput); emitState(); });
+  lonInput.addEventListener('input', function () { updateInputState(lonInput); emitState(); });
+  emitState();
+
+  // ── Ícono inline ────────────────────────────────────────────────────────────
+  function makeMarkerIcon(color) {
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:20px;height:20px;border-radius:50%;background:' + (color || '#2563eb') + ';border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45);"></div>',
+      iconSize: [20, 20], iconAnchor: [10, 10], popupAnchor: [0, -14],
+    });
+  }
+
+  // ── Mapa ────────────────────────────────────────────────────────────────────
+  function initMap() {
+    if (map) return;
+    var opts = { zoomControl: false };
+    if (isMobile) { opts.tap = true; opts.touchZoom = true; opts.scrollWheelZoom = false; }
+    map = L.map('map-' + WID, opts).setView([-33.45, -70.66], isMobile ? 10 : 13);
+    osmLayer  = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' });
+    esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles © Esri' });
+    esriLayer.addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    map.on('click', function (e) {
+      setMarker(e.latlng.lat, e.latlng.lng, '#2563eb', null);
+      gpsStatus.textContent = '';
+    });
+
+    btnSat.addEventListener('click', function () { switchTile('satellite'); });
+    btnStr.addEventListener('click', function () { switchTile('streets'); });
+  }
+
+  function switchTile(type) {
+    if (type === currentTile) return;
+    if (type === 'streets') {
+      map.removeLayer(esriLayer);
+      osmLayer.addTo(map);
+      btnSat.classList.remove('btn-neutral');
+      btnStr.classList.add('btn-neutral');
+    } else {
+      map.removeLayer(osmLayer);
+      esriLayer.addTo(map);
+      btnStr.classList.remove('btn-neutral');
+      btnSat.classList.add('btn-neutral');
+    }
+    currentTile = type;
+  }
+
+  function setMarker(lat, lng, color, popupText) {
+    if (currentMarker) map.removeLayer(currentMarker);
+    currentMarker = L.marker([lat, lng], { icon: makeMarkerIcon(color) }).addTo(map);
+    if (popupText) currentMarker.bindPopup(popupText).openPopup();
+  }
+
+  function clearMarker() {
+    if (currentMarker) { map.removeLayer(currentMarker); currentMarker = null; }
+    gpsStatus.textContent = '';
+  }
+
+  // ── Abrir / cerrar ──────────────────────────────────────────────────────────
+  btnUbicar.addEventListener('click', function () {
+    initMap();
+    gpsStatus.textContent = '';
+    if (latInput.value && lonInput.value) {
+      var lat = parseFloat(latInput.value);
+      var lng = parseFloat(lonInput.value);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        map.setView([lat, lng], 16);
+        setMarker(lat, lng, '#2563eb', 'Ubicación guardada');
+      }
+    }
+    modal.showModal();
+    setTimeout(function () { if (map) map.invalidateSize(); }, 120);
+  });
+
+  btnCerrar.addEventListener('click', function () { modal.close(); });
+  modal.addEventListener('close', clearMarker);
+
+  // ── Capturar Coordenadas ────────────────────────────────────────────────────
+  btnCapturar.addEventListener('click', function () {
+    // Marcador manual → capturar su posición
+    if (currentMarker) {
+      var ll = currentMarker.getLatLng();
+      latInput.value = ll.lat.toFixed(7);
+      lonInput.value = ll.lng.toFixed(7);
+      updateInputState(latInput);
+      updateInputState(lonInput);
+      emitState();
+      modal.close();
+      return;
+    }
+
+    // Sin marcador → GPS del dispositivo con máxima precisión
+    if (!navigator.geolocation) {
+      gpsStatus.textContent = 'Geolocalización no disponible en este dispositivo.';
+      return;
+    }
+    btnCapturar.disabled = true;
+    btnCapturar.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Obteniendo GPS…';
+    gpsStatus.textContent = '';
+
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        var lat = pos.coords.latitude;
+        var lng = pos.coords.longitude;
+        var acc = Math.round(pos.coords.accuracy);
+        setMarker(lat, lng, '#16a34a', 'GPS ±' + acc + ' m');
+        map.setView([lat, lng], map.getMaxZoom() || 19);
+        latInput.value = lat.toFixed(7);
+        lonInput.value = lng.toFixed(7);
+        updateInputState(latInput);
+        updateInputState(lonInput);
+        emitState();
+        btnCapturar.disabled = false;
+        btnCapturar.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Capturar Coordenadas';
+        gpsStatus.textContent = '±' + acc + ' m de precisión';
+      },
+      function (err) {
+        btnCapturar.disabled = false;
+        btnCapturar.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Capturar Coordenadas';
+        var msgs = { 1: 'Permiso de ubicación denegado.', 2: 'Posición no disponible.', 3: 'Tiempo de espera agotado.' };
+        gpsStatus.textContent = msgs[err.code] || 'Error al obtener ubicación.';
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+
+  // ── Conversión DMS ──────────────────────────────────────────────────────────
+  var dmsState = { signedDegrees: 0, coordType: '' };
+
+  document.querySelectorAll('[data-dms-target][data-wid="' + WID + '"]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      dmsState.coordType = btn.dataset.dmsTarget;
+      abrirModalDMS();
+    });
+  });
+
+  function abrirModalDMS() {
+    var tipo      = dmsState.coordType;
+    var maxGrados = tipo === 'lat' ? 90 : 180;
+
+    var dirHTML = tipo === 'lat'
+      ? '<label class="flex items-center gap-1"><input type="radio" name="dir-' + WID + '" value="S" class="radio radio-warning radio-xs" checked><span class="text-sm">S (Sur)</span></label>' +
+        '<label class="flex items-center gap-1"><input type="radio" name="dir-' + WID + '" value="N" class="radio radio-warning radio-xs"><span class="text-sm">N (Norte)</span></label>'
+      : '<label class="flex items-center gap-1"><input type="radio" name="dir-' + WID + '" value="W" class="radio radio-warning radio-xs" checked><span class="text-sm">W (Oeste)</span></label>' +
+        '<label class="flex items-center gap-1"><input type="radio" name="dir-' + WID + '" value="E" class="radio radio-warning radio-xs"><span class="text-sm">E (Este)</span></label>';
+
+    var dlg = document.createElement('dialog');
+    dlg.className = 'modal modal-bottom sm:modal-middle';
+    dlg.innerHTML =
+      '<div class="modal-box bg-base-200">' +
+        '<form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button></form>' +
+        '<h3 class="text-lg font-bold mb-4">Convertir DMS → DD</h3>' +
+        '<div class="space-y-4">' +
+          '<div><p class="text-sm font-medium mb-2">Dirección</p><div class="flex gap-4">' + dirHTML + '</div></div>' +
+          '<div class="grid grid-cols-3 gap-3">' +
+            '<div><label class="label label-text text-xs">Grados</label><input type="number" id="dms-g-' + WID + '" min="0" max="' + maxGrados + '" class="input input-success input-sm w-full" placeholder="0–' + maxGrados + '"></div>' +
+            '<div><label class="label label-text text-xs">Minutos</label><input type="number" id="dms-m-' + WID + '" min="0" max="59" class="input input-success input-sm w-full" placeholder="0–59"></div>' +
+            '<div><label class="label label-text text-xs">Segundos</label><input type="number" id="dms-s-' + WID + '" min="0" max="59.999" step="0.001" class="input input-success input-sm w-full" placeholder="0–59"></div>' +
+          '</div>' +
+          '<div id="dms-result-' + WID + '" class="hidden alert alert-success py-2"><span class="font-mono font-bold" id="dms-result-text-' + WID + '"></span></div>' +
+          '<div id="dms-error-' + WID + '" class="hidden alert alert-error py-2"><span id="dms-error-text-' + WID + '"></span></div>' +
+          '<div class="flex justify-end"><button id="dms-capturar-' + WID + '" type="button" class="btn btn-success btn-sm">Capturar coordenada</button></div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(dlg);
+    dlg.showModal();
+
+    dlg.querySelectorAll('input').forEach(function (inp) {
+      inp.addEventListener('input', function () { validarDMS(dlg); });
+    });
+    dlg.querySelector('#dms-capturar-' + WID).addEventListener('click', function () { capturarDMS(dlg); });
+    dlg.addEventListener('close', function () { dmsState.coordType = ''; dmsState.signedDegrees = 0; dlg.remove(); });
+  }
+
+  function validarDMS(dlg) {
+    var tipo     = dmsState.coordType;
+    var grados   = parseFloat(dlg.querySelector('#dms-g-' + WID).value)  || 0;
+    var minutos  = parseFloat(dlg.querySelector('#dms-m-' + WID).value)  || 0;
+    var segundos = parseFloat(dlg.querySelector('#dms-s-' + WID).value)  || 0;
+    var dirEl    = dlg.querySelector('input[name="dir-' + WID + '"]:checked');
+    var dirVal   = dirEl ? dirEl.value : (tipo === 'lat' ? 'S' : 'W');
+    var maxG     = tipo === 'lat' ? 90 : 180;
+    var errores  = [];
+
+    if (grados < 0 || grados > maxG) errores.push('Grados: 0–' + maxG);
+    if (minutos < 0 || minutos >= 60) errores.push('Minutos: 0–59');
+    if (segundos < 0 || segundos >= 60) errores.push('Segundos: 0–59.999');
+
+    var errorEl  = dlg.querySelector('#dms-error-' + WID);
+    var resultEl = dlg.querySelector('#dms-result-' + WID);
+
+    if (errores.length) {
+      errorEl.classList.remove('hidden');
+      resultEl.classList.add('hidden');
+      dlg.querySelector('#dms-error-text-' + WID).textContent = errores.join('. ');
+      return;
+    }
+    errorEl.classList.add('hidden');
+    var dd = grados + minutos / 60 + segundos / 3600;
+    dmsState.signedDegrees = (dirVal === 'S' || dirVal === 'W') ? -dd : dd;
+    resultEl.classList.remove('hidden');
+    dlg.querySelector('#dms-result-text-' + WID).textContent = dmsState.signedDegrees.toFixed(7) + '°';
+  }
+
+  function capturarDMS(dlg) {
+    var campo = dmsState.coordType === 'lat' ? latInput : lonInput;
+    if (!campo) return;
+    campo.value = dmsState.signedDegrees.toFixed(7);
+    campo.dispatchEvent(new Event('input'));
+
+    var grados   = parseFloat(dlg.querySelector('#dms-g-' + WID).value)  || 0;
+    var minutos  = parseFloat(dlg.querySelector('#dms-m-' + WID).value)  || 0;
+    var segundos = parseFloat(dlg.querySelector('#dms-s-' + WID).value)  || 0;
+    var dirEl    = dlg.querySelector('input[name="dir-' + WID + '"]:checked');
+    var dirVal   = dirEl ? dirEl.value : '';
+    var helpEl   = document.getElementById('help-text-' + dmsState.coordType + '-' + WID);
+    if (helpEl) helpEl.textContent = grados + '° ' + minutos + "' " + segundos + '" ' + dirVal;
+    dlg.close();
+  }
+
+})();
+</script>
+
+{% endwith %}

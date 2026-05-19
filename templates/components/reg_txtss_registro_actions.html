@@ -1,0 +1,27 @@
+<div class="flex items-center justify-center gap-1">
+  <span class="reg-txtss-row-id" data-id="{{ record.id }}" style="display:none;"></span>
+  {% if request.user.is_ito_like or not request.user.is_limited %}
+  <button type="button"
+          class="btn btn-sm btn-ghost btn-circle text-info reg-txtss-copy-btn"
+          data-id="{{ record.id }}"
+          data-alternativa="{{ record.alternativa }}"
+          title="Copiar con siguiente alternativa">
+    <i class="fa-solid fa-copy"></i>
+  </button>
+  {% endif %}
+  {% if not request.user.is_limited %}
+  <button type="button"
+          class="btn btn-sm btn-ghost btn-circle text-edit reg-txtss-edit-btn"
+          data-id="{{ record.id }}"
+          title="Editar registro">
+    <i class="fa-solid fa-pen-to-square"></i>
+  </button>
+  <button type="button"
+          class="btn btn-sm btn-ghost btn-circle text-delete reg-txtss-delete-btn"
+          data-id="{{ record.id }}"
+          data-nombre="{{ record.sitio.name }}"
+          title="Eliminar registro">
+    <i class="fa-solid fa-trash"></i>
+  </button>
+  {% endif %}
+</div>

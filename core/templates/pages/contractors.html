@@ -1,0 +1,76 @@
+{% extends 'components/common/data_table_page.html' %}
+{% load static django_tables2 %}
+
+{% block title %}Contratistas{% endblock %}
+
+{% block pre_content %}
+  {% csrf_token %}
+{% endblock pre_content %}
+
+{% block table_title %}
+  Contratistas
+  <span id="contractors-counts">
+    {% if contractor_counts %}
+      <span id="contractors-count-active" class="inline-flex items-center justify-center bg-success text-success-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1.5 align-middle">{{ contractor_counts.activos }}</span>
+      <span id="contractors-count-inactive" class="inline-flex items-center justify-center bg-error text-error-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle">{{ contractor_counts.inactivos }}</span>
+    {% endif %}
+  </span>
+{% endblock %}
+{% block table_subtitle %}{% endblock %}
+
+{% block table_search %}
+  <div class="table-search">
+    <i class="fa-solid fa-magnifying-glass table-search-icon"></i>
+    <input type="search" name="q" value="{{ request.GET.q }}"
+           hx-get="{% url 'contractors:contractors_list' %}"
+           hx-trigger="keyup changed delay:300ms, search"
+           hx-target="#contractors-table-wrapper"
+           hx-push-url="true"
+           hx-indicator="#contractors-loader"
+           class="input input-sm" placeholder="Buscar contratista..." autocomplete="off" />
+  </div>
+  <span id="contractors-loader" class="htmx-indicator loading loading-spinner loading-sm text-primary"></span>
+{% endblock %}
+
+{% block table_actions %}
+  <button id="addContractorBtn" class="btn btn-add btn-sm">
+    <i class="fa-solid fa-plus mr-1"></i>
+    Agregar Contratista
+  </button>
+{% endblock %}
+
+{% block table_content %}
+  <div id="contractors-table-wrapper"
+       hx-boost="true"
+       hx-target="#contractors-table-wrapper"
+       hx-swap="innerHTML"
+       hx-push-url="true"
+       hx-indicator="#contractors-loader">
+    {% render_table table %}
+  </div>
+{% endblock %}
+
+{% block extra_modals %}
+<dialog id="contractorModal" class="modal">
+  <div class="modal-box w-full sm:w-11/12 max-w-2xl">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+    </form>
+    <h3 id="modalTitle" class="font-bold text-lg mb-4">Agregar Contratista</h3>
+    <div id="modalContent"></div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock extra_modals %}
+
+{% block extra_js %}
+<script src="{% static 'js/contractors-simple.js' %}"></script>
+<script>
+window.contractorsConfig = {
+    apiUrl: '{% url "contractors:contractors_api" %}',
+    editModalUrl: '{% url "contractors:contractor_edit_modal" 0 %}'.replace('0', ''),
+    createModalUrl: '{% url "contractors:contractor_create_modal" %}',
+    csrfToken: '{{ csrf_token }}'
+};
+</script>
+{% endblock %}

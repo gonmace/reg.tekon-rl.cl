@@ -1,0 +1,102 @@
+{% extends 'components/common/data_table_page.html' %}
+{% load static django_tables2 %}
+
+{% block title %}Sitios{% endblock %}
+
+{% block table_title %}
+  Sitios
+  {% if site_counts %}
+    <span class="inline-flex items-center justify-center bg-accent text-accent-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1.5 align-middle">{{ site_counts.torres }}</span>
+    <span class="inline-flex items-center justify-center bg-info text-info-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle">{{ site_counts.postes }}</span>
+  {% endif %}
+{% endblock %}
+{% block table_subtitle %}{% endblock %}
+
+{% block table_search %}
+  <div class="table-search">
+    <i class="fa-solid fa-magnifying-glass table-search-icon"></i>
+    <input type="search" name="q" value="{{ request.GET.q }}"
+           hx-get="{% url 'sitios:sitios_list' %}"
+           hx-trigger="keyup changed delay:300ms, search"
+           hx-target="#sitios-table-wrapper"
+           hx-push-url="true"
+           hx-indicator="#sitios-loader"
+           class="input input-sm" placeholder="Buscar sitio..." autocomplete="off" />
+  </div>
+  <span id="sitios-loader" class="htmx-indicator loading loading-spinner loading-sm text-primary"></span>
+{% endblock %}
+
+{% block table_actions %}
+  {% if user.is_superuser %}
+  <button id="addSiteBtn" class="btn btn-add btn-sm">
+    <i class="fa-solid fa-plus mr-1"></i> Agregar Sitio
+  </button>
+  <button id="importSiteBtn" class="btn btn-save btn-sm">
+    <i class="fa-solid fa-file-excel mr-1"></i> Cargar Excel
+  </button>
+  {% endif %}
+{% endblock %}
+
+{% block table_content %}
+  <div id="sitios-table-wrapper"
+       hx-boost="true"
+       hx-target="#sitios-table-wrapper"
+       hx-swap="innerHTML"
+       hx-push-url="true"
+       hx-indicator="#sitios-loader">
+    {% render_table table %}
+  </div>
+{% endblock %}
+
+{% block extra_modals %}
+<dialog id="edit_site_modal" class="modal">
+  <div class="modal-box w-full sm:w-11/12 max-w-2xl">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+    </form>
+    <h3 id="edit_site_modal_title" class="font-bold text-lg mb-4">Editar Sitio</h3>
+    <div id="modal-content"></div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<dialog id="import_site_modal" class="modal">
+  <div class="modal-box w-full sm:w-11/12 max-w-lg">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+    </form>
+    <h3 class="font-bold text-lg mb-4">
+      <i class="fa-solid fa-file-excel text-success mr-2"></i> Cargar sitios desde Excel
+    </h3>
+
+    <div class="text-sm text-base-content/70 mb-4">
+      Subí un archivo <strong>.xlsx</strong> o <strong>.csv</strong> con las columnas correctas.
+      Si el <strong>PTI ID</strong> ya existe, el sitio se actualiza; si no, se crea.
+    </div>
+
+    <a href="{% url 'sitios:site_import_template' %}" class="link link-primary text-sm inline-flex items-center gap-1 mb-4">
+      <i class="fa-solid fa-download"></i> Descargar plantilla
+    </a>
+
+    <form id="importSiteForm" enctype="multipart/form-data" class="flex flex-col gap-3">
+      {% csrf_token %}
+      <input type="file" name="file" id="importSiteFile" accept=".xlsx,.csv" required
+             class="file-input file-input-bordered w-full" />
+      <div id="importSiteResult" class="text-sm hidden"></div>
+      <div class="modal-action">
+        <button type="button" class="btn btn-cancel btn-sm" onclick="document.getElementById('import_site_modal').close()">
+          Cancelar
+        </button>
+        <button type="submit" id="importSiteSubmitBtn" class="btn btn-save btn-sm">
+          <i class="fa-solid fa-cloud-arrow-up mr-1"></i> Importar
+        </button>
+      </div>
+    </form>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock extra_modals %}
+
+{% block extra_js %}
+<script src="{% static 'js/sitios-actions.js' %}"></script>
+{% endblock extra_js %}

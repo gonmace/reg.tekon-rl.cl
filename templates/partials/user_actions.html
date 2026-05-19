@@ -1,0 +1,16 @@
+<div class="flex items-center justify-center gap-1">
+  <button type="button"
+          class="btn btn-sm btn-ghost btn-circle text-edit user-edit-btn"
+          data-id="{{ record.id }}"
+          data-nombre="{{ record.get_full_name }}"
+          title="Editar usuario">
+    <i class="fa-solid fa-pen-to-square"></i>
+  </button>
+  <button type="button"
+          class="btn btn-sm btn-ghost btn-circle text-delete user-delete-btn"
+          data-id="{{ record.id }}"
+          data-nombre="{{ record.get_full_name }}"
+          title="Eliminar usuario">
+    <i class="fa-solid fa-trash"></i>
+  </button>
+</div>

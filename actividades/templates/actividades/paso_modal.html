@@ -1,0 +1,61 @@
+<form id="paso-form" novalidate>
+  {% csrf_token %}
+
+  <input type="hidden" name="cp_pk" value="{{ cp_pk|default:'' }}">
+
+  <!-- Orden -->
+  <div class="form-control mb-3">
+    <label class="label pb-1">
+      <span class="label-text font-medium">Orden</span>
+    </label>
+    <input type="number" name="orden" value="{{ cp_orden|default:0 }}" min="0"
+           class="input input-bordered w-24 font-mono">
+    <label class="label pt-0.5 pb-0">
+      <span class="label-text-alt opacity-60">Posición del paso dentro de este tipo de actividad (0 = primero).</span>
+    </label>
+  </div>
+
+  <!-- Nombre (slug) -->
+  <div class="form-control mb-3">
+    <label class="label pb-1">
+      <span class="label-text font-medium">Nombre (slug) <span class="text-error">*</span></span>
+    </label>
+    <input type="text" name="nombre" value="{{ form.nombre.value|default:'' }}"
+           class="input input-bordered w-full font-mono {% if form.nombre.errors %}input-error{% endif %}"
+           placeholder="ej. datos-generales, inspeccion-visual..." required>
+    {% for e in form.nombre.errors %}<p class="text-xs text-error mt-1">{{ e }}</p>{% endfor %}
+    <label class="label pt-0.5 pb-0">
+      <span class="label-text-alt opacity-60">Identificador único. Solo letras minúsculas, números y guiones.</span>
+    </label>
+  </div>
+
+  <!-- Título -->
+  <div class="form-control mb-3">
+    <label class="label pb-1">
+      <span class="label-text font-medium">Título <span class="text-error">*</span></span>
+    </label>
+    <input type="text" name="titulo" value="{{ form.titulo.value|default:'' }}"
+           class="input input-bordered w-full {% if form.titulo.errors %}input-error{% endif %}"
+           placeholder="ej. Datos Generales, Inspección Visual..." required>
+    {% for e in form.titulo.errors %}<p class="text-xs text-error mt-1">{{ e }}</p>{% endfor %}
+  </div>
+
+  <!-- Descripción -->
+  <div class="form-control mb-4">
+    <label class="label pb-1">
+      <span class="label-text font-medium">Descripción</span>
+    </label>
+    <textarea name="descripcion" class="textarea textarea-bordered w-full" rows="2"
+              placeholder="Descripción opcional...">{{ form.descripcion.value|default:'' }}</textarea>
+  </div>
+
+  <!-- Acciones -->
+  <div class="flex gap-2 justify-end mt-2">
+    <button type="button" class="btn btn-cancel btn-sm" onclick="this.closest('dialog').close()">
+      Cancelar
+    </button>
+    <button type="submit" class="btn btn-save btn-sm" id="paso-submit-btn">
+      <i class="fas fa-save mr-1"></i> Guardar
+    </button>
+  </div>
+</form>

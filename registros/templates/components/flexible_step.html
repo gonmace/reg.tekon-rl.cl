@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ elemento_config.title|default:elemento.tipo|title }} - {% if registro.sitio %}{{ registro.sitio.name }}{% else %}{{ registro.title }}{% endif %}{% endblock %}
+
+{% block pre_content %}{% endblock pre_content %}
+
+{% block content %}
+<div class="container mx-auto p-2 md:p-4 bg-base-100 rounded-lg shadow-lg">
+    
+    <!-- Título del paso -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">{{ elemento_config.title }}</h1>
+        {% if elemento_config.description %}
+            <p class="text-gray-600">{{ elemento_config.description }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Elementos del paso -->
+    <div class="space-y-8">
+        
+        <!-- Elemento de Formulario -->
+        {% if form %}
+        <div class="card bg-base-200 shadow-lg">
+            <div class="card-body">
+                <h3 class="card-title">
+                    {% if form.title %}{{ form.title }}{% else %}Formulario{% endif %}
+                    {% if form.is_required %}
+                        <span class="badge badge-error">Requerido</span>
+                    {% endif %}
+                </h3>
+                {% if form.description %}
+                    <p class="text-sm text-gray-600 mb-4">{{ form.description }}</p>
+                {% endif %}
+                
+                <div class="{{ form.css_classes|default:'form-container' }}">
+                    {% include 'components/elements/form_element.html' with form=form %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Elemento de Tabla -->
+        {% if table %}
+        <div class="card bg-base-200 shadow-lg">
+            <div class="card-body">
+                <h3 class="card-title">
+                    {{ table.title }}
+                    {% if table.is_required %}
+                        <span class="badge badge-error">Requerido</span>
+                    {% endif %}
+                </h3>
+                {% if table.description %}
+                    <p class="text-sm text-gray-600 mb-4">{{ table.description }}</p>
+                {% endif %}
+                
+                <div class="{{ table.css_classes|default:'table-container' }}">
+                    {% include 'components/elements/table_element.html' with table=table %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Elemento de Mapa -->
+        {% if map %}
+        <div class="card bg-base-200 shadow-lg">
+            <div class="card-body">
+                <h3 class="card-title">
+                    {{ map.title }}
+                    {% if map.is_required %}
+                        <span class="badge badge-error">Requerido</span>
+                    {% endif %}
+                </h3>
+                {% if map.description %}
+                    <p class="text-sm text-gray-600 mb-4">{{ map.description }}</p>
+                {% endif %}
+                
+                <div class="{{ map.css_classes|default:'mapa-container' }}">
+                    {% include 'components/elements/map_element.html' with map=map %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Elemento de Fotos -->
+        {% if photos %}
+        <div class="card bg-base-200 shadow-lg">
+            <div class="card-body">
+                <h3 class="card-title">
+                    {{ photos.title }}
+                    {% if photos.is_required %}
+                        <span class="badge badge-error">Requerido</span>
+                    {% endif %}
+                </h3>
+                {% if photos.description %}
+                    <p class="text-sm text-gray-600 mb-4">{{ photos.description }}</p>
+                {% endif %}
+                
+                <div class="{{ photos.css_classes|default:'fotos-container' }}">
+                    {% include 'components/elements/photos_element.html' with photos=photos %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Elemento de Información -->
+        {% if info %}
+        <div class="card bg-base-200 shadow-lg">
+            <div class="card-body">
+                {% include 'components/elements/info_element.html' with info=info %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Elemento Personalizado -->
+        {% if custom %}
+        <div class="card bg-base-200 shadow-lg">
+            <div class="card-body">
+                {% include 'components/elements/custom_element.html' with custom=custom %}
+            </div>
+        </div>
+        {% endif %}
+        
+    </div>
+    
+    <!-- Botones de navegación -->
+    <div class="flex justify-between mt-8">
+        <button type="button" class="btn btn-outline" onclick="history.back()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Anterior
+        </button>
+        
+        <button type="button" class="btn btn-primary" onclick="saveStep()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            Guardar y Continuar
+        </button>
+    </div>
+    
+</div>
+
+<script>
+function saveStep() {
+    // Obtener el formulario si existe
+    const form = document.querySelector('form');
+    if (form) {
+        form.submit();
+    } else {
+        // Si no hay formulario, solo navegar al siguiente paso
+        window.location.href = '{{ paso_config.next_url|default:"#" }}';
+    }
+}
+
+// Validación de completitud
+document.addEventListener('DOMContentLoaded', function() {
+    // Aquí puedes agregar validación JavaScript si es necesario
+    console.log('Paso flexible cargado');
+});
+</script>
+{% endblock %} 

@@ -1,0 +1,20 @@
+{% if tabla.headers and tabla.rows %}
+<table class="table table-centered">
+  <thead>
+    <tr>
+      {% for header in tabla.headers %}
+        <th>{{ header }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in tabla.rows %}
+      <tr>
+        {% for cell in row %}
+          <td>{{ cell }}</td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

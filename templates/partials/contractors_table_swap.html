@@ -1,0 +1,8 @@
+{% load django_tables2 %}
+{% render_table table %}
+<span id="contractors-counts" hx-swap-oob="true">
+  {% if contractor_counts %}
+    <span id="contractors-count-active" class="inline-flex items-center justify-center bg-success text-success-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1.5 align-middle">{{ contractor_counts.activos }}</span>
+    <span id="contractors-count-inactive" class="inline-flex items-center justify-center bg-error text-error-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle">{{ contractor_counts.inactivos }}</span>
+  {% endif %}
+</span>

@@ -1,0 +1,314 @@
+{% comment %}
+widgets/camera_widget.html
+Widget de carga y gestión de fotos con drag-and-drop.
+Al iniciar, consulta upload_url para cargar las fotos ya subidas.
+
+Nombre:
+  Camara / Fotos
+
+Tipo:
+  ajax
+
+Uso:
+  include 'widgets/camera_widget.html' with upload_url=widget.upload_url
+
+Parámetros:
+  foto_min — Número mínimo de fotos requeridas (ej: 4)
+
+Estados:
+  0 — Sin upload_url configurada, widget no operativo
+  1 — Sin fotos cargadas
+  2 — Fotos cargadas pero bajo el mínimo requerido
+  3 — Fotos suficientes o no hay mínimo definido
+{% endcomment %}
+{% with wid=upload_url|default:"preview"|slugify %}
+<div class="camera-widget bg-base-100 rounded-lg p-4 sombra"
+     data-upload-url="{{ upload_url }}"
+     data-foto-min="{{ foto_min|default:0 }}"
+     data-foto-count="{{ foto_count|default:0 }}">
+
+  <input type="file" id="cam-{{ wid }}" class="sr-only camera-file-input" accept="image/*" multiple>
+
+  <label for="cam-{{ wid }}" class="btn btn-success w-full mb-3 cursor-pointer">
+    <i class="fa-solid fa-images mr-2"></i> Seleccionar imágenes
+  </label>
+
+  <label for="cam-{{ wid }}"
+         class="camera-drop-zone hidden md:flex flex-col items-center justify-center
+                border-2 border-dashed border-base-content/20 rounded-lg p-6 mb-4
+                bg-base-200 cursor-pointer transition-colors duration-150">
+    <i class="fas fa-cloud-upload-alt text-3xl text-base-content/30 mb-2"></i>
+    <p class="text-sm text-base-content/50 mb-1">Arrastra imágenes aquí</p>
+    <p class="text-xs text-base-content/40">o toca para seleccionar</p>
+  </label>
+
+  <div class="camera-uploading hidden flex items-center gap-2 mb-2 text-sm text-base-content/60">
+    <span class="loading loading-spinner loading-xs"></span> Subiendo...
+  </div>
+
+  <div class="camera-preview grid grid-cols-2 md:grid-cols-3 gap-3 mt-2"></div>
+
+  <p class="text-sm text-center mt-3 text-base-content/60">
+    <span class="camera-count font-medium">{{ foto_count|default:0 }}</span> foto(s)
+    {% if foto_min %}
+      <span class="text-base-content/40"> · Mínimo: {{ foto_min }}</span>
+    {% endif %}
+  </p>
+</div>
+{% endwith %}
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Lightbox global (uno por página) ────────────────────────────────────────
+  var lightbox = (function () {
+    var overlay = document.createElement('div');
+    overlay.className = 'hidden fixed inset-0 bg-black/85 z-[9999] cursor-zoom-out items-center justify-center';
+    var img = document.createElement('img');
+    img.className = 'max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl object-contain';
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', close);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    function open(src) { img.src = src; overlay.classList.remove('hidden'); overlay.classList.add('flex'); }
+    function close() { overlay.classList.add('hidden'); overlay.classList.remove('flex'); img.src = ''; }
+    return { open: open };
+  })();
+
+  function initCameraWidget(widget) {
+    widget.dataset.initialized = 'true';
+
+    var uploadUrl     = widget.dataset.uploadUrl;
+    var listUrl       = uploadUrl ? uploadUrl.replace('/upload/', '/') : '';
+    var updateUrl     = uploadUrl ? uploadUrl.replace('/upload/', '/update/') : '';
+    var deleteBaseUrl = uploadUrl ? uploadUrl.replace('/upload/', '/delete/') : '';
+
+    var countEl   = widget.querySelector('.camera-count');
+    var previewEl = widget.querySelector('.camera-preview');
+    var count = parseInt(widget.dataset.fotoCount || '0', 10);
+
+    function getCsrf() {
+      var el = document.querySelector('[name=csrfmiddlewaretoken]');
+      return el ? el.value : '';
+    }
+
+    function buildCard(imgSrc, photoId) {
+      var card = document.createElement('div');
+      card.className = 'flex flex-col gap-1';
+      if (photoId) card.dataset.photoId = photoId;
+
+      var imgWrap = document.createElement('div');
+      imgWrap.className = 'relative';
+
+      var img = document.createElement('img');
+      img.src = imgSrc;
+      img.className = 'w-full aspect-square object-cover rounded-lg sombra cursor-zoom-in';
+      img.addEventListener('click', function () { lightbox.open(img.src); });
+
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'btn btn-error btn-circle btn-xs absolute top-1 right-1 shadow';
+      delBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+      delBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var pid = card.dataset.photoId;
+        if (pid && deleteBaseUrl) {
+          deletePhoto(pid, card);
+        } else {
+          card.remove();
+          count--;
+          countEl.textContent = count;
+          emitState();
+        }
+      });
+
+      imgWrap.appendChild(img);
+      imgWrap.appendChild(delBtn);
+
+      var exifDateEl = document.createElement('p');
+      exifDateEl.className = 'text-xs text-base-content/40 hidden px-0.5';
+
+      var exifCoordsEl = document.createElement('p');
+      exifCoordsEl.className = 'text-xs text-base-content/40 hidden px-0.5';
+
+      // Descripción — oculta durante la subida, aparece al completar
+      var descInput = document.createElement('input');
+      descInput.type = 'text';
+      descInput.className = 'input input-sm w-full hidden';
+      descInput.placeholder = 'Descripción...';
+      descInput.addEventListener('blur', function () {
+        var pid = card.dataset.photoId;
+        if (pid) saveDescription(pid, descInput.value);
+      });
+
+      card.appendChild(imgWrap);
+      card.appendChild(exifDateEl);
+      card.appendChild(exifCoordsEl);
+      card.appendChild(descInput);
+      previewEl.appendChild(card);
+      count++;
+      countEl.textContent = count;
+      return { card: card, img: img, imgWrap: imgWrap, descInput: descInput, exifDate: exifDateEl, exifCoords: exifCoordsEl };
+    }
+
+    function finalizeCard(parts, photo) {
+      parts.card.dataset.photoId = photo.id;
+      parts.img.src = photo.url;
+      parts.descInput.value = photo.descripcion || '';
+      parts.descInput.classList.remove('hidden');
+      var spinner = parts.imgWrap.querySelector('.camera-spinner');
+      if (spinner) spinner.remove();
+      if (photo.exif_datetime) {
+        parts.exifDate.textContent = photo.exif_datetime;
+        parts.exifDate.classList.remove('hidden');
+      }
+      if (photo.exif_lat != null && photo.exif_lon != null) {
+        parts.exifCoords.textContent = Number(photo.exif_lat).toFixed(6) + ', ' + Number(photo.exif_lon).toFixed(6);
+        parts.exifCoords.classList.remove('hidden');
+      }
+    }
+
+    function addPhotoCard(photo) {
+      var parts = buildCard(photo.url, photo.id);
+      finalizeCard(parts, photo);
+    }
+
+    function saveDescription(photoId, descripcion) {
+      if (!updateUrl) return;
+      fetch(updateUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+        body: JSON.stringify({ photo_id: photoId, descripcion: descripcion }),
+      }).catch(function () {});
+    }
+
+    function deletePhoto(photoId, cardEl) {
+      if (!deleteBaseUrl) return;
+      fetch(deleteBaseUrl + photoId + '/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrf() },
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (result) {
+        if (result.success) {
+          cardEl.remove();
+          count--;
+          countEl.textContent = count;
+          emitState();
+          if (window.Alert) window.Alert.success('Foto eliminada', { autoHide: 2000 });
+        } else {
+          if (window.Alert) window.Alert.error(result.message || 'Error al eliminar', { autoHide: 0, dismissible: true });
+        }
+      })
+      .catch(function () {
+        if (window.Alert) window.Alert.error('Error de conexión', { autoHide: 0, dismissible: true });
+      });
+    }
+
+    function upload(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+
+      // Thumbnail local inmediato
+      var localUrl = URL.createObjectURL(file);
+      var parts = buildCard(localUrl, null);
+
+      var spinner = document.createElement('div');
+      spinner.className = 'camera-spinner absolute inset-0 flex items-center justify-center bg-base-300/40 rounded';
+      spinner.innerHTML = '<span class="loading loading-spinner loading-sm"></span>';
+      parts.imgWrap.appendChild(spinner);
+
+      if (!uploadUrl) {
+        spinner.remove();
+        return;
+      }
+
+      var formData = new FormData();
+      formData.append('photos', file);
+      fetch(uploadUrl, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrf() },
+        body: formData,
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (result) {
+        if (result.success && result.photos && result.photos.length) {
+          URL.revokeObjectURL(localUrl);
+          finalizeCard(parts, result.photos[0]);
+          emitState();
+          if (window.Alert) window.Alert.success('Foto subida', { autoHide: 2000 });
+        } else {
+          parts.card.remove();
+          count--;
+          countEl.textContent = count;
+          URL.revokeObjectURL(localUrl);
+          emitState();
+          if (window.Alert) window.Alert.error(result.message || 'Error al subir la foto', { autoHide: 0, dismissible: true });
+        }
+      })
+      .catch(function () {
+        parts.card.remove();
+        count--;
+        countEl.textContent = count;
+        URL.revokeObjectURL(localUrl);
+        emitState();
+        if (window.Alert) window.Alert.error('Error de conexión', { autoHide: 0, dismissible: true });
+      });
+    }
+
+    widget.querySelector('.camera-file-input').addEventListener('change', function () {
+      var files = Array.from(this.files);
+      this.value = '';
+      files.forEach(function (f) { upload(f); });
+    });
+
+    var dropZone = widget.querySelector('.camera-drop-zone');
+    if (dropZone) {
+      dropZone.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        dropZone.classList.add('border-primary', 'bg-base-300');
+        dropZone.classList.remove('border-base-content/20', 'bg-base-200');
+      });
+      dropZone.addEventListener('dragleave', function () {
+        dropZone.classList.remove('border-primary', 'bg-base-300');
+        dropZone.classList.add('border-base-content/20', 'bg-base-200');
+      });
+      dropZone.addEventListener('drop', function (e) {
+        e.preventDefault();
+        dropZone.classList.remove('border-primary', 'bg-base-300');
+        dropZone.classList.add('border-base-content/20', 'bg-base-200');
+        Array.from(e.dataTransfer.files)
+          .filter(function (f) { return f.type.startsWith('image/'); })
+          .forEach(function (f) { upload(f); });
+      });
+    }
+
+    function emitState() {
+      var min = parseInt(widget.dataset.fotoMin || '0', 10);
+      var level = !uploadUrl ? 0 : count === 0 ? 1 : (min && count < min) ? 2 : 3;
+      window.parent.postMessage({ type: 'widget-state', level: level }, '*');
+    }
+
+    // Emitir estado inicial inmediato basado en count del servidor (sin esperar AJAX)
+    emitState();
+
+    if (listUrl) {
+      fetch(listUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (result) {
+          if (result) {
+            // Resetear count y repoblar desde servidor
+            count = 0;
+            countEl.textContent = count;
+            previewEl.innerHTML = '';
+            (result.photos || []).forEach(addPhotoCard);
+          }
+          emitState();
+        })
+        .catch(function () { emitState(); });
+    }
+  }
+
+  document.querySelectorAll('.camera-widget:not([data-initialized])').forEach(initCameraWidget);
+})();
+</script>

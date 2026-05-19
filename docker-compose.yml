@@ -1,0 +1,74 @@
+services:
+  construccion-db:
+    image: postgres:15-alpine
+    container_name: construccion_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    networks:
+      - construccion_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  construccion-dj:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: construccion_app
+    user: "1000:1000"
+    command: ./entrypoint.sh
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=construccion-db
+      - POSTGRES_PORT=5432
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    depends_on:
+      construccion-db:
+        condition: service_healthy
+    networks:
+      - construccion_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - ./staticfiles:/app/staticfiles
+      - ./media:/app/media
+      - ./logs:/app/logs
+
+volumes:
+  postgres_data:
+
+networks:
+  construccion_network:
+    driver: bridge

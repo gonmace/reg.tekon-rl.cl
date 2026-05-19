@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block css %}
+{% endblock css %}
+
+{% block title %}Activar Registro - {{ page_title|default:"Registro" }}{% endblock %}
+
+{% block pre_content %}{% endblock pre_content %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-2xl font-bold mb-6">
+                <i class="fa-solid fa-plus-circle text-primary"></i>
+                Activar Registro - {{ page_title|default:"Registro" }}
+            </h2>
+        
+        {% if messages %}
+        <div class="mb-4">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} mb-2">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            
+            <!-- Campos ocultos -->
+            {{ form.title }}
+            {{ form.description }}
+            
+            <div class="form-control">
+                <label for="{{ form.sitio.id_for_label }}" class="label">
+                    <span class="label-text font-semibold">
+                        <i class="fa-solid fa-map-marker-alt text-primary"></i>
+                        Sitio
+                    </span>
+                </label>
+                <select name="{{ form.sitio.name }}" id="{{ form.sitio.id_for_label }}" class="select select-bordered w-full focus:select-primary">
+                    <option value="">Seleccionar sitio...</option>
+                    {% for choice in form.sitio.field.queryset %}
+                        <option value="{{ choice.pk }}" {% if choice.pk == form.sitio.value %}selected{% endif %}>
+                            {{ choice.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                {% if form.sitio.errors %}
+                    <div class="text-error text-sm mt-1">
+                        {% for error in form.sitio.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-control mt-4">
+                <label for="{{ form.user.id_for_label }}" class="label">
+                    <span class="label-text font-semibold">
+                        <i class="fa-solid fa-user text-primary"></i>
+                        ITO
+                    </span>
+                </label>
+                <select name="{{ form.user.name }}" id="{{ form.user.id_for_label }}" class="select select-bordered w-full focus:select-primary">
+                    <option value="">Seleccionar ITO...</option>
+                    {% for choice in form.user.field.queryset %}
+                        <option value="{{ choice.pk }}" {% if choice.pk == form.user.value %}selected{% endif %}>
+                            {{ choice.username }}
+                        </option>
+                    {% endfor %}
+                </select>
+                {% if form.user.errors %}
+                    <div class="text-error text-sm mt-1">
+                        {% for error in form.user.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Campo estructura - solo se muestra si project=True -->
+            {% if project and form.estructura %}
+            <div class="form-control mt-4">
+                <label for="{{ form.estructura.id_for_label }}" class="label">
+                    <span class="label-text font-semibold">
+                        <i class="fa-solid fa-building text-primary"></i>
+                        Estructura
+                    </span>
+                </label>
+                <select name="{{ form.estructura.name }}" id="{{ form.estructura.id_for_label }}" class="select select-bordered w-full focus:select-primary">
+                    <option value="">Seleccionar estructura...</option>
+                    {% for choice in form.estructura.field.queryset %}
+                        <option value="{{ choice.pk }}" {% if choice.pk == form.estructura.value %}selected{% endif %}>
+                            {{ choice.nombre }}
+                        </option>
+                    {% endfor %}
+                </select>
+                {% if form.estructura.errors %}
+                    <div class="text-error text-sm mt-1">
+                        {% for error in form.estructura.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Campo fecha - siempre presente pero oculto cuando allow_multiple_per_site=False -->
+            <div class="form-control mt-4" {% if not allow_multiple_per_site %}style="display: none;"{% endif %}>
+                <label for="{{ form.fecha.id_for_label }}" class="label">
+                    <span class="label-text font-semibold">
+                        <i class="fa-solid fa-calendar text-primary"></i>
+                        Fecha
+                    </span>
+                </label>
+                <input type="date" 
+                       name="{{ form.fecha.name }}" 
+                       id="{{ form.fecha.id_for_label }}" 
+                       class="input input-bordered w-full focus:input-primary" 
+                       value="{{ form.fecha.value|date:'Y-m-d'|default:'' }}"
+                       {% if form.fecha.field.required %}required{% endif %}>
+                {% if form.fecha.errors %}
+                    <div class="text-error text-sm mt-1">
+                        {% for error in form.fecha.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Campo fecha oculto cuando allow_multiple_per_site=False -->
+            {% if not allow_multiple_per_site %}
+            <input type="hidden" 
+                   name="{{ form.fecha.name }}" 
+                   value="{{ form.fecha.value|date:'Y-m-d'|default:'' }}">
+            {% endif %}
+            
+            <div class="card-actions justify-end pt-6">
+                <a href="{% url app_namespace|add:':list' %}" class="btn btn-cancel">
+                    <i class="fa-solid fa-times"></i>
+                    Cancelar
+                </a>
+                <button type="submit" class="btn btn-save">
+                    <i class="fa-solid fa-check"></i>
+                    Activar Registro
+                </button>
+            </div>
+        </form>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+// Configuración para el JavaScript genérico
+window.isSuperuser = {{ user.is_superuser|yesno:"true,false" }};
+window.USUARIOS_URL = '{{ usuarios_url|default:"" }}';
+window.ACTIVAR_URL = '{{ activar_url|default:"" }}';
+
+document.addEventListener("DOMContentLoaded", function() {
+    console.log("Página de activación cargada");
+});
+</script>
+{% endblock extra_js %} 

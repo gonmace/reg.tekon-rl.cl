@@ -1,0 +1,362 @@
+{% comment %}
+widgets/imgs_desc_widget.html
+Widget de fotos con slots de descripción predefinidos.
+Permite subir varias fotos a la vez y luego asignar la descripción de cada slot.
+
+Nombre:
+  Imágenes con Descripciones
+
+Tipo:
+  ajax
+
+Uso:
+  include 'widgets/imgs_desc_widget.html' with upload_url=upload_url descripciones=descripciones
+
+Config:
+  descripciones — nombres de slots separados por coma (ej: Foto Frente, Foto Lateral)
+  label         — etiqueta del widget, default "Fotos"
+  foto_min      — fotos mínimas cuando no hay descripciones configuradas, default 0
+
+Estados:
+  0 — Sin descripciones y sin foto_min configurado
+  1 — Sin fotos cargadas
+  2 — Fotos/slots incompletos
+  3 — Fotos/slots requeridos completos
+{% endcomment %}
+{% load static %}
+
+{% with wid=upload_url|default:"preview"|slugify %}
+<div class="imgs-desc-widget bg-base-100 rounded-lg p-4 sombra"
+     data-upload-url="{{ upload_url }}"
+     data-foto-min="{{ foto_min|default:0 }}">
+
+  <!-- Descripciones disponibles (leídas por JS) -->
+  <script type="application/json" class="imd-descs-data">
+    [{% for d in descripciones %}"{{ d|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}]
+  </script>
+
+  <p class="font-semibold text-base-content/60 flex items-center gap-2 mb-3">
+    <i class="fa-solid fa-images text-primary"></i>
+    {{ label|default:"Fotos" }}
+  </p>
+
+  <!-- Upload -->
+  <input type="file" id="imd-{{ wid }}" class="sr-only imd-file-input" accept="image/*" multiple>
+  <label for="imd-{{ wid }}" class="btn btn-success w-full mb-3 cursor-pointer">
+    <i class="fa-solid fa-images mr-2"></i> Seleccionar imágenes
+  </label>
+
+  <label for="imd-{{ wid }}"
+         class="imd-drop-zone hidden md:flex flex-col items-center justify-center
+                border-2 border-dashed border-base-content/20 rounded-lg p-5 mb-4
+                bg-base-200 cursor-pointer transition-colors duration-150">
+    <i class="fas fa-cloud-upload-alt text-3xl text-base-content/30 mb-2"></i>
+    <p class="text-sm text-base-content/50">Arrastra imágenes aquí</p>
+    <p class="text-xs text-base-content/40">o toca para seleccionar</p>
+  </label>
+
+  <!-- Cards de fotos subidas -->
+  <div class="imd-preview grid grid-cols-2 md:grid-cols-3 gap-3 mb-4"></div>
+
+  <!-- Estado de slots -->
+  {% if descripciones %}
+  <div class="border-t border-base-200 pt-3">
+    <p class="text-xs font-semibold text-base-content/50 mb-2 uppercase tracking-wide">Slots</p>
+    <div class="imd-slots flex flex-wrap gap-1.5">
+      {% for desc in descripciones %}
+      <span class="imd-slot-badge badge badge-sm badge-error gap-1" data-desc="{{ desc }}">
+        <i class="fa-solid fa-xmark text-xs"></i>
+        {{ desc }}
+      </span>
+      {% endfor %}
+    </div>
+    <p class="text-xs text-center mt-2 text-base-content/50">
+      <span class="imd-count font-semibold">0</span> / {{ descripciones|length }} completados
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endwith %}
+
+<script>
+(function () {
+  'use strict';
+
+  var _lightbox = (function () {
+    var overlay = document.createElement('div');
+    overlay.className = 'hidden fixed inset-0 bg-black/85 z-[9999] cursor-zoom-out items-center justify-center';
+    var img = document.createElement('img');
+    img.className = 'max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl object-contain';
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function () { overlay.classList.add('hidden'); overlay.classList.remove('flex'); img.src = ''; });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { overlay.classList.add('hidden'); overlay.classList.remove('flex'); } });
+    return { open: function (src) { img.src = src; overlay.classList.remove('hidden'); overlay.classList.add('flex'); } };
+  })();
+
+  function getCsrf() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    return el ? el.value : '';
+  }
+
+  function initWidget(widget) {
+    widget.dataset.initialized = 'true';
+
+    var descsEl = widget.querySelector('.imd-descs-data');
+    var descs = [];
+    try { descs = JSON.parse(descsEl ? descsEl.textContent : '[]'); } catch (e) {}
+
+    var uploadUrl     = widget.dataset.uploadUrl;
+    var fotoMin       = parseInt(widget.dataset.fotoMin || '0', 10);
+    var listUrl       = uploadUrl ? uploadUrl.replace('/upload/', '/') : '';
+    var updateUrl     = uploadUrl ? uploadUrl.replace('/upload/', '/update/') : '';
+    var deleteBaseUrl = uploadUrl ? uploadUrl.replace('/upload/', '/delete/') : '';
+
+    var previewEl = widget.querySelector('.imd-preview');
+    var countEl   = widget.querySelector('.imd-count');
+
+    // ── Estado ────────────────────────────────────────────────────────────────
+    function updateStatus() {
+      var assigned = {};
+      previewEl.querySelectorAll('.imd-card').forEach(function (card) {
+        var sel = card.querySelector('.imd-desc-select');
+        if (sel && sel.value) assigned[sel.value] = true;
+      });
+
+      var filled = 0;
+      widget.querySelectorAll('.imd-slot-badge').forEach(function (badge) {
+        var desc = badge.dataset.desc;
+        var ok = !!assigned[desc];
+        if (ok) filled++;
+        badge.classList.toggle('badge-success', ok);
+        badge.classList.toggle('badge-error', !ok);
+        badge.querySelector('i').className = ok
+          ? 'fa-solid fa-check text-xs'
+          : 'fa-solid fa-xmark text-xs';
+      });
+
+      if (countEl) countEl.textContent = filled;
+      var total = descs.length;
+      var level;
+      if (!uploadUrl) {
+        level = 0;
+      } else if (total === 0) {
+        var photoCount = previewEl.querySelectorAll('.imd-card').length;
+        level = fotoMin === 0 ? 0 : photoCount === 0 ? 1 : photoCount < fotoMin ? 2 : 3;
+      } else {
+        level = filled === 0 ? 1 : filled < total ? 2 : 3;
+      }
+      window.parent.postMessage({ type: 'widget-state', level: level }, '*');
+    }
+
+    // ── Card ──────────────────────────────────────────────────────────────────
+    function buildCard(imgSrc, photoId, descripcion) {
+      var card = document.createElement('div');
+      card.className = 'imd-card flex flex-col gap-1';
+      if (photoId) card.dataset.photoId = photoId;
+
+      var imgWrap = document.createElement('div');
+      imgWrap.className = 'relative';
+
+      var img = document.createElement('img');
+      img.src = imgSrc;
+      img.className = 'w-full aspect-square object-cover rounded-lg sombra cursor-zoom-in';
+      img.addEventListener('click', function () { _lightbox.open(img.src); });
+
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'btn btn-error btn-circle btn-xs absolute top-1 right-1 shadow';
+      delBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+      delBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var pid = card.dataset.photoId;
+        if (pid && deleteBaseUrl) {
+          deletePhoto(pid, card);
+        } else {
+          card.remove();
+          updateStatus();
+        }
+      });
+
+      imgWrap.appendChild(img);
+      imgWrap.appendChild(delBtn);
+
+      var exifDateEl = document.createElement('p');
+      exifDateEl.className = 'text-xs text-base-content/40 hidden px-0.5';
+
+      var exifCoordsEl = document.createElement('p');
+      exifCoordsEl.className = 'text-xs text-base-content/40 hidden px-0.5';
+
+      // Input descripción con datalist — oculto durante la subida
+      var listId = 'imd-descs-' + Math.random().toString(36).slice(2);
+      var datalist = document.createElement('datalist');
+      datalist.id = listId;
+      descs.forEach(function (d) {
+        var opt = document.createElement('option');
+        opt.value = d;
+        datalist.appendChild(opt);
+      });
+
+      var descInput = document.createElement('input');
+      descInput.type = 'text';
+      descInput.className = 'imd-desc-select input input-sm w-full hidden';
+      descInput.placeholder = 'Descripción...';
+      descInput.setAttribute('list', listId);
+      descInput.value = descripcion || '';
+      descInput.addEventListener('change', function () {
+        var pid = card.dataset.photoId;
+        if (pid) saveDescription(pid, descInput.value);
+        updateStatus();
+      });
+      descInput.addEventListener('blur', function () {
+        var pid = card.dataset.photoId;
+        if (pid) saveDescription(pid, descInput.value);
+        updateStatus();
+      });
+
+      card.appendChild(datalist);
+      card.appendChild(imgWrap);
+      card.appendChild(exifDateEl);
+      card.appendChild(exifCoordsEl);
+      card.appendChild(descInput);
+      previewEl.appendChild(card);
+      return { card: card, img: img, imgWrap: imgWrap, select: descInput, exifDate: exifDateEl, exifCoords: exifCoordsEl };
+    }
+
+    function finalizeCard(parts, photo) {
+      parts.card.dataset.photoId = photo.id;
+      parts.img.src = photo.url;
+      if (photo.descripcion) parts.select.value = photo.descripcion;
+      parts.select.classList.remove('hidden');
+      var spinner = parts.imgWrap.querySelector('.imd-spinner');
+      if (spinner) spinner.remove();
+      if (photo.exif_datetime) {
+        parts.exifDate.textContent = photo.exif_datetime;
+        parts.exifDate.classList.remove('hidden');
+      }
+      if (photo.exif_lat != null && photo.exif_lon != null) {
+        parts.exifCoords.textContent = Number(photo.exif_lat).toFixed(6) + ', ' + Number(photo.exif_lon).toFixed(6);
+        parts.exifCoords.classList.remove('hidden');
+      }
+      updateStatus();
+    }
+
+    // ── Guardar descripción ───────────────────────────────────────────────────
+    function saveDescription(photoId, descripcion) {
+      if (!updateUrl) return;
+      fetch(updateUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+        body: JSON.stringify({ photo_id: photoId, descripcion: descripcion }),
+      }).catch(function () {});
+    }
+
+    // ── Eliminar ──────────────────────────────────────────────────────────────
+    function deletePhoto(photoId, card) {
+      fetch(deleteBaseUrl + photoId + '/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrf() },
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (result) {
+        if (result.success) {
+          card.remove();
+          updateStatus();
+          if (window.Alert) window.Alert.success('Foto eliminada', { autoHide: 2000 });
+        } else {
+          if (window.Alert) window.Alert.error(result.message || 'Error al eliminar', { autoHide: 0, dismissible: true });
+        }
+      })
+      .catch(function () {
+        if (window.Alert) window.Alert.error('Error de conexión', { autoHide: 0, dismissible: true });
+      });
+    }
+
+    // ── Subir ─────────────────────────────────────────────────────────────────
+    function upload(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      var localUrl = URL.createObjectURL(file);
+      var parts = buildCard(localUrl, null, '');
+
+      var spinner = document.createElement('div');
+      spinner.className = 'imd-spinner absolute inset-0 flex items-center justify-center bg-base-300/40 rounded-lg';
+      spinner.innerHTML = '<span class="loading loading-spinner loading-sm"></span>';
+      parts.imgWrap.appendChild(spinner);
+
+      if (!uploadUrl) { spinner.remove(); return; }
+
+      var fd = new FormData();
+      fd.append('photos', file);
+      fetch(uploadUrl, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrf() },
+        body: fd,
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (result) {
+        if (result.success && result.photos && result.photos.length) {
+          URL.revokeObjectURL(localUrl);
+          finalizeCard(parts, result.photos[0]);
+          if (window.Alert) window.Alert.success('Foto subida', { autoHide: 2000 });
+        } else {
+          parts.card.remove();
+          URL.revokeObjectURL(localUrl);
+          if (window.Alert) window.Alert.error(result.message || 'Error al subir', { autoHide: 0, dismissible: true });
+        }
+      })
+      .catch(function () {
+        parts.card.remove();
+        URL.revokeObjectURL(localUrl);
+        if (window.Alert) window.Alert.error('Error de conexión', { autoHide: 0, dismissible: true });
+      });
+    }
+
+    // ── Eventos ───────────────────────────────────────────────────────────────
+    widget.querySelector('.imd-file-input').addEventListener('change', function () {
+      var files = Array.from(this.files);
+      this.value = '';
+      files.forEach(function (f) { upload(f); });
+    });
+
+    var dropZone = widget.querySelector('.imd-drop-zone');
+    if (dropZone) {
+      dropZone.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        dropZone.classList.add('border-primary', 'bg-base-300');
+        dropZone.classList.remove('border-base-content/20', 'bg-base-200');
+      });
+      dropZone.addEventListener('dragleave', function () {
+        dropZone.classList.remove('border-primary', 'bg-base-300');
+        dropZone.classList.add('border-base-content/20', 'bg-base-200');
+      });
+      dropZone.addEventListener('drop', function (e) {
+        e.preventDefault();
+        dropZone.classList.remove('border-primary', 'bg-base-300');
+        dropZone.classList.add('border-base-content/20', 'bg-base-200');
+        Array.from(e.dataTransfer.files)
+          .filter(function (f) { return f.type.startsWith('image/'); })
+          .forEach(function (f) { upload(f); });
+      });
+    }
+
+    // ── Cargar fotos existentes ───────────────────────────────────────────────
+    updateStatus();
+    if (listUrl) {
+      fetch(listUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (result) {
+          if (!result) return;
+          (result.photos || []).forEach(function (photo) {
+            var parts = buildCard(photo.url, photo.id, photo.descripcion);
+            finalizeCard(parts, photo);
+          });
+          updateStatus();
+        })
+        .catch(function () { updateStatus(); });
+    }
+  }
+
+  document.querySelectorAll('.imgs-desc-widget:not([data-initialized])').forEach(initWidget);
+})();
+</script>

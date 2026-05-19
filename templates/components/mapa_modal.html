@@ -1,0 +1,484 @@
+{% load static %}
+
+<dialog id="map-modal" class="modal">
+    <div class="modal-box w-full sm:w-11/12 max-w-4xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-2 flex-shrink-0">
+            <h3 id="map-modal-title" class="font-bold text-lg">Mapa</h3>
+            <div class="flex gap-2">
+                <button id="save-map-btn" class="btn btn-sm btn-success" onclick="saveMapImage()">
+                    Confirmar imagen
+                </button>
+                <button class="btn btn-sm btn-circle btn-ghost" onclick="closeMapModal()">✕</button>
+            </div>
+        </div>
+        
+        <!-- Leyenda compacta -->
+        <div class="mb-2 text-xs text-base-content flex-shrink-0">
+            <div id="legend-container" class="flex gap-4 justify-center flex-wrap">
+                <!-- Los elementos de la leyenda se generarán dinámicamente -->
+            </div>
+        </div>
+        
+        <!-- Contenedor del mapa -->
+        <div id="map-container" class="w-full rounded-lg border border-base-300" style="aspect-ratio:1/1;"></div>
+    </div>
+  </dialog>
+  
+  <script src="{% static 'js/leaflet.js' %}"></script>
+  <link rel="stylesheet" href="{% static 'css/leaflet.css' %}">
+  
+  <script>
+  // Namespace para evitar conflictos de variables
+  window.MapManager = window.MapManager || {};
+  
+  // Inicializar variables solo si no existen
+  if (!window.MapManager.currentMap) {
+      window.MapManager.currentMap = null;
+      window.MapManager.coordinates = null;
+      window.MapManager.currentStepTitle = null;
+  }
+  
+  document.addEventListener('DOMContentLoaded', function() {
+      // Agregar event listeners para todos los botones de mapa
+      document.querySelectorAll('[id^="map-btn-"]').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+              // Verificar si el botón está deshabilitado
+              if (this.classList.contains('btn-disabled')) {
+                  console.log('Botón de mapa deshabilitado - no se pueden abrir mapas sin coordenadas válidas');
+                  return;
+              }
+              openMapModal(this);
+          });
+      });
+  });
+  
+  function openMapModal(btn) {
+      // Obtener todas las coordenadas disponibles (máximo 3)
+      const coordinates = [];
+      const mapType = btn.dataset.mapType || 'single';
+      
+      // Coordenada 1 (siempre requerida)
+      const coord1Lat = btn.dataset.coord1Lat ? parseFloat(btn.dataset.coord1Lat) : null;
+      const coord1Lon = btn.dataset.coord1Lon ? parseFloat(btn.dataset.coord1Lon) : null;
+      const coord1Label = btn.dataset.coord1Label || 'Punto 1';
+      const coord1Color = btn.dataset.coord1Color || '#F59E0B';  // Color por defecto del modelo principal
+      const coord1Size = btn.dataset.coord1Size || 'mid';
+      
+      if (coord1Lat && coord1Lon && !isNaN(coord1Lat) && !isNaN(coord1Lon)) {
+          coordinates.push({
+              lat: coord1Lat,
+              lon: coord1Lon,
+              label: coord1Label,
+              color: coord1Color,
+              size: coord1Size
+          });
+      }
+      
+      // Coordenada 2 (opcional)
+      const coord2Lat = btn.dataset.coord2Lat ? parseFloat(btn.dataset.coord2Lat) : null;
+      const coord2Lon = btn.dataset.coord2Lon ? parseFloat(btn.dataset.coord2Lon) : null;
+      const coord2Label = btn.dataset.coord2Label || 'Punto 2';
+      const coord2Color = btn.dataset.coord2Color || '#3B82F6';  // Color por defecto del segundo modelo
+      const coord2Size = btn.dataset.coord2Size || 'normal';
+      
+      if (coord2Lat && coord2Lon && !isNaN(coord2Lat) && !isNaN(coord2Lon)) {
+          coordinates.push({
+              lat: coord2Lat,
+              lon: coord2Lon,
+              label: coord2Label,
+              color: coord2Color,
+              size: coord2Size
+          });
+      }
+      
+      // Coordenada 3 (opcional)
+      const coord3Lat = btn.dataset.coord3Lat ? parseFloat(btn.dataset.coord3Lat) : null;
+      const coord3Lon = btn.dataset.coord3Lon ? parseFloat(btn.dataset.coord3Lon) : null;
+      const coord3Label = btn.dataset.coord3Label || 'Punto 3';
+      const coord3Color = btn.dataset.coord3Color || '#10B981';  // Color verde para el tercer punto
+      const coord3Size = btn.dataset.coord3Size || 'normal';
+      
+      if (coord3Lat && coord3Lon && !isNaN(coord3Lat) && !isNaN(coord3Lon)) {
+          coordinates.push({
+              lat: coord3Lat,
+              lon: coord3Lon,
+              label: coord3Label,
+              color: coord3Color,
+              size: coord3Size
+          });
+      }
+      
+      const stepTitle = btn.dataset.stepTitle || 'Paso';
+      
+      // Verificar que al menos una coordenada sea válida
+      if (coordinates.length === 0) {
+          alert('Error: No se pudieron obtener coordenadas válidas para mostrar el mapa.');
+          return;
+      }
+      
+      // Determinar el tipo de mapa basado en el número de coordenadas
+      const actualMapType = coordinates.length === 1 ? 'single' : 'multi';
+      
+      console.log(`Mostrando mapa ${actualMapType} con ${coordinates.length} punto(s):`, coordinates.map(c => c.label).join(', '));
+      
+      // Actualizar el título del modal
+      document.getElementById('map-modal-title').textContent = `Mapa de ${stepTitle}`;
+      
+      // Generar leyenda dinámicamente
+      const legendContainer = document.getElementById('legend-container');
+      legendContainer.innerHTML = '';
+      
+      coordinates.forEach((coord, index) => {
+          const legendItem = document.createElement('div');
+          legendItem.className = 'flex items-center gap-1';
+          
+          const marker = document.createElement('div');
+          marker.className = 'w-4 h-4 rounded-full border border-white shadow-sm flex items-center justify-center text-white font-bold text-xs';
+          marker.style.backgroundColor = coord.color;
+          marker.textContent = coord.label.charAt(0).toUpperCase();
+          
+          const label = document.createElement('span');
+          label.textContent = coord.label;
+          
+          legendItem.appendChild(marker);
+          legendItem.appendChild(label);
+          legendContainer.appendChild(legendItem);
+      });
+      
+      const modal = document.getElementById('map-modal');
+      modal.showModal();
+      
+      // Inicializar el mapa después de que el modal esté visible
+      setTimeout(() => {
+          initMap(coordinates, stepTitle, actualMapType);
+      }, 100);
+  }
+  
+  function closeMapModal() {
+      const modal = document.getElementById('map-modal');
+      modal.close();
+      
+      // Limpiar el mapa cuando se cierre el modal
+      if (window.MapManager.currentMap) {
+          window.MapManager.currentMap.remove();
+          window.MapManager.currentMap = null;
+      }
+  }
+  
+  function initMap(coordinates, stepTitle, mapType) {
+      // Verificar si Leaflet ya está cargado
+      if (typeof L === 'undefined') {
+          // Cargar Leaflet dinámicamente
+          loadLeaflet().then(() => {
+              createMap(coordinates, stepTitle, mapType);
+          });
+      } else {
+          createMap(coordinates, stepTitle, mapType);
+      }
+  }
+  
+  function loadLeaflet() {
+      return new Promise((resolve, reject) => {
+          // Cargar CSS de Leaflet
+          if (!document.querySelector('link[href*="leaflet.css"]')) {
+              const link = document.createElement('link');
+              link.rel = 'stylesheet';
+              link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+              link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+              link.crossOrigin = '';
+              document.head.appendChild(link);
+          }
+          
+          // Cargar JavaScript de Leaflet
+          if (typeof L === 'undefined') {
+              const script = document.createElement('script');
+              script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+              script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+              script.crossOrigin = '';
+              script.onload = resolve;
+              script.onerror = reject;
+              document.head.appendChild(script);
+          } else {
+              resolve();
+          }
+      });
+  }
+  
+  function createMap(coordinates, stepTitle, mapType) {
+      const mapContainer = document.getElementById('map-container');
+      
+      // Destruir el mapa anterior si existe
+      if (window.MapManager.currentMap) {
+          window.MapManager.currentMap.remove();
+          window.MapManager.currentMap = null;
+      }
+      
+      // Limpiar el contenedor
+      mapContainer.innerHTML = '';
+      
+      // Guardar las coordenadas actuales para usar en saveMapImage
+      window.MapManager.coordinates = coordinates;
+      window.MapManager.currentStepTitle = stepTitle;
+      window.MapManager.mapType = mapType;
+      
+      // Calcular el centro del mapa
+      let centerLat, centerLon;
+      if (coordinates.length === 1) {
+          // Solo un punto
+          centerLat = coordinates[0].lat;
+          centerLon = coordinates[0].lon;
+      } else {
+          // Múltiples puntos - calcular centro promedio
+          const totalLat = coordinates.reduce((sum, coord) => sum + coord.lat, 0);
+          const totalLon = coordinates.reduce((sum, coord) => sum + coord.lon, 0);
+          centerLat = totalLat / coordinates.length;
+          centerLon = totalLon / coordinates.length;
+      }
+      
+      // Determinar zoom inicial según el número de coordenadas
+      let initialZoom = 15;
+      if (coordinates.length === 1) {
+          initialZoom = 20; // Zoom máximo para un solo punto
+      } else if (coordinates.length === 2) {
+          initialZoom = 14; // Zoom medio para dos puntos
+      } else if (coordinates.length === 3) {
+          initialZoom = 13; // Zoom más amplio para tres puntos
+      }
+      
+      // Crear el mapa
+      window.MapManager.currentMap = L.map('map-container', {
+          zoomControl: false,
+      }).setView([centerLat, centerLon], initialZoom);
+      
+      // Agregar capa de OpenStreetMap
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+      }).addTo(window.MapManager.currentMap);
+  
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution: '© Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+      }).addTo(window.MapManager.currentMap);
+      
+      // Función para obtener dimensiones según el tamaño (+30% vs. valores originales)
+      function getMarkerDimensions(size) {
+          const sizes = {
+              'tiny':   { width: 16,  height: 16,  border: 1 },
+              'small':  { width: 21,  height: 21,  border: 2 },
+              'normal': { width: 26,  height: 26,  border: 3 },
+              'mid':    { width: 26,  height: 26,  border: 3 },
+              'large':  { width: 31,  height: 31,  border: 4 },
+              'xlarge': { width: 36,  height: 36,  border: 4 }
+          };
+          return sizes[size] || sizes.normal;
+      }
+      
+      // Crear y agregar marcadores para todas las coordenadas
+      const bounds = L.latLngBounds();
+      
+      coordinates.forEach((coord, index) => {
+          const dimensions = getMarkerDimensions(coord.size);
+          const letter = coord.label.charAt(0).toUpperCase();
+          
+          const icon = L.divIcon({
+              className: 'custom-marker',
+              html: `<div style="background-color: ${coord.color}; width: ${dimensions.width}px; height: ${dimensions.height}px; border-radius: 50%; border: ${dimensions.border}px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: ${dimensions.width * 0.6}px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">${letter}</div>`,
+              iconSize: [dimensions.width, dimensions.height],
+              iconAnchor: [dimensions.width / 2, dimensions.height / 2]
+          });
+          
+          const marker = L.marker([coord.lat, coord.lon], { icon: icon }).addTo(window.MapManager.currentMap);
+          marker.bindPopup(`
+              <div class="text-center">
+                  <strong>${coord.label}</strong><br>
+                  Lat: ${coord.lat.toFixed(6)}<br>
+                  Lon: ${coord.lon.toFixed(6)}
+              </div>
+          `);
+          
+          // Agregar al bounds para ajustar el zoom
+          bounds.extend([coord.lat, coord.lon]);
+      });
+      
+      // Dibujar líneas entre puntos consecutivos solo para mapas multi-punto
+      if (coordinates.length > 1) {
+          const lineCoords = coordinates.map(coord => [coord.lat, coord.lon]);
+          const line = L.polyline(lineCoords, {
+              color: '#6B7280',
+              weight: 3,
+              opacity: 0.7,
+              dashArray: '10, 5'
+          }).addTo(window.MapManager.currentMap);
+          
+          // Ajustar el zoom para mostrar todos los puntos
+          window.MapManager.currentMap.fitBounds(bounds, { padding: [20, 20] });
+      } else {
+          // Para mapas de un solo punto, usar zoom fijo
+          window.MapManager.currentMap.setView([centerLat, centerLon], initialZoom);
+      }
+      
+      // Agregar controles
+      L.control.zoom({ position: 'bottomright' }).addTo(window.MapManager.currentMap);
+      L.control.scale({ position: 'bottomleft' }).addTo(window.MapManager.currentMap);
+  }
+  
+  // Función para guardar la imagen del mapa usando la API de Google Maps
+  function saveMapImage() {
+      // Verificar que tenemos coordenadas
+      if (!window.MapManager.coordinates || window.MapManager.coordinates.length === 0) {
+          alert('Error: No se pudieron obtener las coordenadas del mapa actual.');
+          return;
+      }
+      
+      // Mostrar indicador de carga
+      const saveBtn = document.getElementById('save-map-btn');
+      const originalText = saveBtn.innerHTML;
+      saveBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Generando imagen...';
+      saveBtn.disabled = true;
+      
+      // Calcular zoom óptimo según el número de puntos
+      let optimalZoom;
+      
+      if (window.MapManager.coordinates.length === 1) {
+          // Solo un punto - zoom fijo para mejor visualización
+          optimalZoom = 20;
+          console.log('Solo un punto - Zoom fijo:', optimalZoom);
+      } else {
+          // Múltiples puntos - calcular la distancia máxima entre puntos
+          let maxDiff = 0;
+          const coords = window.MapManager.coordinates;
+          
+          for (let i = 0; i < coords.length; i++) {
+              for (let j = i + 1; j < coords.length; j++) {
+                  const latDiff = Math.abs(coords[i].lat - coords[j].lat);
+                  const lonDiff = Math.abs(coords[i].lon - coords[j].lon);
+                  const diff = Math.max(latDiff, lonDiff);
+                  maxDiff = Math.max(maxDiff, diff);
+              }
+          }
+          
+          // Calcular zoom óptimo basado en la distancia máxima
+          if (maxDiff < 0.00001) {  // Extremadamente cerca (menos de ~1 metro)
+              optimalZoom = 20;  // Zoom máximo
+          } else if (maxDiff < 0.0001) {  // Muy cerca (menos de ~10 metros)
+              optimalZoom = 20;  // Zoom máximo
+          } else if (maxDiff < 0.0005) {  // Cerca (menos de ~50 metros)
+              optimalZoom = 19;  // Zoom muy alto
+          } else if (maxDiff < 0.001) {   // Cerca (menos de ~100 metros)
+              optimalZoom = 18;  // Zoom alto
+          } else if (maxDiff < 0.005) {   // Moderado (menos de ~500 metros)
+              optimalZoom = 17;  // Zoom alto-medio
+          } else if (maxDiff < 0.01) {    // Moderado (menos de ~1 km)
+              optimalZoom = 16;  // Zoom medio-alto
+          } else if (maxDiff < 0.05) {    // Lejos (menos de ~5 km)
+              optimalZoom = 15;  // Zoom medio
+          } else if (maxDiff < 0.1) {     // Lejos (menos de ~10 km)
+              optimalZoom = 14;  // Zoom medio-bajo
+          } else {                        // Muy lejos (más de 10 km)
+              optimalZoom = 13;  // Zoom bajo pero visible
+          }
+          
+          console.log('Distancia máxima entre puntos:', maxDiff, 'Zoom calculado:', optimalZoom);
+      }
+    
+      // Obtener el botón actual del mapa
+      const currentMapBtn = document.querySelector(`[id^="map-btn-"][data-step-title="${window.MapManager.currentStepTitle}"]`);
+  
+      // Preparar los datos para la API
+      const requestData = {
+          registro_id: currentMapBtn.dataset.siteRegistro,  // ID del registro actual
+          etapa: currentMapBtn.dataset.etapa,  // Etapa del mapa
+          coordenada_1: {
+              lat: window.MapManager.coordinates[0].lat,
+              lon: window.MapManager.coordinates[0].lon,
+              label: window.MapManager.coordinates[0].label.charAt(0).toUpperCase(),
+              color: window.MapManager.coordinates[0].color,
+              size: window.MapManager.coordinates[0].size
+          },
+      };
+      
+      // Agregar coordenadas adicionales si existen
+      for (let i = 1; i < window.MapManager.coordinates.length; i++) {
+          const coord = window.MapManager.coordinates[i];
+          requestData[`coordenada_${i + 1}`] = {
+              lat: coord.lat,
+              lon: coord.lon,
+              label: coord.label.charAt(0).toUpperCase(),
+              color: coord.color,
+              size: coord.size
+          };
+      }
+      
+      // Agregar configuración del mapa
+      requestData.zoom = optimalZoom;  // Zoom calculado según el número de puntos
+      requestData.maptype = 'hybrid';
+      requestData.scale = 2;
+      requestData.tamano = '640x640';  // Formato rectangular panorámico para mejor visualización
+      
+      // Obtener el token CSRF del meta tag
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      
+      if (!csrfToken) {
+          alert('Error: No se pudo obtener el token de seguridad. Por favor, recarga la página.');
+          saveBtn.innerHTML = originalText;
+          saveBtn.disabled = false;
+          return;
+      }
+      
+      // Hacer la llamada a la API
+      console.log('Enviando datos a la API:', requestData);
+      console.log('URL de la API:', '/api/v1/google-maps/');
+      console.log('CSRF Token:', csrfToken);
+      
+      fetch('/api/v1/google-maps/', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': csrfToken
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify(requestData)
+      })
+      .then(response => {
+          console.log('Respuesta de la API:', response);
+          console.log('Status:', response.status);
+          console.log('Status Text:', response.statusText);
+          
+          if (!response.ok) {
+              return response.text().then(text => {
+                  console.log('Error response body:', text);
+                  throw new Error(`HTTP error! status: ${response.status} - ${text}`);
+              });
+          }
+          return response.json();
+      })
+      .then(data => {
+          if (data.success) {
+              // Cambiar el widget del mapa a verde inmediatamente
+              if (currentMapBtn) {
+                  currentMapBtn.classList.remove(
+                      'btn-paso-rojo', 'btn-paso-amarillo', 'btn-paso-ghost',
+                      'btn-error', 'btn-warning'
+                  );
+                  currentMapBtn.classList.add('btn-paso-verde');
+                  const label = currentMapBtn.querySelector('.map-btn-label');
+                  if (label) label.textContent = 'Imagen guardada';
+              }
+              // Cerrar el modal
+              closeMapModal();
+          } else {
+              throw new Error(data.error || 'Error desconocido al generar la imagen');
+          }
+      })
+      .catch(error => {
+          console.error('Error al generar la imagen:', error);
+          alert('Error al generar la imagen del mapa: ' + error.message);
+      })
+      .finally(() => {
+          // Restaurar el botón
+          saveBtn.innerHTML = originalText;
+          saveBtn.disabled = false;
+      });
+  }
+  
+  </script>

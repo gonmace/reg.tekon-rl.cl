@@ -1,0 +1,23 @@
+{% comment %}
+Renderiza un widget individual en formato PDF.
+Variables esperadas: widget (dict con slug, nombre, display)
+{% endcomment %}
+{% with display=widget.display %}
+{% if widget.slug == "comentario_widget" %}
+  {% include "reportes_txtss/partials/widgets/comentario_widget.html" %}
+{% elif widget.slug == "ubicacion_widget" %}
+  {% include "reportes_txtss/partials/widgets/ubicacion_widget.html" %}
+{% elif widget.slug == "mapa_1p" %}
+  {% include "reportes_txtss/partials/widgets/mapa_1p.html" %}
+{% elif widget.slug == "distancia_widget" %}
+  {% include "reportes_txtss/partials/widgets/distancia_widget.html" %}
+{% elif widget.slug == "camera_widget" %}
+  {% include "reportes_txtss/partials/widgets/camera_widget.html" %}
+{% elif widget.slug == "imgs_desc_widget" %}
+  {% include "reportes_txtss/partials/widgets/imgs_desc_widget.html" %}
+{% elif widget.slug == "poste_form_widget" %}
+  {% include "reportes_txtss/partials/widgets/poste_form_widget.html" %}
+{% elif widget.slug == "mapa_2_puntos" %}
+  {% include "reportes_txtss/partials/widgets/mapa_2_puntos.html" %}
+{% endif %}
+{% endwith %}

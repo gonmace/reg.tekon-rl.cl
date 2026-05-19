@@ -1,0 +1,26 @@
+<table class="table table-centered">
+  <thead>
+    <tr>
+      {% for header in tabla.headers %}
+        {% if forloop.first %}
+          <th style="text-align: left;">{{ header }}</th>
+        {% else %}
+          <th style="text-align: center;">{{ header }}</th>
+        {% endif %}
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in tabla.rows %}
+      <tr>
+        {% for cell in row %}
+          {% if forloop.first %}
+            <td style="text-align: left;">{{ cell }}</td>
+          {% else %}
+            <td style="text-align: center;">{{ cell }}</td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+    {% endfor %}
+  </tbody>
+</table> 

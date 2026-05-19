@@ -1,0 +1,96 @@
+<div class="table-element">
+    {% if model_class %}
+        <div class="overflow-x-auto">
+            <table class="table table-zebra w-full">
+                <thead>
+                    <tr>
+                        {% for column in columns %}
+                            <th>{{ column.title }}</th>
+                        {% endfor %}
+                        {% if allow_edit or allow_delete %}
+                            <th>Acciones</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody id="table-body-{{ model_class|lower }}">
+                    <!-- Los datos se cargarán dinámicamente -->
+                </tbody>
+            </table>
+        </div>
+        
+        {% if allow_create %}
+            <div class="mt-4">
+                <button type="button" class="btn btn-add" onclick="openCreateModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Agregar {{ title|lower }}
+                </button>
+            </div>
+        {% endif %}
+        
+        <!-- Modal para crear/editar -->
+        <div id="table-modal" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-lg" id="modal-title">Agregar {{ title|lower }}</h3>
+                <form id="table-form">
+                    {% for column in columns %}
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">{{ column.title }}</span>
+                                {% if column.required %}
+                                    <span class="label-text-alt text-error">*</span>
+                                {% endif %}
+                            </label>
+                            {% if column.type == 'textarea' %}
+                                <textarea name="{{ column.name }}" class="textarea textarea-bordered" 
+                                          {% if column.required %}required{% endif %}></textarea>
+                            {% elif column.type == 'number' %}
+                                <input type="number" name="{{ column.name }}" class="input input-bordered"
+                                       {% if column.required %}required{% endif %}>
+                            {% else %}
+                                <input type="text" name="{{ column.name }}" class="input input-bordered"
+                                       {% if column.required %}required{% endif %}>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                    <div class="modal-action">
+                        <button type="button" class="btn" onclick="closeModal()">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+    {% else %}
+        <div class="alert alert-warning">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <span>No hay modelo configurado para esta tabla.</span>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Funciones para manejar la tabla
+function openCreateModal() {
+    document.getElementById('modal-title').textContent = 'Agregar {{ title|lower }}';
+    document.getElementById('table-form').reset();
+    document.getElementById('table-modal').classList.add('modal-open');
+}
+
+function closeModal() {
+    document.getElementById('table-modal').classList.remove('modal-open');
+}
+
+function loadTableData() {
+    // Aquí cargarías los datos de la tabla desde el servidor
+    console.log('Cargando datos de la tabla...');
+}
+
+// Cargar datos al inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadTableData();
+});
+</script> 

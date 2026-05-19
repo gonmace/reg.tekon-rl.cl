@@ -1,0 +1,24 @@
+{% if fotos %}
+<table class="fotos-tabla">
+  {% for foto in fotos %}
+  {% if forloop.counter0|divisibleby:2 %}<tr class="foto-row">{% endif %}
+  <td class="foto-td">
+    <div class="foto-card">
+      <div class="foto-img-wrap">
+        <img src="{{ foto.url }}" alt="{{ foto.descripcion|default:'-' }}">
+      </div>
+      {% if foto.exif_datetime or foto.exif_lat %}
+      <p class="foto-exif">
+        {% if foto.exif_datetime %}{{ foto.exif_datetime }}{% endif %}
+        {% if foto.exif_datetime and foto.exif_lat %} · {% endif %}
+        {% if foto.exif_lat %}{{ foto.exif_lat }}, {{ foto.exif_lon }}{% endif %}
+      </p>
+      {% endif %}
+      {% if foto.descripcion %}<p class="foto-caption">{{ foto.descripcion }}</p>{% endif %}
+    </div>
+  </td>
+  {% if forloop.counter|divisibleby:2 %}</tr>{% endif %}
+  {% if forloop.last and not forloop.counter|divisibleby:2 %}<td></td></tr>{% endif %}
+  {% endfor %}
+</table>
+{% endif %}

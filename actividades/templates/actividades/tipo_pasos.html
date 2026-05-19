@@ -1,0 +1,304 @@
+{% extends 'base.html' %}
+{% load static actividades_tags %}
+
+{% block title %}Pasos — {{ tipo.nombre }}{% endblock %}
+
+{% block content %}
+<div class="p-2 md:p-4 flex flex-col gap-4">
+
+  {# ── Pasos asignados ───────────────────────────────────────────── #}
+  <div class="flex-1 min-w-0">
+    <div class="table-card">
+
+      <div class="table-card-header">
+        <div>
+          <h2 class="table-card-title">
+            <i class="fa-solid fa-list-ol mr-2 opacity-60"></i>{{ tipo.nombre }}
+            {% with total=config_pasos.count %}
+              {% if total %}
+                <span class="inline-flex items-center justify-center bg-neutral text-neutral-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle">{{ total }}</span>
+              {% endif %}
+            {% endwith %}
+          </h2>
+          <p class="table-card-subtitle">
+            <a href="{{ back_url }}" class="link link-hover opacity-60">
+              ← {{ back_label }}
+            </a>
+            &nbsp;· Pasos
+          </p>
+        </div>
+        <div class="flex gap-1">
+          <a href="{% url 'actividades:tipo_pasos_exportar' tipo.pk %}" class="btn btn-sm btn-ghost gap-1" title="Exportar pasos a Excel">
+            <i class="fa-solid fa-file-excel"></i> Exportar
+          </a>
+          <button type="button" id="tp-import-btn" class="btn btn-sm btn-ghost gap-1" title="Importar pasos desde Excel">
+            <i class="fa-solid fa-upload"></i> Importar
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="table w-full">
+          <thead>
+            <tr>
+              <th class="text-center w-16">Orden</th>
+              <th>Título</th>
+              <th class="font-mono text-sm">Slug</th>
+              <th>Widgets</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="pasos-tbody">
+            {% for cp in config_pasos %}
+            {% with widgets=cp.pasodef.paso_widgets.all %}
+            <tr class="pt-2">
+              <td class="text-center py-1 md:px-4">
+                <span class="badge badge-sm badge-ghost font-mono">{{ cp.orden }}</span>
+              </td>
+              <td class="py-1 md:px-4 font-medium">{{ cp.pasodef.titulo }}</td>
+              <td class="py-1 md:px-4 font-mono text-sm opacity-60">{{ cp.pasodef.nombre }}</td>
+              <td class="py-1 md:px-4">
+                <div class="flex flex-wrap gap-1">
+                  {% for pw in widgets %}
+                    {% with ic=widget_icon_map|dict_get:pw.widget_slug %}
+                    <span class="badge badge-sm badge-primary gap-1 font-mono">
+                      <i class="{{ ic }} text-xs"></i>{{ pw.widget_slug }}
+                    </span>
+                    {% endwith %}
+                  {% empty %}
+                    <span class="text-xs text-base-content/30 italic">—</span>
+                  {% endfor %}
+                </div>
+              </td>
+              <td class="text-center py-1 md:px-4">
+                <div class="flex gap-1 justify-center">
+                  <button type="button"
+                          class="btn btn-xs btn-ghost tp-widget-btn"
+                          data-paso-id="{{ cp.pasodef.pk }}"
+                          data-paso-titulo="{{ cp.pasodef.titulo }}"
+                          data-current-widgets="{% for pw in widgets %}{{ pw.widget_slug }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                          title="Asignar widgets">
+                    {% if widgets %}
+                      {% with ic=widget_icon_map|dict_get:widgets.0.widget_slug %}
+                      <i class="{{ ic }}"></i>
+                      {% endwith %}
+                    {% else %}
+                      <i class="fa-solid fa-puzzle-piece opacity-40"></i>
+                    {% endif %}
+                  </button>
+                  <button type="button"
+                          class="btn btn-xs btn-ghost tp-edit-btn"
+                          data-id="{{ cp.pasodef.pk }}"
+                          data-titulo="{{ cp.pasodef.titulo }}"
+                          data-cp-id="{{ cp.pk }}"
+                          data-cp-orden="{{ cp.orden }}"
+                          title="Editar paso">
+                    <i class="fas fa-edit text-edit"></i>
+                  </button>
+                  <button type="button"
+                          class="btn btn-xs btn-ghost text-error tp-remove-btn"
+                          data-id="{{ cp.pk }}"
+                          data-titulo="{{ cp.pasodef.titulo }}"
+                          title="Eliminar paso">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endwith %}
+            {% empty %}
+            <tr id="empty-row">
+              <td colspan="5" class="text-center py-8 opacity-40">
+                <i class="fa-solid fa-list-ol text-3xl mb-2 block"></i>
+                <p class="text-sm">Sin pasos — agregá el primero abajo</p>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── Nuevo Paso ────────────────────────────────────────────────── #}
+  <div class="w-full">
+    <div class="table-card">
+      <div class="table-card-header">
+        <h2 class="table-card-title text-sm">
+          <i class="fa-solid fa-plus mr-2 opacity-60"></i>Nuevo Paso
+        </h2>
+      </div>
+      <div class="p-4">
+        <form id="new-paso-form" class="flex flex-col sm:flex-row gap-3 items-end" novalidate>
+          {% csrf_token %}
+          <div class="form-control w-24 flex-none">
+            <label class="label pb-1">
+              <span class="label-text text-xs font-medium">Orden</span>
+            </label>
+            <input type="number" name="orden" id="np-orden"
+                   value="{{ next_orden }}"
+                   class="input input-bordered input-sm w-full" min="0">
+          </div>
+          <div class="form-control flex-1">
+            <label class="label pb-1">
+              <span class="label-text text-xs font-medium">Paso <span class="text-error">*</span></span>
+            </label>
+            <input type="text" name="titulo" id="np-titulo"
+                   class="input input-bordered input-sm w-full"
+                   placeholder="ej. Datos Generales, Inspección Visual...">
+          </div>
+          <div class="form-control flex-1">
+            <label class="label pb-1">
+              <span class="label-text text-xs font-medium">Slug <span class="text-error">*</span></span>
+              <span class="label-text-alt opacity-50 text-xs">letras-y-guiones</span>
+            </label>
+            <input type="text" name="nombre" id="np-nombre"
+                   class="input input-bordered input-sm w-full font-mono"
+                   placeholder="ej. datos-generales">
+          </div>
+          <div class="flex-none pb-0.5">
+            <button type="submit" id="np-submit-btn" class="btn btn-add btn-sm gap-1">
+              <i class="fa-solid fa-plus"></i> Agregar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_modals %}
+<dialog id="tp-edit-modal" class="modal">
+  <div class="modal-box w-full sm:w-11/12 max-w-lg">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+    </form>
+    <h3 id="tp-edit-modal-title" class="font-bold text-lg mb-4">Editar Paso</h3>
+    <div id="tp-edit-modal-content">
+      <span class="loading loading-spinner loading-md"></span>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+{# ── Modal picker de widgets (checkboxes múltiples) ──────────────── #}
+<dialog id="tp-widget-modal" class="modal">
+  <div class="modal-box w-full sm:w-11/12 max-w-xl max-h-[85vh] overflow-y-auto">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+    </form>
+    <h3 id="tp-widget-modal-title" class="font-bold text-lg mb-1">Widgets del paso</h3>
+    <p id="tp-widget-modal-subtitle" class="text-sm text-base-content/50 mb-2"></p>
+
+    {# Área de orden con drag-and-drop #}
+    <div class="mb-4">
+      <p class="text-xs font-semibold text-base-content/50 uppercase tracking-wide mb-1">Orden <span class="font-normal normal-case opacity-60">(arrastra para reordenar)</span></p>
+      <div id="tp-order-list"
+           class="flex flex-wrap gap-2 min-h-10 rounded-lg border-2 border-dashed border-base-300 p-2 transition-colors">
+        <span id="tp-order-empty" class="text-xs text-base-content/30 self-center italic">Selecciona widgets abajo</span>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2" id="tp-widget-list">
+      {% for w in available_widgets %}
+      {% with meta=widget_meta_map|dict_get:w.slug %}
+      <div class="widget-option-wrap border border-base-300 hover:border-primary rounded-lg transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+        <label class="flex items-center gap-3 p-3 cursor-pointer">
+          <input type="checkbox" name="widget_choice" value="{{ w.slug }}"
+                 class="checkbox checkbox-primary checkbox-sm shrink-0 widget-checkbox">
+          {% with icon_tpl="widgets/"|add:w.slug|add:"_boton.html" %}
+          {% include icon_tpl with widget=w.boton_ctx %}
+          {% endwith %}
+          <div class="flex-1 min-w-0">
+            <span class="font-semibold text-sm">{{ w.nombre }}</span>
+            <span class="block text-xs text-base-content/40 font-mono">{{ w.slug }}</span>
+          </div>
+          {% if meta and meta.tipo %}
+          <span class="badge badge-xs {% if meta.tipo == 'form' %}badge-info{% else %}badge-warning{% endif %} shrink-0 ml-auto">{{ meta.tipo }}</span>
+          {% endif %}
+        </label>
+        {% if meta and meta.params %}
+        <div class="widget-config-fields hidden px-3 pb-3 flex flex-col gap-3">
+          {% for cf in meta.params %}
+          <div class="flex flex-col gap-1">
+            <span class="text-xs font-mono font-semibold">{{ cf.name }}</span>
+            <span class="text-xs text-base-content/50 break-words">{{ cf.desc }}</span>
+            <textarea name="cfg_{{ w.slug }}__{{ cf.name }}"
+                      rows="2"
+                      class="textarea textarea-xs textarea-bordered font-mono w-full resize-y"
+                      placeholder="{{ cf.placeholder }}"></textarea>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+
+    <div class="modal-action mt-4">
+      <form method="dialog"><button class="btn btn-ghost btn-sm">Cancelar</button></form>
+      <button type="button" id="tp-widget-save-btn" class="btn btn-primary btn-sm gap-1">
+        <i class="fa-solid fa-save"></i> Guardar
+      </button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{# ── Modal import ──────────────────────────────────────────────── #}
+<dialog id="tp-import-modal" class="modal">
+  <div class="modal-box w-full sm:w-11/12 max-w-lg">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+    </form>
+    <h3 class="font-bold text-lg mb-4">
+      <i class="fa-solid fa-file-excel text-success mr-2"></i> Importar pasos desde Excel
+    </h3>
+
+    <div class="text-sm text-base-content/70 mb-4">
+      Subí un archivo <strong>.xlsx</strong> o <strong>.csv</strong> con las columnas correctas.
+      Si el <strong>nombre</strong> ya existe, el paso se actualiza; si no, se crea.
+    </div>
+
+    <a href="{% url 'actividades:tipo_pasos_exportar' tipo.pk %}" class="link link-primary text-sm inline-flex items-center gap-1 mb-4">
+      <i class="fa-solid fa-download"></i> Descargar plantilla
+    </a>
+
+    <form id="tp-import-form" enctype="multipart/form-data" class="flex flex-col gap-3">
+      {% csrf_token %}
+      <input type="file" name="file" id="tp-import-file" accept=".xlsx,.csv" required
+             class="file-input file-input-bordered w-full" />
+      <div id="tp-import-result" class="text-sm hidden"></div>
+      <div class="modal-action">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('tp-import-modal').close()">
+          Cancelar
+        </button>
+        <button type="submit" id="tp-import-submit" class="btn btn-primary btn-sm gap-1">
+          <i class="fa-solid fa-cloud-arrow-up mr-1"></i> Importar
+        </button>
+      </div>
+    </form>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+window.tipoPasosConfig = {
+  createUrl:      '{% url "actividades:tipo_paso_crear" tipo.pk %}',
+  removeBase:     '/actividades/tipos/{{ tipo.pk }}/pasos/',
+  editBase:       '/actividades/pasos/',
+  widgetsSetBase: '/actividades/pasos/',
+  importUrl:      '{% url "actividades:tipo_pasos_importar" tipo.pk %}',
+  csrfToken:      '{{ csrf_token }}',
+  nextOrden:      {{ next_orden }},
+  widgetIconMap:  {{ widget_icon_map_json|safe }},
+};
+window.pasoWidgetsData = {{ paso_widgets_json|safe }};
+</script>
+<script src="{% static 'actividades/js/tipo_pasos.js' %}?v=5.1"></script>
+{% endblock %}

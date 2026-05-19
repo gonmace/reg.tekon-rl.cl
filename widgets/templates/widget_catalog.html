@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+
+{% block title %}Catálogo de Widgets{% endblock %}
+
+{% block content %}
+<div class="p-6 max-w-5xl mx-auto">
+
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold">Catálogo de Widgets</h1>
+    <p class="text-base-content/60 text-sm mt-1">
+      {{ widgets|length }} widget{{ widgets|length|pluralize:",s" }} disponible{{ widgets|length|pluralize:"s" }}
+    </p>
+  </div>
+
+  <div class="flex flex-col gap-2">
+    {% for widget in widgets %}
+    <div class="card bg-base-100 border border-base-200 widget-card" data-expanded="false">
+
+      {# ── Cabecera siempre visible — click para expandir ── #}
+      <div class="widget-card-header flex items-center gap-3 px-4 py-3 cursor-pointer select-none">
+
+        {% include widget.icon_template with widget=widget.boton_ctx %}
+
+        <div class="flex-1 min-w-0 flex items-center gap-2">
+          <span class="font-semibold text-sm truncate">{{ widget.nombre }}</span>
+          <span class="text-xs text-base-content/40 font-mono truncate hidden sm:inline">{{ widget.slug }}</span>
+          {% if widget.tipo == 'form' %}
+            <span class="badge badge-xs badge-info shrink-0">form</span>
+          {% else %}
+            <span class="badge badge-xs badge-warning shrink-0">ajax</span>
+          {% endif %}
+        </div>
+
+        <button class="btn btn-xs btn-ghost preview-btn shrink-0"
+                data-slug="{{ widget.slug }}"
+                title="Preview">
+          <i class="fa-solid fa-eye"></i> Preview
+        </button>
+
+        <i class="fa-solid fa-chevron-down text-base-content/30 text-xs shrink-0 transition-transform duration-200 widget-chevron"></i>
+      </div>
+
+      {# ── Detalle colapsable ── #}
+      <div class="widget-card-detail hidden border-t border-base-200 px-4 pb-4 pt-3 flex flex-col gap-3">
+
+        {% if widget.description %}
+        <p class="text-sm text-base-content/60">{{ widget.description }}</p>
+        {% endif %}
+
+        {# Include tag #}
+        <div class="flex items-center gap-2">
+          <code class="flex-1 text-xs bg-base-200 rounded px-3 py-1.5 truncate text-base-content/70">{{ widget.include_tag }}</code>
+          <button class="btn btn-xs btn-ghost copy-btn shrink-0" data-text="{{ widget.include_tag }}">
+            <i class="fa-solid fa-copy"></i>
+          </button>
+        </div>
+
+        {# Estados #}
+        {% if widget.estados %}
+        <div class="flex flex-wrap gap-1">
+          {% for e in widget.estados %}
+          <span class="badge badge-sm {{ e.css }} gap-1" title="{{ e.desc }}">
+            <span class="font-mono font-bold">{{ e.level }}</span>
+            <span class="hidden sm:inline">{{ e.desc }}</span>
+          </span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {# Parámetros #}
+        {% if widget.params %}
+        <div>
+          <p class="text-xs font-semibold text-base-content/50 uppercase tracking-wide mb-2">
+            Parámetros {% if not widget.has_docs %}<span class="badge badge-xs badge-warning">auto-detectados</span>{% endif %}
+          </p>
+          <div class="overflow-x-auto">
+            <table class="table table-xs w-full">
+              <thead>
+                <tr class="text-xs text-base-content/50">
+                  <th class="w-28">Nombre</th>
+                  <th>Descripción</th>
+                  <th class="w-16 text-center">Req.</th>
+                  <th class="w-40">Valor de prueba</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for param in widget.params %}
+                <tr>
+                  <td><code class="text-xs font-mono text-primary">{{ param.name }}</code></td>
+                  <td class="text-xs text-base-content/70">{{ param.desc|default:"—" }}</td>
+                  <td class="text-center">
+                    {% if param.optional %}
+                      <span class="badge badge-xs badge-ghost">opt.</span>
+                    {% else %}
+                      <span class="badge badge-xs badge-error badge-outline">req.</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <input type="text"
+                           class="input input-xs w-full param-input"
+                           data-param="{{ param.name }}"
+                           value="{{ param.test_value }}"
+                           placeholder="{{ param.name }}">
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}
+        <p class="text-xs text-base-content/40 italic">Sin parámetros documentados.</p>
+        {% endif %}
+
+      </div>
+    </div>
+    {% empty %}
+    <div class="text-center py-16 text-base-content/40">
+      <i class="fa-solid fa-box-open text-4xl mb-3 block"></i>
+      <p>No hay widgets disponibles.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<!-- Modal de preview -->
+<dialog id="preview-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box w-11/12 max-w-3xl h-screen sm:h-[calc(100vh-4rem)] max-h-none flex flex-col p-0">
+    <div class="flex items-center justify-between px-4 py-2 border-b border-base-300 shrink-0">
+      <h3 id="preview-title" class="font-semibold text-sm font-mono"></h3>
+      <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost"><i class="fa-solid fa-xmark"></i></button>
+      </form>
+    </div>
+    <iframe id="preview-iframe" src="" class="flex-1 w-full border-0 bg-base-200 min-h-0"></iframe>
+    <div id="preview-icon-bar" class="shrink-0 border-t border-base-300 px-4 py-2 bg-base-200 min-h-[2.5rem] flex items-center">
+      <div id="preview-icon-area" class="flex items-center gap-3 w-full"></div>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>cerrar</button></form>
+</dialog>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var modal    = document.getElementById('preview-modal');
+  var iframe   = document.getElementById('preview-iframe');
+  var title    = document.getElementById('preview-title');
+  var iconArea = document.getElementById('preview-icon-area');
+  var pendingLevel = null;
+
+  // ── Expand / collapse ────────────────────────────────────────────
+  document.querySelectorAll('.widget-card-header').forEach(function (header) {
+    header.addEventListener('click', function (e) {
+      if (e.target.closest('.preview-btn') || e.target.closest('.copy-btn')) return;
+      var card    = header.closest('.widget-card');
+      var detail  = card.querySelector('.widget-card-detail');
+      var chevron = card.querySelector('.widget-chevron');
+      var open    = card.dataset.expanded === 'true';
+      card.dataset.expanded = open ? 'false' : 'true';
+      detail.classList.toggle('hidden', open);
+      chevron.style.transform = open ? '' : 'rotate(180deg)';
+    });
+  });
+
+  // ── Preview ──────────────────────────────────────────────────────
+  function setActiveEstado(level) {
+    pendingLevel = level;
+    iconArea.querySelectorAll('.icon-estado-badge').forEach(function (badge) {
+      var active = parseInt(badge.dataset.level, 10) === level;
+      badge.classList.toggle('opacity-100', active);
+      badge.classList.toggle('opacity-30', !active);
+    });
+  }
+
+  function loadIconTemplate(slug) {
+    pendingLevel = null;
+    iconArea.innerHTML = '<span class="loading loading-dots loading-xs opacity-40"></span>';
+    fetch('/widgets/icon/' + slug + '/')
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        iconArea.innerHTML = html || '<span class="text-xs text-base-content/40">—</span>';
+        if (pendingLevel !== null) setActiveEstado(pendingLevel);
+      })
+      .catch(function () { iconArea.innerHTML = ''; });
+  }
+
+  window.addEventListener('message', function (e) {
+    if (!e.data || e.data.type !== 'widget-state') return;
+    setActiveEstado(e.data.level);
+  });
+
+  document.querySelectorAll('.preview-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var card = btn.closest('.widget-card');
+      var qs   = new URLSearchParams();
+      card.querySelectorAll('.param-input').forEach(function (input) {
+        if (input.value.trim() !== '') qs.set(input.dataset.param, input.value.trim());
+      });
+      var url = '/widgets/preview/' + btn.dataset.slug + '/';
+      if (qs.toString()) url += '?' + qs.toString();
+      iframe.src = url;
+      title.textContent = btn.dataset.slug;
+      loadIconTemplate(btn.dataset.slug);
+      modal.showModal();
+    });
+  });
+
+  modal.addEventListener('close', function () {
+    iframe.src = '';
+    iconArea.innerHTML = '';
+  });
+
+  // ── Copy ─────────────────────────────────────────────────────────
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.copy-btn');
+    if (!btn) return;
+    e.stopPropagation();
+    navigator.clipboard.writeText(btn.dataset.text).then(function () {
+      var orig = btn.innerHTML;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+      setTimeout(function () { btn.innerHTML = orig; }, 1500);
+    });
+  });
+})();
+</script>
+{% endblock %}

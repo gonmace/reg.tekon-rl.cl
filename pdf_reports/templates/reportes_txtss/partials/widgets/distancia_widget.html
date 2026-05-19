@@ -1,0 +1,16 @@
+{% if not display.is_empty %}
+<table class="datos-2col">
+  <tr>
+    <th>{{ display.label_punto1 }}:</th>
+    <td>{% if display.lat1 and display.lon1 %}{{ display.lat1|floatformat:6 }}, {{ display.lon1|floatformat:6 }}{% else %}Sin capturar{% endif %}</td>
+  </tr>
+  <tr>
+    <th>{{ display.label_punto2 }}:</th>
+    <td>{% if display.lat2 and display.lon2 %}{{ display.lat2|floatformat:6 }}, {{ display.lon2|floatformat:6 }}{% else %}Sin capturar{% endif %}</td>
+  </tr>
+  <tr>
+    <th>{{ display.label }}:</th>
+    <td><strong>{{ display.distancia_str }}</strong></td>
+  </tr>
+</table>
+{% endif %}

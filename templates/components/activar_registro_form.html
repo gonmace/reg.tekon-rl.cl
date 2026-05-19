@@ -1,0 +1,168 @@
+<!-- Modal para activar registro -->
+<dialog id="activar-registro-modal" class="modal">
+    <div class="modal-box w-full sm:w-11/12 max-w-lg">
+        <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+        </form>
+        <h3 class="font-bold text-lg mb-4">
+            {% if allow_multiple_per_site %}Nueva Fecha{% else %}Activar Registro{% endif %}
+        </h3>
+
+        <form method="post" action="{{ activar_url|default:'#' }}" id="activar-registro-form" onsubmit="return false;">
+            {% csrf_token %}
+
+            {{ form.title }}
+            {{ form.description }}
+
+            {% if not allow_multiple_per_site %}
+
+            <!-- Toggle Un sitio / Varios sitios -->
+            <div class="tabs tabs-boxed mb-4">
+                <button type="button" class="tab tab-active" id="tab-single-site"
+                        onclick="setActivarMode('single')">Un sitio</button>
+                <button type="button" class="tab" id="tab-multi-site"
+                        onclick="setActivarMode('multi')">Varios sitios</button>
+            </div>
+            <input type="hidden" name="multi_site" id="multi-site-flag" value="false">
+
+            <!-- Sección: Un sitio -->
+            <div id="single-site-section">
+                <div class="form-control">
+                    <label for="{{ form.sitio.id_for_label }}" class="label">
+                        <span class="label-text font-medium">Sitio</span>
+                        <span class="label-text-alt text-error">*</span>
+                    </label>
+                    <select name="{{ form.sitio.html_name }}" id="{{ form.sitio.id_for_label }}"
+                            class="select select-bordered w-full focus:select-primary">
+                        <option value="">Seleccionar sitio...</option>
+                        {% for choice in form.sitio.field.queryset %}
+                            <option value="{{ choice.pk }}" {% if choice.pk|stringformat:"s" == form.sitio.value|stringformat:"s" %}selected{% endif %}>
+                                {{ choice.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    {% if form.sitio.errors %}
+                        <div class="label"><span class="label-text-alt text-error">{{ form.sitio.errors|join:", " }}</span></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Sección: Varios sitios -->
+            <div id="multi-site-section" class="hidden">
+                <!-- Filtro -->
+                <div class="form-control mb-2">
+                    <input type="text" id="site-filter-input" placeholder="Filtrar sitios..."
+                           class="input input-bordered input-sm w-full focus:input-primary">
+                </div>
+                <!-- Seleccionar todos -->
+                <label class="flex items-center gap-2 text-sm mb-2 cursor-pointer select-none">
+                    <input type="checkbox" id="select-all-sites" class="checkbox checkbox-sm checkbox-primary">
+                    <span>Seleccionar todos</span>
+                </label>
+                <!-- Lista de sitios -->
+                <div class="border border-base-300 rounded-lg overflow-y-auto max-h-48 p-2 flex flex-col gap-1" id="multi-site-list">
+                    {% for choice in form.sitio.field.queryset %}
+                    <label class="flex items-center gap-2 text-sm cursor-pointer site-item px-1 py-0.5 rounded hover:bg-base-200">
+                        <input type="checkbox" name="sitios" value="{{ choice.pk }}"
+                               class="checkbox checkbox-sm checkbox-primary site-checkbox">
+                        <span class="site-name">{{ choice.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Usuario (visible en ambos modos) -->
+            <div class="form-control mt-3">
+                <label for="{{ form.user.id_for_label }}" class="label">
+                    <span class="label-text font-medium">ITO / Buscador</span>
+                    <span class="label-text-alt text-error">*</span>
+                </label>
+                <select name="{{ form.user.html_name }}" id="{{ form.user.id_for_label }}"
+                        class="select select-bordered w-full focus:select-primary">
+                    <option value="">Seleccionar usuario...</option>
+                    {% for user_choice in form.user.field.queryset %}
+                        <option value="{{ user_choice.pk }}" {% if user_choice.pk|stringformat:"s" == form.user.value|stringformat:"s" %}selected{% endif %}>
+                            {% if user_choice.first_name %}{{ user_choice.first_name }} {{ user_choice.last_name }} ({{ user_choice.username }}){% else %}{{ user_choice.username }}{% endif %}
+                            — {{ user_choice.get_user_type }}
+                        </option>
+                    {% endfor %}
+                </select>
+                {% if form.user.errors %}
+                    <div class="label"><span class="label-text-alt text-error">{{ form.user.errors|join:", " }}</span></div>
+                {% endif %}
+            </div>
+
+            {% else %}
+            {{ form.sitio }}
+            {{ form.user }}
+            {% endif %}
+
+            {% if allow_multiple_per_site and form.fecha %}
+            <div class="form-control mt-3">
+                <label for="{{ form.fecha.id_for_label }}" class="label">
+                    <span class="label-text font-medium">Fecha</span>
+                    <span class="label-text-alt text-error">*</span>
+                </label>
+                {{ form.fecha }}
+                {% if form.fecha.errors %}
+                    <div class="label"><span class="label-text-alt text-error">{{ form.fecha.errors|join:", " }}</span></div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if project and form.estructura %}
+            <div class="form-control mt-3">
+                <label for="{{ form.estructura.id_for_label }}" class="label">
+                    <span class="label-text font-medium">Estructura</span>
+                </label>
+                {{ form.estructura }}
+                {% if form.estructura.errors %}
+                    <div class="label"><span class="label-text-alt text-error">{{ form.estructura.errors|join:", " }}</span></div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="flex gap-2 justify-center mt-6">
+                <button type="button" class="btn btn-cancel" onclick="document.getElementById('activar-registro-modal').close()">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-save flex-grow" id="activar-registro-submit-btn">
+                    {% if allow_multiple_per_site %}Crear Registro{% else %}Activar Registro{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script>
+function setActivarMode(mode) {
+    document.getElementById('single-site-section').classList.toggle('hidden', mode !== 'single');
+    document.getElementById('multi-site-section').classList.toggle('hidden', mode !== 'multi');
+    document.getElementById('multi-site-flag').value = mode === 'multi' ? 'true' : 'false';
+    document.getElementById('tab-single-site').classList.toggle('tab-active', mode === 'single');
+    document.getElementById('tab-multi-site').classList.toggle('tab-active', mode === 'multi');
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const filterInput = document.getElementById('site-filter-input');
+    if (filterInput) {
+        filterInput.addEventListener('input', function () {
+            const q = this.value.toLowerCase();
+            document.querySelectorAll('#multi-site-list .site-item').forEach(function (item) {
+                item.style.display = item.querySelector('.site-name').textContent.toLowerCase().includes(q) ? '' : 'none';
+            });
+        });
+    }
+
+    const selectAll = document.getElementById('select-all-sites');
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            document.querySelectorAll('#multi-site-list .site-checkbox').forEach(function (cb) {
+                const item = cb.closest('.site-item');
+                if (item.style.display !== 'none') cb.checked = selectAll.checked;
+            });
+        });
+    }
+});
+</script>

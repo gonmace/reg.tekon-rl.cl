@@ -1,0 +1,13 @@
+<table class="datos-2col">
+  <tr><th>Tipo de Estructura:</th><td>{{ display.tipo_estructura }}</td></tr>
+  <tr><th>Altura:</th><td>{{ display.altura }}</td></tr>
+  <tr><th>Tensión:</th><td>{{ display.tension }}</td></tr>
+  {% if display.placa_poste %}<tr><th>Placa Poste:</th><td>{{ display.placa_poste }}</td></tr>{% endif %}
+  {% if display.obstaculos %}<tr><th>Obstáculos:</th><td>{{ display.obstaculos }}</td></tr>{% endif %}
+  <tr><th>Luminaria:</th><td>{% if display.luminaria %}Sí{% else %}No{% endif %}</td></tr>
+  <tr><th>Red Protegida:</th><td>{% if display.red_protegida %}Sí{% else %}No{% endif %}</td></tr>
+  <tr><th>Acceso Camión Grúa:</th><td>{% if display.acceso_camion_grua %}Sí{% else %}No{% endif %}</td></tr>
+  <tr><th>Vegetación:</th><td>{% if display.vegetacion %}Sí{% else %}No{% endif %}</td></tr>
+  <tr><th>Antena Microondas:</th><td>{% if display.antena_microondas %}Sí{% else %}No{% endif %}</td></tr>
+  {% if display.comentario %}<tr><th>Comentario:</th><td>{{ display.comentario }}</td></tr>{% endif %}
+</table>

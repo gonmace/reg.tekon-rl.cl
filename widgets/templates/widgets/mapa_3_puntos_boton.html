@@ -1,0 +1,41 @@
+{% comment %}
+widgets/mapa_3_puntos_boton.html
+{% endcomment %}
+{% if widget.coordinates %}
+{% if widget.coordinates.coord1 and widget.coordinates.coord2 and widget.coordinates.coord3 %}
+  <button id="map-btn-{{ widget.step_name }}"
+          class="btn btn-{{ widget.color }} btn-circle sombra active:scale-95 transition-transform duration-100"
+          title="Mapa de {{ widget.title }}"
+          data-coord1-lat="{{ widget.coordinates.coord1.lat }}"
+          data-coord1-lon="{{ widget.coordinates.coord1.lon }}"
+          data-coord1-label="{{ widget.coordinates.coord1.label }}"
+          data-coord1-color="{{ widget.coordinates.coord1.color }}"
+          data-coord1-size="{{ widget.coordinates.coord1.size }}"
+          data-coord2-lat="{{ widget.coordinates.coord2.lat }}"
+          data-coord2-lon="{{ widget.coordinates.coord2.lon }}"
+          data-coord2-label="{{ widget.coordinates.coord2.label }}"
+          data-coord2-color="{{ widget.coordinates.coord2.color }}"
+          data-coord2-size="{{ widget.coordinates.coord2.size }}"
+          data-coord3-lat="{{ widget.coordinates.coord3.lat }}"
+          data-coord3-lon="{{ widget.coordinates.coord3.lon }}"
+          data-coord3-label="{{ widget.coordinates.coord3.label }}"
+          data-coord3-color="{{ widget.coordinates.coord3.color }}"
+          data-coord3-size="{{ widget.coordinates.coord3.size }}"
+          data-site-registro="{{ widget.registro_id }}"
+          data-step-title="{{ widget.title }}"
+          data-etapa="{{ widget.etapa }}"
+          data-map-type="multi">
+    {% include 'svgs/map-marker-3.svg' %}
+  </button>
+{% else %}
+  <button class="btn btn-paso-ghost btn-circle" title="Sin coordenadas" disabled>
+    {% include 'svgs/map-marker-3.svg' %}
+  </button>
+{% endif %}
+{% else %}
+  <a href="{{ widget.url }}"
+     class="btn btn-{{ widget.color }} btn-circle"
+     title="Mapa 3 puntos">
+    <i class="{{ widget.icon }} text-xl"></i>
+  </a>
+{% endif %}

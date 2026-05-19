@@ -1,0 +1,54 @@
+asgiref==3.8.1
+Django==5.2.3
+django-tailwind==4.0.1
+gunicorn==23.0.0
+packaging==25.0
+psycopg2-binary==2.9.10
+python-decouple==3.8
+setuptools==75.6.0
+sqlparse==0.5.3
+
+# Auth y seguridad
+django-axes==7.0.1
+django-csp==3.8
+whitenoise==6.9.0
+
+# Cache y sesiones
+django-redis==5.4.0
+redis==5.2.0
+
+# REST API
+djangorestframework==3.16.0
+djangorestframework-simplejwt==5.3.0
+django-filter==24.1
+
+# Historial y auditoría
+django-simple-history==3.10.1
+
+# Importación/exportación
+django-import-export==4.3.8
+tablib==3.7.0
+openpyxl==3.1.5
+
+# Formularios
+django-crispy-forms==2.4
+crispy-daisyui==0.7.0
+
+# Imágenes y archivos
+pillow==11.3.0
+
+# PDF
+django-weasyprint==2.4.0
+
+# Tablas
+django-tables2==2.7.5
+
+# Mapas
+geopy==2.4.1
+
+# HTTP
+requests==2.32.4
+
+# Admin
+django-admin-sortable2==2.2.8
+django-admin-sort==0.4.1

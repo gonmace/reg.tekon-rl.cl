@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ elemento_config.title|default:elemento.tipo|title }} - {% if registro.sitio %}{{ registro.sitio.name }}{% else %}{{ registro.title }}{% endif %}{% endblock %}
+
+{% block pre_content %}{% endblock pre_content %}
+
+{% block content %}
+<div class="container mx-auto p-2 md:p-4 bg-base-100 rounded-lg shadow-lg">
+
+        <!-- Formulario -->
+        {% if form %}
+        <div class="mb-6">
+            {% crispy form %}
+        </div>
+        {% endif %}
+        
+        <!-- Sub-elementos (mapas, fotos, etc.) -->
+        {% if sub_elementos %}
+        <div class="space-y-6">
+            {% for sub_elemento in sub_elementos %}
+                {% if sub_elemento.tipo == 'mapa' %}
+                    <div class="card bg-base-200 shadow-lg">
+                        <div class="card-body">
+                            <h3 class="card-title">Mapa</h3>
+                            <div class="{{ sub_elemento.css_classes }}">
+                                {% include sub_elemento.template_name with config=sub_elemento.config %}
+                            </div>
+                        </div>
+                    </div>
+                {% elif sub_elemento.tipo == 'fotos' %}
+                    <div class="card bg-base-200 shadow-lg">
+                        <div class="card-body">
+                            <h3 class="card-title">Fotos</h3>
+                            <div class="{{ sub_elemento.css_classes }}">
+                                {% include sub_elemento.template_name with config=sub_elemento.config %}
+                            </div>
+                        </div>
+                    </div>
+                {% elif sub_elemento.tipo == 'table' %}
+                    <div class="card bg-base-200 shadow-lg">
+                        <div class="card-body">
+                            <h3 class="card-title">{{ sub_elemento.config.title|default:"Tabla" }}</h3>
+                            <div class="{{ sub_elemento.css_classes }}">
+                                <!-- Debug: sub_elementos_data = {{ sub_elementos_data }} -->
+                                {% with data=sub_elementos_data.table|default:None %}
+                                    {% include sub_elemento.template_name with config=sub_elemento.config data=data %}
+                                {% endwith %}
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    
+</div>
+{% endblock %} 

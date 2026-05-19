@@ -1,0 +1,65 @@
+{% load static %}
+{% load registro_urls %}
+{% load map_filters %}
+
+<li>
+  {% if not first %}
+  <hr class="bg-white sombra min-h-4" />
+  {% endif %}
+
+  <!-- Título del step -->
+  <div class="timeline-start timeline-box text-sm mr-4 px-2 py-1 rounded-none">
+    {{step.title|title}}
+  </div>
+
+  <!-- Botón principal: primer widget form, o mapa si no hay form, o deshabilitado -->
+  <div class="timeline-middle">
+    {% if step.elements.form_widgets %}
+      {% with fw=step.elements.form_widgets.0 %}
+      {% include fw.boton_template with widget=fw %}
+      {% endwith %}
+    {% elif step.elements.map.enabled and step.elements.map.url %}
+      {% include step.elements.map.boton_template with widget=step.elements.map %}
+    {% else %}
+    <div class="btn btn-circle btn-disabled p-1 sombra bg-white border-2 border-gray-300"></div>
+    {% endif %}
+  </div>
+
+  <div class="timeline-end text-lg">
+    <div class="flex items-start gap-2">
+
+      <!-- Widgets form adicionales (desde el segundo en adelante) -->
+      {% for fw in step.elements.form_widgets %}
+        {% if not forloop.first %}
+        <div class="flex items-center gap-1 ml-2">
+          {% include fw.boton_template with widget=fw %}
+        </div>
+        {% endif %}
+      {% endfor %}
+
+      <!-- Fotos -->
+      {% if step.elements.photos.enabled %}
+        <div class="flex items-center gap-1 ml-2">
+          {% include step.elements.photos.boton_template with widget=step.elements.photos %}
+        </div>
+      {% endif %}
+
+      <!-- Mapa (solo si hay widgets form; si no, el mapa ya es el botón principal) -->
+      {% if step.elements.map.enabled and step.elements.form_widgets %}
+        <div class="flex items-center gap-1 ml-2">
+          {% include step.elements.map.boton_template with widget=step.elements.map %}
+        </div>
+      {% endif %}
+
+      </div>
+  </div>
+
+  {% if not last %}
+  <hr class="bg-white sombra min-h-4" />
+  {% endif %}
+</li>
+
+<!-- Modal genérico para mostrar mapas (solo se incluye una vez) -->
+{% if forloop.first %}
+  {% include 'components/mapa_modal.html' %}
+{% endif %}

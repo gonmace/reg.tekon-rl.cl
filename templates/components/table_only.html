@@ -1,0 +1,490 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title|default:"Tabla" }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4">
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title">{{ title|default:"Tabla" }}</h2>
+            <p class="text-base-content/70">{{ description|default:"Gestión de datos" }}</p>
+            
+            <!-- Renderizar sub-elementos (tablas editables) -->
+            {% for sub_elemento in sub_elementos %}
+                {% if sub_elemento.tipo == 'editable_table' %}
+                    <div class="mt-6">
+                        <h3 class="text-lg font-semibold mb-4">{{ sub_elemento.title }}</h3>
+                        <p class="text-sm text-base-content/70 mb-4">{{ sub_elemento.description }}</p>
+                        
+                        <!-- Tabla editable -->
+                        <div class="overflow-x-auto">
+                            <table id="editable-table-{{ forloop.counter }}" class="table table-zebra w-full">
+                                <thead>
+                                    <tr>
+                                        {% for column in sub_elemento.config.columns %}
+                                        <th class="text-center">{{ column.label }}</th>
+                                        {% endfor %}
+                                        {% if sub_elemento.config.allow_edit or sub_elemento.config.allow_delete %}
+                                        <th class="text-center">Acciones</th>
+                                        {% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Los datos se cargarán dinámicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Botón para agregar nuevo registro -->
+                        {% if sub_elemento.config.allow_create %}
+                        <button class="btn btn-add mt-4" onclick="addRecord('{{ forloop.counter }}')">
+                            <i class="fa-solid fa-plus"></i> Agregar Registro
+                        </button>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal para agregar/editar registro -->
+<div id="edit-modal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg" id="modal-title">Editar Registro</h3>
+        <form id="edit-form">
+            <div id="form-fields">
+                <!-- Los campos se generarán dinámicamente -->
+            </div>
+            <div class="modal-action">
+                <button type="submit" class="btn btn-save">Guardar</button>
+                <button type="button" class="btn btn-cancel" onclick="closeModal()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Configuración de las tablas editables
+const TABLES_CONFIG = {
+    {% for sub_elemento in sub_elementos %}
+        {% if sub_elemento.tipo == 'editable_table' %}
+        '{{ forloop.counter }}': {
+            columns: {{ sub_elemento.config.columns|safe }},
+            apiUrl: '{{ sub_elemento.config.api_url|default:"" }}',
+            allowCreate: {{ sub_elemento.config.allow_create|yesno:"true,false" }},
+            allowEdit: {{ sub_elemento.config.allow_edit|yesno:"true,false" }},
+            allowDelete: {{ sub_elemento.config.allow_delete|yesno:"true,false" }},
+            pageLength: {{ sub_elemento.config.page_length|default:10 }},
+            data: []
+        },
+        {% endif %}
+    {% endfor %}
+};
+
+// Estado de las tablas
+let tableStates = {};
+
+// Inicializar las tablas
+document.addEventListener('DOMContentLoaded', function() {
+    Object.keys(TABLES_CONFIG).forEach(tableId => {
+        loadTableData(tableId);
+    });
+});
+
+// Cargar datos de una tabla específica
+async function loadTableData(tableId) {
+    const config = TABLES_CONFIG[tableId];
+    if (!config.apiUrl) return;
+    
+    try {
+        const response = await fetch(config.apiUrl);
+        if (!response.ok) throw new Error('Error al cargar datos');
+        
+        const data = await response.json();
+        config.data = data;
+        
+        renderTable(tableId);
+    } catch (error) {
+        console.error('Error:', error);
+        showMessage('Error al cargar los datos', 'error');
+    }
+}
+
+// Renderizar una tabla específica
+function renderTable(tableId) {
+    const config = TABLES_CONFIG[tableId];
+    const tbody = document.querySelector(`#editable-table-${tableId} tbody`);
+    
+    tbody.innerHTML = '';
+    
+    config.data.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        tr.dataset.rowId = row.id;
+        
+        // Agregar celdas de datos
+        config.columns.forEach(column => {
+            const td = document.createElement('td');
+            td.className = 'text-center';
+            
+            if (column.editable) {
+                td.className += ' editable-cell';
+                td.dataset.column = column.key;
+                td.dataset.rowId = row.id;
+                td.dataset.tableId = tableId;
+                td.textContent = row[column.key] || '';
+                td.addEventListener('click', () => startEdit(td));
+            } else {
+                td.textContent = row[column.key] || '';
+            }
+            
+            tr.appendChild(td);
+        });
+        
+        // Agregar columna de acciones
+        if (config.allowEdit || config.allowDelete) {
+            const td = document.createElement('td');
+            td.className = 'text-center';
+            td.innerHTML = `
+                <div class="table-actions">
+                    ${config.allowEdit ? `<button class="btn btn-sm btn-edit" onclick="editRow('${tableId}', ${row.id})">
+                        <i class="fa-solid fa-edit"></i>
+                    </button>` : ''}
+                    ${config.allowDelete ? `<button class="btn btn-sm btn-delete" onclick="deleteRow('${tableId}', ${row.id})">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>` : ''}
+                </div>
+            `;
+            tr.appendChild(td);
+        }
+        
+        tbody.appendChild(tr);
+    });
+}
+
+// Iniciar edición de celda
+function startEdit(cell) {
+    if (tableStates.editingCell) {
+        cancelEdit();
+    }
+    
+    const tableId = cell.dataset.tableId;
+    const config = TABLES_CONFIG[tableId];
+    const column = config.columns.find(col => col.key === cell.dataset.column);
+    
+    if (!column || !column.editable) return;
+    
+    tableStates.editingCell = cell;
+    tableStates.originalValue = cell.textContent;
+    
+    const input = createInputElement(column, cell.textContent);
+    cell.innerHTML = '';
+    cell.appendChild(input);
+    input.focus();
+    
+    // Event listeners para el input
+    input.addEventListener('blur', () => saveEdit());
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            saveEdit();
+        } else if (e.key === 'Escape') {
+            cancelEdit();
+        }
+    });
+}
+
+// Crear elemento de input
+function createInputElement(column, value) {
+    if (column.type === 'select' && column.options) {
+        const select = document.createElement('select');
+        select.className = 'select select-bordered w-full';
+        select.innerHTML = '<option value="">Seleccionar...</option>';
+        
+        column.options.forEach(option => {
+            const optionElement = document.createElement('option');
+            optionElement.value = option.value;
+            optionElement.textContent = option.label;
+            if (option.value == value) {
+                optionElement.selected = true;
+            }
+            select.appendChild(optionElement);
+        });
+        
+        return select;
+    } else {
+        const input = document.createElement('input');
+        input.type = column.type || 'text';
+        input.className = 'input input-bordered w-full';
+        input.value = value;
+        return input;
+    }
+}
+
+// Guardar edición
+async function saveEdit() {
+    if (!tableStates.editingCell) return;
+    
+    const cell = tableStates.editingCell;
+    const input = cell.querySelector('input, select');
+    const newValue = input.value;
+    const rowId = cell.dataset.rowId;
+    const columnKey = cell.dataset.column;
+    const tableId = cell.dataset.tableId;
+    const config = TABLES_CONFIG[tableId];
+    
+    if (newValue === tableStates.originalValue) {
+        cancelEdit();
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${config.apiUrl}${rowId}/`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                [columnKey]: newValue
+            })
+        });
+        
+        if (!response.ok) throw new Error('Error al actualizar');
+        
+        const data = await response.json();
+        const rowIndex = config.data.findIndex(row => row.id == rowId);
+        if (rowIndex !== -1) {
+            config.data[rowIndex][columnKey] = newValue;
+        }
+        
+        cell.textContent = newValue;
+        showMessage('Campo actualizado correctamente', 'success');
+        
+    } catch (error) {
+        console.error('Error:', error);
+        cell.textContent = tableStates.originalValue;
+        showMessage('Error al actualizar el campo', 'error');
+    }
+    
+    tableStates.editingCell = null;
+    tableStates.originalValue = null;
+}
+
+// Cancelar edición
+function cancelEdit() {
+    if (tableStates.editingCell) {
+        tableStates.editingCell.textContent = tableStates.originalValue;
+        tableStates.editingCell = null;
+        tableStates.originalValue = null;
+    }
+}
+
+// Editar fila completa
+function editRow(tableId, rowId) {
+    const config = TABLES_CONFIG[tableId];
+    const row = config.data.find(r => r.id == rowId);
+    if (!row) return;
+    
+    openEditModal(tableId, row);
+}
+
+// Eliminar fila
+async function deleteRow(tableId, rowId) {
+    if (!confirm('¿Está seguro de que desea eliminar este registro?')) return;
+    
+    const config = TABLES_CONFIG[tableId];
+    
+    try {
+        const response = await fetch(`${config.apiUrl}${rowId}/`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        if (!response.ok) throw new Error('Error al eliminar');
+        
+        config.data = config.data.filter(row => row.id != rowId);
+        renderTable(tableId);
+        showMessage('Registro eliminado correctamente', 'success');
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showMessage('Error al eliminar el registro', 'error');
+    }
+}
+
+// Agregar registro
+function addRecord(tableId) {
+    openAddModal(tableId);
+}
+
+// Abrir modal para agregar
+function openAddModal(tableId) {
+    document.getElementById('modal-title').textContent = 'Agregar Registro';
+    document.getElementById('edit-form').dataset.mode = 'add';
+    document.getElementById('edit-form').dataset.tableId = tableId;
+    generateFormFields(tableId, {});
+    document.getElementById('edit-modal').classList.add('modal-open');
+}
+
+// Abrir modal para editar
+function openEditModal(tableId, row) {
+    document.getElementById('modal-title').textContent = 'Editar Registro';
+    document.getElementById('edit-form').dataset.mode = 'edit';
+    document.getElementById('edit-form').dataset.tableId = tableId;
+    document.getElementById('edit-form').dataset.rowId = row.id;
+    generateFormFields(tableId, row);
+    document.getElementById('edit-modal').classList.add('modal-open');
+}
+
+// Generar campos del formulario
+function generateFormFields(tableId, data) {
+    const config = TABLES_CONFIG[tableId];
+    const container = document.getElementById('form-fields');
+    container.innerHTML = '';
+    
+    config.columns.forEach(column => {
+        if (column.editable) {
+            const div = document.createElement('div');
+            div.className = 'form-control w-full mb-4';
+            
+            const label = document.createElement('label');
+            label.className = 'label';
+            label.innerHTML = `<span class="label-text">${column.label}</span>`;
+            div.appendChild(label);
+            
+            if (column.type === 'select' && column.options) {
+                const select = document.createElement('select');
+                select.name = column.key;
+                select.className = 'select select-bordered w-full';
+                select.innerHTML = '<option value="">Seleccionar...</option>';
+                
+                column.options.forEach(option => {
+                    const optionElement = document.createElement('option');
+                    optionElement.value = option.value;
+                    optionElement.textContent = option.label;
+                    if (option.value == data[column.key]) {
+                        optionElement.selected = true;
+                    }
+                    select.appendChild(optionElement);
+                });
+                
+                div.appendChild(select);
+            } else {
+                const input = document.createElement('input');
+                input.type = column.type || 'text';
+                input.name = column.key;
+                input.className = 'input input-bordered w-full';
+                input.value = data[column.key] || '';
+                input.required = column.required !== false;
+                
+                div.appendChild(input);
+            }
+            
+            container.appendChild(div);
+        }
+    });
+}
+
+// Manejar envío del formulario
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const data = {};
+    formData.forEach((value, key) => {
+        data[key] = value;
+    });
+    
+    const mode = e.target.dataset.mode;
+    const tableId = e.target.dataset.tableId;
+    const rowId = e.target.dataset.rowId;
+    const config = TABLES_CONFIG[tableId];
+    
+    try {
+        let response;
+        
+        if (mode === 'add') {
+            response = await fetch(config.apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            });
+        } else {
+            response = await fetch(`${config.apiUrl}${rowId}/`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            });
+        }
+        
+        if (!response.ok) throw new Error('Error al guardar');
+        
+        const result = await response.json();
+        
+        if (mode === 'add') {
+            config.data.push(result);
+        } else {
+            const index = config.data.findIndex(row => row.id == rowId);
+            if (index !== -1) {
+                config.data[index] = result;
+            }
+        }
+        
+        renderTable(tableId);
+        closeModal();
+        showMessage(`Registro ${mode === 'add' ? 'agregado' : 'actualizado'} correctamente`, 'success');
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showMessage(`Error al ${mode === 'add' ? 'agregar' : 'actualizar'} el registro`, 'error');
+    }
+}
+
+// Cerrar modal
+function closeModal() {
+    document.getElementById('edit-modal').classList.remove('modal-open');
+    document.getElementById('edit-form').reset();
+}
+
+// Mostrar mensaje
+function showMessage(message, type) {
+    if (window.Alert) {
+        window.Alert[type](message, { autoHide: 3000 });
+    } else {
+        alert(message);
+    }
+}
+
+// Obtener cookie CSRF
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Configurar event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('edit-form').addEventListener('submit', handleFormSubmit);
+});
+</script>
+{% endblock %} 

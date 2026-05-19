@@ -1,0 +1,12 @@
+{% load registro_urls %}
+{% if not request.user.is_ito_like %}
+<a
+    type="button"
+    href="{% get_registro_steps_url record.id app_namespace %}"
+    class="btn btn-lg btn-success btn-circle text-lg sombra"
+    data-id="{{ record.id }}"
+    title="{{ record.sitio.name }}"
+>
+    <i class="fa-regular fa-pen-to-square"></i>
+</a>
+{% endif %}

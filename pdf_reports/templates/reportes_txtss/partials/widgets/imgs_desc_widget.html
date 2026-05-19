@@ -1,0 +1,15 @@
+{% if display.items %}
+<section class="imagenes">
+  <div class="foto-titulo">
+    <p><strong>{{ display.label }}:</strong></p>
+  </div>
+  {% for item in display.items %}
+  {% if item.photo %}
+  <div>
+    <img src="{{ item.photo.url }}" alt="{{ item.descripcion }}">
+    <p>{{ item.descripcion }}</p>
+  </div>
+  {% endif %}
+  {% endfor %}
+</section>
+{% endif %}

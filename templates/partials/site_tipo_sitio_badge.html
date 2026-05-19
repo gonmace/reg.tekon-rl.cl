@@ -1,0 +1,7 @@
+{% if record.tipo_sitio == 'TORRE' %}
+  <span class="badge badge-outline badge-accent">Torre</span>
+{% elif record.tipo_sitio == 'POSTE' %}
+  <span class="badge badge-outline badge-info">Poste</span>
+{% else %}
+  <span class="badge badge-outline">{{ record.get_tipo_sitio_display|default:'—' }}</span>
+{% endif %}

@@ -1,0 +1,11 @@
+{% comment %}
+widgets/imgs_desc_widget_boton.html
+{% endcomment %}
+<a href="{{ widget.url }}"
+   class="btn btn-{{ widget.color }} btn-circle sombra active:scale-95 transition-transform duration-100 relative"
+   title="Fotos requeridas">
+  <i class="{{ widget.icon }} text-xl"></i>
+  {% if widget.count_total %}
+    <span class="badge badge-xs absolute -top-2 -right-2 font-bold">{{ widget.count }}/{{ widget.count_total }}</span>
+  {% endif %}
+</a>

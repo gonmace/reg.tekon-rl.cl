@@ -1,0 +1,7 @@
+{% load crispy_forms_tags %}
+
+<form id="edit-site-form" class="space-y-4">
+    {% csrf_token %}
+    {% crispy form %}
+
+</form> 

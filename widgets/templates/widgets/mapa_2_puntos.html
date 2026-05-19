@@ -1,0 +1,197 @@
+{% comment %}
+widgets/mapa_2_puntos.html
+Widget de mapa Leaflet inline para dos puntos de coordenadas.
+Muestra el mapa directamente en la página, sin botón ni modal.
+
+Nombre:
+  Mapa 2 Puntos
+
+Tipo:
+  ajax
+
+Uso:
+  include 'widgets/mapa_2_puntos.html'
+
+Parámetros:
+  lat1     — latitud del primer punto (ej. -33.4569400)
+  lon1     — longitud del primer punto (ej. -70.6482700)
+  lat2     — latitud del segundo punto (ej. -33.4610000)
+  lon2     — longitud del segundo punto (ej. -70.6550000)
+  save_url — URL donde hacer POST para guardar imagen estática del mapa
+  label1   — letra del marcador 1, default "A"
+  color1   — color hex del marcador 1, default #e74c3c (rojo)
+  label2   — letra del marcador 2, default "B"
+  color2   — color hex del marcador 2, default #0054ff (azul)
+  height   — obsoleto; el contenedor usa aspect-ratio:1/1 (cuadrado)
+  imagen_guardada — True si ya existe imagen guardada
+
+Config:
+  paso1  — nombre del paso del que obtener lat/lon del punto 1
+  paso2  — nombre del paso del que obtener lat/lon del punto 2
+  label1 — letra del marcador 1, default "A"
+  color1 — color hex del marcador 1, default #e74c3c
+  label2 — letra del marcador 2, default "B"
+  color2 — color hex del marcador 2, default #0054ff
+
+Estados:
+  0 — Sin coordenadas disponibles
+  1 — Coordenadas disponibles pero imagen estática sin generar
+  3 — Imagen estática guardada correctamente
+{% endcomment %}
+{% load static %}
+
+{% if lat1 and lon1 %}
+<link rel="stylesheet" href="{% static 'css/leaflet.css' %}">
+<div class="mapa-2-puntos-widget rounded-lg overflow-hidden border border-base-300 sombra"
+     data-lat1="{{ lat1 }}"
+     data-lon1="{{ lon1 }}"
+     data-label1="{{ label1|default:'A' }}"
+     data-color1="{{ color1|default:'#e74c3c' }}"
+     {% if lat2 and lon2 %}
+     data-lat2="{{ lat2 }}"
+     data-lon2="{{ lon2 }}"
+     data-label2="{{ label2|default:'B' }}"
+     data-color2="{{ color2|default:'#0054ff' }}"
+     {% endif %}
+     {% if save_url %}data-save-url="{{ save_url }}"{% endif %}>
+  <div class="mapa-2-puntos-container w-full" style="aspect-ratio:1/1;"></div>
+  {% if save_url %}
+  <div class="p-2 bg-base-100 border-t border-base-300 flex justify-end">
+    <button type="button"
+            class="btn btn-sm {% if imagen_guardada %}btn-success{% else %}btn-primary{% endif %} mapa-save-btn gap-2"
+            {% if imagen_guardada %}data-saved="true"{% endif %}>
+      {% if imagen_guardada %}
+        <i class="fas fa-check"></i> Imagen guardada
+      {% else %}
+        <i class="fas fa-image"></i> Guardar imagen
+      {% endif %}
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<script src="{% static 'js/leaflet.js' %}"></script>
+<script>
+(function () {
+  'use strict';
+  function initMapas2p() {
+    document.querySelectorAll('.mapa-2-puntos-widget:not([data-initialized])').forEach(function (w) {
+      w.dataset.initialized = 'true';
+      var lat1 = parseFloat(w.dataset.lat1);
+      var lon1 = parseFloat(w.dataset.lon1);
+      if (isNaN(lat1) || isNaN(lon1)) return;
+
+      var lat2 = parseFloat(w.dataset.lat2);
+      var lon2 = parseFloat(w.dataset.lon2);
+      var hasPunto2 = !isNaN(lat2) && !isNaN(lon2);
+
+      var container = w.querySelector('.mapa-2-puntos-container');
+      var map = L.map(container, { zoomControl: false });
+
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri'
+      }).addTo(map);
+
+      function makeIcon(color, label) {
+        return L.divIcon({
+          className: '',
+          html: '<div style="width:28px;height:28px;border-radius:50%;background:' + color + ';border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;">' + label + '</div>',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        });
+      }
+
+      var color1 = w.dataset.color1 || '#e74c3c';
+      var label1 = w.dataset.label1 || 'A';
+      L.marker([lat1, lon1], { icon: makeIcon(color1, label1) })
+        .addTo(map)
+        .bindPopup(label1 + '<br>Lat: ' + lat1.toFixed(6) + '<br>Lon: ' + lon1.toFixed(6));
+
+      if (hasPunto2) {
+        var color2 = w.dataset.color2 || '#0054ff';
+        var label2 = w.dataset.label2 || 'B';
+        L.marker([lat2, lon2], { icon: makeIcon(color2, label2) })
+          .addTo(map)
+          .bindPopup(label2 + '<br>Lat: ' + lat2.toFixed(6) + '<br>Lon: ' + lon2.toFixed(6));
+
+        L.polyline([[lat1, lon1], [lat2, lon2]], { color: '#fff', weight: 2, opacity: 0.7, dashArray: '6 4' }).addTo(map);
+
+        var bounds = L.latLngBounds([[lat1, lon1], [lat2, lon2]]);
+        map.fitBounds(bounds, { padding: [40, 40] });
+      } else {
+        map.setView([lat1, lon1], 17);
+      }
+
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      w._leafletMap = map;
+      var nivelInicial = w.dataset.saveUrl ? (w.querySelector('.mapa-save-btn[data-saved]') ? 3 : 1) : 0;
+      window.parent.postMessage({ type: 'widget-state', level: nivelInicial }, '*');
+
+      // Redibuja el mapa cuando el contenedor pasa de 0 a tener tamaño real (modal/iframe oculto al init)
+      if (typeof ResizeObserver !== 'undefined') {
+        var ro = new ResizeObserver(function (entries) {
+          if (entries[0].contentRect.width > 0) {
+            map.invalidateSize();
+          }
+        });
+        ro.observe(container);
+      }
+
+      var saveBtn = w.querySelector('.mapa-save-btn');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', function () {
+          var saveUrl = w.dataset.saveUrl;
+          if (!saveUrl) return;
+          var zoom = w._leafletMap ? w._leafletMap.getZoom() : 17;
+          var csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+          var csrf = csrfEl ? csrfEl.value : '';
+
+          var coordenadas = [{ lat: lat1, lon: lon1, label: label1, color: color1 }];
+          if (hasPunto2) {
+            coordenadas.push({ lat: lat2, lon: lon2, label: (w.dataset.label2 || 'B'), color: (w.dataset.color2 || '#0054ff') });
+          }
+
+          saveBtn.disabled = true;
+          saveBtn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Guardando...';
+          fetch(saveUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify({ zoom: zoom, coordenadas: coordenadas }),
+          })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.success) {
+              saveBtn.innerHTML = '<i class="fas fa-check"></i> Guardado';
+              saveBtn.classList.replace('btn-primary', 'btn-success');
+              window.parent.postMessage({ type: 'widget-state', level: 3 }, '*');
+              window.Alert && window.Alert.success('Imagen guardada', { autoHide: 2000 });
+            } else {
+              saveBtn.disabled = false;
+              saveBtn.innerHTML = '<i class="fas fa-image"></i> Guardar imagen';
+              window.Alert && window.Alert.error(data.error || 'Error al guardar', { autoHide: 0, dismissible: true });
+            }
+          })
+          .catch(function () {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-image"></i> Guardar imagen';
+            window.Alert && window.Alert.error('Error de conexión', { autoHide: 0, dismissible: true });
+          });
+        });
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMapas2p);
+  } else {
+    initMapas2p();
+  }
+})();
+</script>
+{% else %}
+<div class="flex items-center justify-center h-24 rounded-lg border border-dashed border-base-300 text-base-content/30 text-sm gap-2">
+  <i class="fa-solid fa-map-pin"></i> Sin coordenadas
+</div>
+<script>window.parent.postMessage({ type: 'widget-state', level: 0 }, '*');</script>
+{% endif %}

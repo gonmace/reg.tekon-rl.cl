@@ -1,0 +1,54 @@
+{% comment %}
+widgets/comentario_widget.html
+Widget de campo de texto libre (textarea) con label fijo.
+Sin submit propio — debe estar dentro de un form externo.
+
+Nombre:
+  Comentario
+
+Tipo:
+  form
+
+Uso:
+  include 'widgets/comentario_widget.html'
+
+Config:
+  name — nombre del campo en el formulario, default comentario
+  rows — filas del textarea, default 3
+
+Estados:
+  1 — Campo vacío
+  3 — Campo con contenido
+{% endcomment %}
+{% with wid=name|default:"comentario" %}
+
+<div class="form-control w-full mb-3">
+
+  <label for="id_{{ wid }}" class="label">
+    <span class="flex items-center gap-2 label-text text-sm text-base-content">
+      <i class="fa-solid fa-comment-dots text-base-content/60 text-sm"></i>
+      {{ label|default:"Comentarios" }}
+    </span>
+  </label>
+
+  <textarea
+    name="{{ wid }}"
+    id="id_{{ wid }}"
+    rows="{{ rows|default:3 }}"
+    placeholder="Escribe tus comentarios…"
+    class="textarea textarea-bordered w-full sombra comentario-widget-ta"
+  >{{ value }}</textarea>
+
+</div>
+
+<script>
+(function () {
+  var ta = document.getElementById('id_{{ wid }}');
+  function emit() {
+    window.parent.postMessage({ type: 'widget-state', level: ta.value.trim() ? 3 : 1 }, '*');
+  }
+  ta.addEventListener('input', emit);
+  emit();
+})();
+</script>
+{% endwith %}

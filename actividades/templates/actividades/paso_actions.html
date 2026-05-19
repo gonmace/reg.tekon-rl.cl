@@ -1,0 +1,14 @@
+<div class="flex gap-1 justify-center">
+  <button class="btn btn-xs btn-ghost paso-edit-btn"
+          data-id="{{ record.pk }}" data-titulo="{{ record.titulo }}" title="Editar">
+    <i class="fas fa-edit"></i>
+  </button>
+  <button class="btn btn-xs btn-ghost paso-clone-btn"
+          data-id="{{ record.pk }}" data-titulo="{{ record.titulo }}" title="Clonar">
+    <i class="fas fa-copy"></i>
+  </button>
+  <button class="btn btn-xs btn-ghost text-error paso-delete-btn"
+          data-id="{{ record.pk }}" data-titulo="{{ record.titulo }}" title="Eliminar">
+    <i class="fas fa-trash"></i>
+  </button>
+</div>

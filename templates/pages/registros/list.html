@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Registros TX/TSS{% endblock %}
+
+{% block pre_content %}
+            <div class="flex justify-between items-baseline">
+            <div class="flex items-center gap-2">
+                <a href="{% url 'txtss:list' %}" class="btn btn-primary btn-sm">
+                    <i class="fa-solid fa-plus"></i>
+                    Nuevo Registro
+                </a>
+            </div>
+        </div>
+{% endblock pre_content %}
+
+{% block content %}
+<div class="container mx-auto">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-base-content">Registros TX/TSS</h1>
+            <p class="text-base-content/70 mt-2">Gestiona los registros de torres de transmisión y subestaciones</p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="stat bg-base-100 shadow rounded-lg">
+                <div class="stat-figure text-primary">
+                    <i class="fa-solid fa-tower-broadcast text-3xl"></i>
+                </div>
+                <div class="stat-title">Total Registros</div>
+                <div class="stat-value text-primary">{{ total_registros }}</div>
+            </div>
+            
+            <div class="stat bg-base-100 shadow rounded-lg">
+                <div class="stat-figure text-success">
+                    <i class="fa-solid fa-check-circle text-3xl"></i>
+                </div>
+                <div class="stat-title">Completados</div>
+                <div class="stat-value text-success">{{ registros|length|default:0 }}</div>
+            </div>
+            
+            <div class="stat bg-base-100 shadow rounded-lg">
+                <div class="stat-figure text-warning">
+                    <i class="fa-solid fa-clock text-3xl"></i>
+                </div>
+                <div class="stat-title">En Progreso</div>
+                <div class="stat-value text-warning">0</div>
+            </div>
+        </div>
+
+        <!-- Registros List -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                {% if registros %}
+                    <div class="overflow-x-auto">
+                        <table class="table table-zebra w-full">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Estado</th>
+                                    <th>Fecha Creación</th>
+                                    <th>Última Modificación</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for registro in registros %}
+                                <tr>
+                                    <td>{{ registro.id }}</td>
+                                    <td>
+                                        <div class="flex items-center space-x-3">
+                                            <div class="avatar placeholder">
+                                                <div class="bg-primary text-primary-content rounded-full w-8">
+                                                    <span class="text-xs">{{ registro.id }}</span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="font-bold">Registro #{{ registro.id }}</div>
+                                                <div class="text-sm opacity-50">TX/TSS</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if registro.is_active %}
+                                            <div class="badge badge-success">Activo</div>
+                                        {% else %}
+                                            <div class="badge badge-error">Inactivo</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ registro.created_at|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ registro.updated_at|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        <div class="flex gap-2">
+                                            <a href="{% url 'txtss:steps' registro.id %}" 
+                                               class="btn btn-primary btn-xs">
+                                                <i class="fa-solid fa-edit"></i>
+                                                Editar
+                                            </a>
+                                            <a href="{% url 'txtss:steps' registro.id %}" 
+                                               class="btn btn-info btn-xs">
+                                                <i class="fa-solid fa-eye"></i>
+                                                Ver
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <!-- Empty State -->
+                    <div class="text-center py-12">
+                        <div class="mb-4">
+                            <i class="fa-solid fa-tower-broadcast text-6xl text-base-content/30"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold text-base-content mb-2">No hay registros TX/TSS</h3>
+                        <p class="text-base-content/70 mb-6">Comienza creando tu primer registro de torre o subestación</p>
+                        <a href="{% url 'txtss:list' %}" class="btn btn-primary">
+                            <i class="fa-solid fa-plus"></i>
+                            Crear Primer Registro
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+{% endblock extra_js %} 

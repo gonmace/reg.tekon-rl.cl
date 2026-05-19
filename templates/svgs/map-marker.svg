@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" class="p-1.5" viewBox="0 0 14.6 16">
+  <g style="fill:currentColor">
+    <path
+      d="M57 28h-1l-17 7-17-7h-1L4 35l-1 2v22a1 1 0 0 0 2 1l16-7 17 7h1l18-7 1-2V29l-1-1zM20 50 6 57V38l14-7Zm17 7-14-7V31l14 7zm18-7-15 7V38l15-7z"
+      style="fill:currentColor" transform="matrix(.26458 0 0 .26458 -1 0)" />
+    <g style="fill:currentColor">
+      <g transform="matrix(.52917 0 0 .52917 4 0)">
+        <path fill="currentColor" fill-rule="evenodd"
+          d="M111 419a2 2 0 1 1 0-3 2 2 0 0 1 0 3zm0-4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 12c-1 0-6-7-6-9a6 6 0 0 1 11 0l-5 9zm0-16c-4 0-7 3-7 7 0 3 6 11 7 11s7-8 7-11c0-4-3-7-7-7z"
+          style="stroke-width:.563967" transform="translate(-104 -411)" />
+      </g>
+    </g>
+  </g>
+</svg>

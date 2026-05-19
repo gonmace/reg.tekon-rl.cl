@@ -1,0 +1,230 @@
+{% load crispy_forms_tags %}
+
+<div class="sub-elemento sub-elemento-table">
+    <div class="card bg-base-100 shadow-xl">
+
+            
+            {% if data and data|length > 0 %}
+                <form id="ejecucion-form" method="POST" action="{% url 'reg_construccion:guardar_ejecucion' registro.id %}">
+                    {% csrf_token %}
+                    <div class="overflow-x-auto">
+                        <table class="table table-zebra w-full">
+                            <thead>
+                                <tr>
+                                    <th class="text-left">COMPONENTES</th>
+                                    <th class="text-center">% INCIDENCIA</th>
+                                    <th class="text-center">% EJEC ANTERIOR</th>
+                                    <th class="text-center">% EJEC ACTUAL</th>
+                                    <th class="text-center">% EJEC ACUMULADA</th>
+                                    <th class="text-center">% EJECUCION TOTAL</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in data %}
+                                <tr>
+                                    <td class="font-medium">{{ item.componente }}</td>
+                                    <td class="text-center">{{ item.incidencia }}</td>
+                                    <td class="text-center">{{ item.ejec_anterior }}</td>
+                                    <td class="text-center font-semibold">
+                                        <input type="number"
+                                               name="ejec_actual_{{ item.componente_id }}"
+                                               value="{{ item.ejec_actual_valor|default:0 }}"
+                                               min="0"
+                                               max="100"
+                                               class="input input-sm input-bordered w-20 text-center"
+                                               data-original-value="{{ item.ejec_actual_valor|default:0 }}"
+                                               data-ejec-anterior="{{ item.ejec_anterior_valor|default:0 }}"
+                                               data-incidencia="{{ item.incidencia_valor|default:0 }}"
+                                               onchange="updateAcumulada(this)">
+                                        <span class="text-xs ml-1">%</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span id="ejec_acumulada_{{ item.componente_id }}">
+                                            {{ item.ejec_acumulada }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span id="ejecucion_total_{{ item.componente_id }}">
+                                            {{ item.ejecucion_total }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="font-bold">
+                                    <td>TOTAL</td>
+                                    <td class="text-center">100.0%</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td class="text-center">
+                                        <span id="total_ejecucion_total">0.0%</span>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    
+                    <!-- Botón para guardar cambios -->
+                    <div class="flex justify-center mt-6 mb-4">
+                        <button type="submit" 
+                                class="btn btn-primary btn-lg"
+                                id="guardar-btn"
+                                disabled>
+                            <i class="fas fa-save mr-2"></i>
+                            Guardar Cambios
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Información adicional con DaisyUI -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                    <div class="card bg-primary text-primary-content">
+                        <div class="card-body">
+                            <h3 class="card-title text-sm">
+                                <i class="fas fa-info-circle"></i>
+                                Información del Proyecto
+                            </h3>
+                            <p class="text-xs">
+                                <strong>Sitio:</strong> {{ registro.sitio.nombre|default:"No especificado" }}
+                            </p>
+                            <p class="text-xs">
+                                <strong>Fecha:</strong> {{ registro.fecha|date:"d/m/Y" }}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="card bg-success text-success-content">
+                        <div class="card-body">
+                            <h3 class="card-title text-sm">
+                                <i class="fas fa-chart-line"></i>
+                                Progreso General
+                            </h3>
+                            <p class="text-xs">
+                                <strong>Ejecución Total:</strong> <span id="info_ejecucion_total">{{ total_ejecucion_total|default:"0.0%" }}</span>
+                            </p>
+                            <p class="text-xs">
+                                <strong>Componentes:</strong> {{ data|length }}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="card bg-warning text-warning-content">
+                        <div class="card-body">
+                            <h3 class="card-title text-sm">
+                                <i class="fas fa-question-circle"></i>
+                                Leyenda
+                            </h3>
+                            <p class="text-xs">
+                                <strong>% Incidencia:</strong> Peso del componente
+                            </p>
+                            <p class="text-xs">
+                                <strong>% Ejecución:</strong> Progreso real
+                            </p>
+                            <p class="text-xs">
+                                <strong>% Total:</strong> Incidencia × Ejecución
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="text-center py-8">
+                    <div class="text-6xl mb-4 opacity-30">
+                        <i class="fas fa-table"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold mb-2">No hay componentes disponibles</h3>
+                    <p class="text-sm opacity-70">Selecciona una estructura de proyecto para ver los componentes</p>
+                </div>
+            {% endif %}
+   
+    </div>
+</div>
+
+<script>
+// Función para actualizar valores calculados
+function updateAcumulada(input) {
+    const ejecActual = parseInt(input.value) || 0;
+    const ejecAnteriorVal = parseInt(input.getAttribute('data-ejec-anterior')) || 0;
+    const incidenciaVal = parseFloat(input.getAttribute('data-incidencia')) || 0;
+    
+    // Calcular ejecución acumulada
+    const ejecAcumulada = ejecAnteriorVal + ejecActual;
+    
+    // Calcular ejecución total
+    const ejecucionTotal = (incidenciaVal / 100) * ejecAcumulada;
+    
+    // Actualizar valores en la tabla
+    const componenteId = input.name.split('_')[2];
+    document.getElementById(`ejec_acumulada_${componenteId}`).textContent = `${ejecAcumulada}%`;
+    document.getElementById(`ejecucion_total_${componenteId}`).textContent = `${ejecucionTotal.toFixed(1)}%`;
+    
+    // Habilitar botón de guardar si hay cambios
+    checkForChanges();
+    
+    // Actualizar totales
+    updateTotales();
+}
+
+// Función para verificar si hay cambios
+function checkForChanges() {
+    const inputs = document.querySelectorAll('input[name^="ejec_actual_"]');
+    let hasChanges = false;
+    
+    inputs.forEach(input => {
+        const originalValue = parseInt(input.getAttribute('data-original-value')) || 0;
+        const currentValue = parseInt(input.value) || 0;
+        
+        if (originalValue !== currentValue) {
+            hasChanges = true;
+        }
+    });
+    
+    const guardarBtn = document.getElementById('guardar-btn');
+    guardarBtn.disabled = !hasChanges;
+}
+
+// Función para actualizar totales
+function updateTotales() {
+    const inputs = document.querySelectorAll('input[name^="ejec_actual_"]');
+    let totalEjecucionTotal = 0;
+    
+    inputs.forEach(input => {
+        const ejecActual = parseInt(input.value) || 0;
+        const ejecAnterior = parseInt(input.getAttribute('data-ejec-anterior')) || 0;
+        const incidencia = parseFloat(input.getAttribute('data-incidencia')) || 0;
+        
+        // Solo calcular el total de ejecución total
+        totalEjecucionTotal += ((incidencia / 100) * (ejecAnterior + ejecActual));
+    });
+    
+    // Solo actualizar la columna de ejecución total
+    document.getElementById('total_ejecucion_total').textContent = `${totalEjecucionTotal.toFixed(1)}%`;
+    document.getElementById('info_ejecucion_total').textContent = `${totalEjecucionTotal.toFixed(1)}%`;
+}
+
+// Función para calcular totales iniciales
+function calcularTotalesIniciales() {
+    const inputs = document.querySelectorAll('input[name^="ejec_actual_"]');
+    let totalEjecucionTotal = 0;
+    
+    inputs.forEach(input => {
+        const ejecActual = parseInt(input.value) || 0;
+        const ejecAnterior = parseInt(input.getAttribute('data-ejec-anterior')) || 0;
+        const incidencia = parseFloat(input.getAttribute('data-incidencia')) || 0;
+        
+        // Calcular el total de ejecución total
+        totalEjecucionTotal += ((incidencia / 100) * (ejecAnterior + ejecActual));
+    });
+    
+    // Actualizar el total inicial
+    document.getElementById('total_ejecucion_total').textContent = `${totalEjecucionTotal.toFixed(1)}%`;
+    document.getElementById('info_ejecucion_total').textContent = `${totalEjecucionTotal.toFixed(1)}%`;
+}
+
+// Inicializar al cargar la página
+document.addEventListener('DOMContentLoaded', function() {
+    checkForChanges();
+    calcularTotalesIniciales();
+});
+</script> 

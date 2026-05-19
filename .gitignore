@@ -1,0 +1,19 @@
+# Ignorar archivos de Python
+*.pyc
+__pycache__/
+
+# Ignorar archivos de entornos virtuales
+.venv/
+
+# Ignorar archivos de configuración de editor
+.vscode/
+staticfiles
+ArchivosBase
+.vscode/
+.env
+db.sqlite3
+
+node_modules/
+media/
+*.idea/
+venv/

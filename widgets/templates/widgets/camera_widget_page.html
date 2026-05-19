@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Fotos — {{ title|default:step_name|default:'Imágenes'|title }}{% endblock %}
+
+{% block pre_content %}{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="p-3 max-w-2xl mx-auto w-full">
+  {% include 'widgets/camera_widget.html' with upload_url=upload_url foto_min=foto_min %}
+</div>
+{% endblock %}

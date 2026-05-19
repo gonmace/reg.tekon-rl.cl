@@ -1,0 +1,158 @@
+{% comment %}
+widgets/poste_form_widget.html
+Formulario de datos estructurales para postes TX/TSS.
+Sin submit propio — debe estar dentro de un form externo.
+
+Nombre:
+  Datos Poste
+
+Tipo:
+  form
+
+Estados:
+  1 — Sin datos guardados
+  3 — Datos guardados
+{% endcomment %}
+
+<div class="flex flex-col gap-4">
+
+  <p class="text-sm font-semibold text-base-content/60 flex items-center gap-2">
+    <i class="fa-solid fa-tower-broadcast text-primary"></i>
+    Datos del Poste
+  </p>
+
+  <!-- Tipo de Estructura -->
+  <div class="form-control">
+    <label class="label pb-1" for="id_tipo_estructura">
+      <span class="label-text text-sm">Tipo de Estructura <span class="text-error">*</span></span>
+    </label>
+    <input type="text" name="tipo_estructura" id="id_tipo_estructura"
+           value="{{ datos.tipo_estructura|default:'Poste de Hormigón Armado' }}"
+           required
+           class="input input-bordered w-full" />
+  </div>
+
+  <!-- Altura y Tensión -->
+  <div class="grid grid-cols-2 gap-3">
+    <div class="form-control">
+      <label class="label pb-1" for="id_altura">
+        <span class="label-text text-sm">Altura <span class="text-error">*</span></span>
+      </label>
+      <input type="text" name="altura" id="id_altura"
+             value="{{ datos.altura|default:'13 m' }}"
+             required
+             class="input input-bordered w-full" />
+    </div>
+    <div class="form-control">
+      <label class="label pb-1" for="id_tension">
+        <span class="label-text text-sm">Tensión <span class="text-error">*</span></span>
+      </label>
+      <input type="text" name="tension" id="id_tension"
+             value="{{ datos.tension|default:'Baja Tension' }}"
+             required
+             class="input input-bordered w-full" />
+    </div>
+  </div>
+
+  <!-- Placa Poste y Obstáculos -->
+  <div class="grid grid-cols-2 gap-3">
+    <div class="form-control">
+      <label class="label pb-1" for="id_placa_poste">
+        <span class="label-text text-sm">
+          Placa Poste
+          <span class="text-base-content/40 text-xs ml-1">(opcional)</span>
+        </span>
+      </label>
+      <input type="text" name="placa_poste" id="id_placa_poste"
+             value="{{ datos.placa_poste|default:'' }}"
+             placeholder="Nº de placa"
+             class="input input-bordered w-full" />
+    </div>
+    <div class="form-control">
+      <label class="label pb-1" for="id_obstaculos">
+        <span class="label-text text-sm">
+          Obstáculos
+          <span class="text-base-content/40 text-xs ml-1">(opcional)</span>
+        </span>
+      </label>
+      <input type="text" name="obstaculos" id="id_obstaculos"
+             value="{{ datos.obstaculos|default:'' }}"
+             placeholder="Describir..."
+             class="input input-bordered w-full" />
+    </div>
+  </div>
+
+  <!-- Booleans -->
+  <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+    <label class="label cursor-pointer justify-start gap-3 py-1" for="id_luminaria">
+      <input type="checkbox" name="luminaria" id="id_luminaria"
+             class="toggle toggle-success toggle-sm"
+             {% if datos.luminaria %}checked{% endif %} />
+      <span class="label-text text-sm">Luminaria</span>
+    </label>
+    <label class="label cursor-pointer justify-start gap-3 py-1" for="id_red_protegida">
+      <input type="checkbox" name="red_protegida" id="id_red_protegida"
+             class="toggle toggle-success toggle-sm"
+             {% if datos.red_protegida %}checked{% endif %} />
+      <span class="label-text text-sm">Red Protegida</span>
+    </label>
+    <label class="label cursor-pointer justify-start gap-3 py-1" for="id_acceso_camion_grua">
+      <input type="checkbox" name="acceso_camion_grua" id="id_acceso_camion_grua"
+             class="toggle toggle-success toggle-sm"
+             {% if datos.acceso_camion_grua or not datos.tipo_estructura %}checked{% endif %} />
+      <span class="label-text text-sm">Acceso Camión Grúa</span>
+    </label>
+    <label class="label cursor-pointer justify-start gap-3 py-1" for="id_vegetacion">
+      <input type="checkbox" name="vegetacion" id="id_vegetacion"
+             class="toggle toggle-success toggle-sm"
+             {% if datos.vegetacion %}checked{% endif %} />
+      <span class="label-text text-sm">Vegetación</span>
+    </label>
+    <label class="label cursor-pointer justify-start gap-3 py-1" for="id_antena_microondas">
+      <input type="checkbox" name="antena_microondas" id="id_antena_microondas"
+             class="toggle toggle-success toggle-sm"
+             {% if datos.antena_microondas %}checked{% endif %} />
+      <span class="label-text text-sm">Antena Microondas</span>
+    </label>
+  </div>
+
+  <!-- Comentario -->
+  <div class="form-control">
+    <label class="label pb-1" for="id_comentario_poste">
+      <span class="label-text text-sm">
+        Comentarios
+        <span class="text-base-content/40 text-xs ml-1">(opcional)</span>
+      </span>
+    </label>
+    <textarea name="comentario" id="id_comentario_poste" rows="3"
+              placeholder="Observaciones del poste..."
+              class="textarea textarea-bordered w-full">{{ datos.comentario|default:'' }}</textarea>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var FIELDS = ['tipo_estructura', 'altura', 'tension', 'placa_poste', 'obstaculos', 'comentario'];
+
+  function computeLevel() {
+    var filled = FIELDS.filter(function (name) {
+      var el = document.querySelector('[name="' + name + '"]');
+      return el && el.value.trim() !== '';
+    }).length;
+    if (filled === 0) return 1;
+    return filled === FIELDS.length ? 3 : 2;
+  }
+
+  function emit() {
+    window.parent.postMessage({ type: 'widget-state', level: computeLevel() }, '*');
+  }
+
+  FIELDS.forEach(function (name) {
+    var el = document.querySelector('[name="' + name + '"]');
+    if (el) el.addEventListener('input', emit);
+  });
+
+  emit();
+})();
+</script>

@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load static crispy_forms_tags %}
+
+{% block title %}{{ etapa|title }} - {{ registro_txtss.sitio.name|default:"Registro" }}{% endblock %}
+
+
+{% block pre_content %}
+    <div class="flex justify-between items-baseline">
+        <div class="flex items-center gap-2">
+            {% if is_editing %}
+            <div class="badge badge-dash badge-warning">Editando</div>
+            {% else %}
+            <div class="badge badge-dash badge-success">Nuevo</div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock pre_content %}
+
+{% block content %}
+<div class="container mx-auto">
+    <div class="max-w-4xl mx-auto">
+        <!-- Error Message -->
+        {% if error %}
+        <div class="alert alert-error mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <!-- Form Card -->
+        <div class="card card-xs bg-base-200 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">{{ sitio.name }}</h2>
+                <!-- Form -->
+                {% crispy form %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %} 
+
+{% block post_content %}
+<!-- Modal del mapa optimizado para móviles -->
+
+<dialog id="mapa" class="modal modal-middle">
+  <div
+    class="w-full max-w-full sm:max-w-5xl h-screen sm:h-4/5 bg-white text-black rounded-lg"
+  >
+    <div class="rounded-lg shadow-xl flex flex-col h-full">
+      <!-- Header -->
+      <div
+        class="flex justify-between items-center px-4 py-1 border-b border-base-300 shrink-0"
+      >
+        <h3 class="font-bold text-lg">Ubicación</h3>
+        <button class="btn btn-sm btn-circle btn-ghost" onclick="mapa.close()">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+      </div>
+
+      <!-- Contenedor del mapa -->
+      <div class="relative flex-1 overflow-hidden">
+        <div id="map" class="w-full h-full min-h-[200px]"></div>
+
+        <!-- Instrucciones móviles -->
+        <div
+          id="mobile-instructions"
+          class="absolute top-2 left-2 bg-base-100/90 backdrop-blur-sm rounded-lg p-3 text-sm shadow-lg max-w-xs sm:hidden opacity-0 transition-opacity duration-500"
+        >
+          <div class="flex items-center gap-2 mb-2">
+            <svg
+              class="w-4 h-4 text-info"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            <span class="font-semibold">Instrucciones</span>
+          </div>
+          <p class="text-xs">
+            Toca el mapa para colocar el marcador. Puedes arrastrar el marcador
+            para ajustar la posición.
+          </p>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="px-4 py-2 border-t border-base-300 gap-3 shrink-0 flex justify-end">
+        <button
+          id="btn-guardar-ubicacion"
+          class="btn btn-success btn-sm btn-disabled">
+          <i class="fa-solid fa-check"></i>
+          Capturar Coordenadas
+        </button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+{% endblock post_content %} 
+
+
+
+{% block extra_js %}
+<script src="{% static 'js/registros.js' %}"></script>
+{% endblock extra_js %}

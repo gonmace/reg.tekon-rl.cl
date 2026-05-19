@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Tipos de Actividad{% endblock %}
+
+{% block content %}
+<div class="p-2 md:p-4">
+  <div class="table-card">
+
+    <div class="table-card-header">
+      <div>
+        <h2 class="table-card-title">
+          <i class="fa-solid fa-sitemap mr-2 opacity-60"></i>Tipos de Actividad
+        </h2>
+        <p class="table-card-subtitle">Asigna pasos a cada tipo de actividad</p>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="table w-full">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Namespace</th>
+            <th class="text-center">Tipo sitio</th>
+            <th class="text-center">Pasos</th>
+            <th class="text-center">Activo</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tipo in tipos %}
+          <tr>
+            <td class="py-1 md:px-4 font-medium">{{ tipo.nombre }}</td>
+            <td class="py-1 md:px-4 font-mono text-sm opacity-60">{{ tipo.app_namespace }}</td>
+            <td class="text-center py-1 md:px-4">
+              <span class="badge badge-sm badge-outline badge-ghost">{{ tipo.tipo_sitio }}</span>
+            </td>
+            <td class="text-center py-1 md:px-4">
+              <span class="badge badge-sm badge-ghost">{{ tipo.config_pasos.count }}</span>
+            </td>
+            <td class="text-center py-1 md:px-4">
+              {% if tipo.activo %}
+                <i class="fas fa-check-circle text-success text-sm"></i>
+              {% else %}
+                <i class="fas fa-times-circle text-error text-sm"></i>
+              {% endif %}
+            </td>
+            <td class="text-center py-1 md:px-4">
+              <a href="{% url 'actividades:tipo_pasos' tipo.pk %}"
+                 class="btn btn-xs btn-ghost" hx-boost="false" title="Gestionar pasos">
+                <i class="fas fa-list-ol mr-1"></i>Pasos
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-8 opacity-40">
+              <i class="fa-solid fa-sitemap text-3xl mb-2 block"></i>
+              <p class="text-sm">Sin tipos de actividad registrados</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

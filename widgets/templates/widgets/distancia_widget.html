@@ -1,0 +1,234 @@
+{% comment %}
+widgets/distancia_widget.html
+Calcula la distancia en metros entre dos puntos geográficos usando la fórmula de Haversine.
+Muestra el resultado en tiempo real y permite guardar el valor calculado.
+
+Nombre:
+  Distancia
+
+Tipo:
+  ajax
+
+Uso:
+  include 'widgets/distancia_widget.html'
+
+Parámetros:
+  save_url        — URL del endpoint POST donde se guarda el resultado
+  lat1            — Latitud del punto A pre-cargada (opcional)
+  lon1            — Longitud del punto A pre-cargada (opcional)
+  lat2            — Latitud del punto B pre-cargada (opcional)
+  lon2            — Longitud del punto B pre-cargada (opcional)
+  distancia_metros — Distancia ya guardada en metros (opcional)
+
+Config:
+  label_punto1 — Etiqueta del punto A, default "Punto A"
+  label_punto2 — Etiqueta del punto B, default "Punto B"
+
+Estados:
+  1 — Sin coordenadas suficientes para calcular
+  2 — Distancia calculada pero no guardada
+  3 — Distancia guardada
+{% endcomment %}
+{% with wid=save_url|default:"preview"|slugify %}
+<div class="distancia-widget bg-base-100 rounded-lg p-4 sombra"
+     data-save-url="{{ save_url }}"
+     data-distancia="{{ distancia_metros|default:'' }}">
+
+  <p class="text-sm font-semibold text-base-content/60 flex items-center gap-2 mb-3">
+    <i class="fa-solid fa-ruler text-primary"></i>
+    {{ label|default:"Distancia entre puntos" }}
+  </p>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+
+    <!-- Punto A -->
+    <div class="flex flex-col gap-1">
+      <span class="text-xs font-medium text-base-content/60">{{ label_punto1|default:"Punto A" }}</span>
+      <div class="flex gap-2">
+        <input type="number" step="any" placeholder="Latitud"
+               class="dist-lat1 input input-sm input-bordered w-full font-mono"
+               value="{{ lat1|default:'' }}">
+        <input type="number" step="any" placeholder="Longitud"
+               class="dist-lon1 input input-sm input-bordered w-full font-mono"
+               value="{{ lon1|default:'' }}">
+      </div>
+    </div>
+
+    <!-- Punto B -->
+    <div class="flex flex-col gap-1">
+      <span class="text-xs font-medium text-base-content/60">{{ label_punto2|default:"Punto B" }}</span>
+      <div class="flex gap-2">
+        <input type="number" step="any" placeholder="Latitud"
+               class="dist-lat2 input input-sm input-bordered w-full font-mono"
+               value="{{ lat2|default:'' }}">
+        <input type="number" step="any" placeholder="Longitud"
+               class="dist-lon2 input input-sm input-bordered w-full font-mono"
+               value="{{ lon2|default:'' }}">
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Resultado -->
+  <div class="dist-result flex items-center justify-between gap-3 rounded-lg bg-base-200 px-4 py-3 mb-3">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-arrow-right-arrow-left text-base-content/30 text-sm"></i>
+      <span class="dist-value text-2xl font-bold font-mono text-base-content">
+        {% if distancia_metros %}{{ distancia_metros|floatformat:1 }} m{% else %}—{% endif %}
+      </span>
+    </div>
+    <span class="dist-km text-sm text-base-content/50 font-mono">
+      {% if distancia_metros and distancia_metros|floatformat:0 != "0" %}
+        {{ distancia_metros|floatformat:3|divisibleby:1000 }}
+      {% endif %}
+    </span>
+  </div>
+
+  <!-- Botones -->
+  <div class="flex gap-2">
+    <button type="button" class="dist-calc-btn btn btn-primary btn-sm flex-1 gap-2">
+      <i class="fa-solid fa-calculator"></i> Calcular
+    </button>
+    <button type="button" class="dist-save-btn btn btn-success btn-sm flex-1 gap-2" disabled>
+      <i class="fa-solid fa-floppy-disk"></i>
+      <span class="dist-save-label">
+        {% if distancia_metros %}Actualizar{% else %}Guardar{% endif %}
+      </span>
+    </button>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var w = document.querySelector('.distancia-widget:not([data-initialized])');
+  if (!w) return;
+  w.dataset.initialized = 'true';
+
+  var saveUrl   = w.dataset.saveUrl;
+  var lat1El    = w.querySelector('.dist-lat1');
+  var lon1El    = w.querySelector('.dist-lon1');
+  var lat2El    = w.querySelector('.dist-lat2');
+  var lon2El    = w.querySelector('.dist-lon2');
+  var valueEl   = w.querySelector('.dist-value');
+  var kmEl      = w.querySelector('.dist-km');
+  var calcBtn   = w.querySelector('.dist-calc-btn');
+  var saveBtn   = w.querySelector('.dist-save-btn');
+  var saveLabel = w.querySelector('.dist-save-label');
+
+  var savedDistancia = w.dataset.distancia ? parseFloat(w.dataset.distancia) : null;
+  var lastCalculated = null;
+
+  function getCsrf() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    return el ? el.value : '';
+  }
+
+  // ── Haversine ──────────────────────────────────────────────────────
+  function haversine(lat1, lon1, lat2, lon2) {
+    var R  = 6371000;
+    var f1 = lat1 * Math.PI / 180;
+    var f2 = lat2 * Math.PI / 180;
+    var df = (lat2 - lat1) * Math.PI / 180;
+    var dl = (lon2 - lon1) * Math.PI / 180;
+    var a  = Math.sin(df / 2) * Math.sin(df / 2)
+           + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function formatDistancia(metros) {
+    if (metros < 1000) return metros.toFixed(1) + ' m';
+    return (metros / 1000).toFixed(3) + ' km (' + metros.toFixed(0) + ' m)';
+  }
+
+  // ── Estado ─────────────────────────────────────────────────────────
+  function emitState(level) {
+    window.parent.postMessage({ type: 'widget-state', level: level }, '*');
+  }
+
+  function currentLevel() {
+    if (savedDistancia !== null) return 3;
+    if (lastCalculated !== null) return 2;
+    return 1;
+  }
+
+  // ── Calcular ───────────────────────────────────────────────────────
+  calcBtn.addEventListener('click', function () {
+    var lat1 = parseFloat(lat1El.value);
+    var lon1 = parseFloat(lon1El.value);
+    var lat2 = parseFloat(lat2El.value);
+    var lon2 = parseFloat(lon2El.value);
+
+    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
+      if (window.Alert) window.Alert.error('Ingresa los 4 valores de coordenadas.', { autoHide: 3000 });
+      return;
+    }
+    if (Math.abs(lat1) > 90 || Math.abs(lat2) > 90) {
+      if (window.Alert) window.Alert.error('Latitud fuera de rango (-90 a 90).', { autoHide: 3000 });
+      return;
+    }
+    if (Math.abs(lon1) > 180 || Math.abs(lon2) > 180) {
+      if (window.Alert) window.Alert.error('Longitud fuera de rango (-180 a 180).', { autoHide: 3000 });
+      return;
+    }
+
+    lastCalculated = haversine(lat1, lon1, lat2, lon2);
+    valueEl.textContent = formatDistancia(lastCalculated);
+    kmEl.textContent = '';
+    saveBtn.disabled = false;
+    saveLabel.textContent = 'Guardar';
+    savedDistancia = null;
+    emitState(2);
+  });
+
+  // ── Guardar ────────────────────────────────────────────────────────
+  saveBtn.addEventListener('click', function () {
+    if (!saveUrl || lastCalculated === null) return;
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+    fetch(saveUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({
+        lat1: parseFloat(lat1El.value),
+        lon1: parseFloat(lon1El.value),
+        lat2: parseFloat(lat2El.value),
+        lon2: parseFloat(lon2El.value),
+        distancia_metros: lastCalculated,
+      }),
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (result) {
+      if (result.success !== false) {
+        savedDistancia = lastCalculated;
+        saveLabel.textContent = 'Actualizar';
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i><span class="dist-save-label">Actualizar</span>';
+        saveLabel = w.querySelector('.dist-save-label');
+        emitState(3);
+        if (window.Alert) window.Alert.success('Distancia guardada', { autoHide: 2000 });
+      } else {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i><span class="dist-save-label">Guardar</span>';
+        saveLabel = w.querySelector('.dist-save-label');
+        if (window.Alert) window.Alert.error(result.message || 'Error al guardar', { autoHide: 0, dismissible: true });
+      }
+    })
+    .catch(function () {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i><span class="dist-save-label">Guardar</span>';
+      saveLabel = w.querySelector('.dist-save-label');
+      if (window.Alert) window.Alert.error('Error de conexión', { autoHide: 0, dismissible: true });
+    });
+  });
+
+  // ── Estado inicial ─────────────────────────────────────────────────
+  emitState(currentLevel());
+
+})();
+</script>
+{% endwith %}

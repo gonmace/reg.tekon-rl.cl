@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% comment %}
+data_table_page.html — Template base para páginas con tabla principal.
+
+Estilo Cupertino-pro: card con header (título, búsqueda, acciones), tabla
+adentro, y footer opcional para paginación/conteo.
+
+Bloques disponibles:
+  - table_title       : título principal de la tabla
+  - table_subtitle    : descripción opcional debajo del título
+  - table_search      : input de búsqueda (usar con clases .table-search)
+  - table_actions     : botones a la derecha del header (ej. "Nuevo")
+  - table_content     : contenido de la tabla (<table>...</table> ya con clase 'table')
+  - table_footer      : footer opcional (paginación, conteo, etc.)
+  - extra_modals      : dialogs/modales que la página necesite
+{% endcomment %}
+{% load static %}
+
+{% block content %}
+<div class="p-2 md:p-4">
+  <div class="table-card">
+    <div class="table-card-header">
+      <div>
+        <h2 class="table-card-title">{% block table_title %}{% endblock %}</h2>
+        <p class="table-card-subtitle empty:hidden">{% block table_subtitle %}{% endblock %}</p>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        {% block table_search %}
+          <div class="table-search">
+            <i class="fa-solid fa-magnifying-glass table-search-icon"></i>
+            <input type="text" class="input input-sm" placeholder="Buscar..." autocomplete="off" />
+          </div>
+        {% endblock %}
+        {% block table_actions %}{% endblock %}
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      {% block table_content %}{% endblock %}
+    </div>
+
+    {% block table_footer %}{% endblock %}
+  </div>
+</div>
+
+{% block extra_modals %}{% endblock %}
+{% endblock content %}

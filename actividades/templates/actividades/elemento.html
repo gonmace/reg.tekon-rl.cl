@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load static actividades_tags %}
+
+{% block title %}{{ paso.titulo }} — {{ registro }}{% endblock %}
+
+{% block content %}
+<div class="mb-1">
+  <a href="{{ back_url }}" class="btn btn-sm btn-outline gap-1">
+    <i class="fas fa-arrow-left"></i> Volver
+  </a>
+</div>
+
+{% if widgets %}
+  {% if has_form_widgets %}
+  <form method="post" action="" class="bg-base-100 p-2 py-6">
+    {% csrf_token %}
+  {% endif %}
+
+  <div class="flex flex-col gap-6" id="widgets-container" {% if request.user.is_visita %}data-readonly="true"{% endif %}>
+    {% for widget in widgets %}
+      {% render_widget widget %}
+    {% endfor %}
+  </div>
+
+  {% if has_form_widgets %}
+    <div class="mt-4">
+      {% if not request.user.is_visita %}
+      <button type="submit" class="btn btn-success w-full">Guardar</button>
+      {% else %}
+      <p class="text-center text-sm text-base-content/40 py-2">
+        <i class="fa-solid fa-lock mr-1"></i> Vista de solo lectura
+      </p>
+      {% endif %}
+    </div>
+  </form>
+  {% endif %}
+{% else %}
+  <div class="bg-base-100 rounded-lg p-6 sombra text-center text-base-content/40">
+    <i class="fa-solid fa-puzzle-piece text-4xl mb-3 block opacity-30"></i>
+    <p class="font-medium">{{ paso.titulo }}</p>
+    <p class="text-sm mt-1">No hay widgets configurados para este paso.</p>
+  </div>
+{% endif %}
+
+{% endblock %}
+
+{% if request.user.is_visita %}
+{% block extra_js %}
+<script>
+(function () {
+  var container = document.getElementById('widgets-container');
+  if (!container || container.dataset.readonly !== 'true') return;
+  container.querySelectorAll('input, textarea, select').forEach(function (el) {
+    el.disabled = true;
+  });
+  container.querySelectorAll('button').forEach(function (btn) {
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-not-allowed');
+  });
+})();
+</script>
+{% endblock %}
+{% endif %}

@@ -1,0 +1,38 @@
+{% load crispy_forms_field %}
+
+<div class="form-control w-full">
+  {# Etiqueta del campo #}
+  {% if field.label %}
+    <label for="{{ field.id_for_label }}" class="label">
+      <span class="label-text text-sm text-base-content">{{ field.label }}*</span>
+    </label>
+  {% endif %}
+
+  {# Contenedor DaisyUI JOIN #}
+  <div class="join w-full">
+    <input 
+      type="text"
+      name="{{ field.name }}"
+      id="{{ field.id_for_label }}"
+      value="{{ field.value|default_if_none:'' }}"
+      placeholder="{{ field.field.widget.attrs.placeholder|default:'Ingrese valor' }}"
+      class="input input-success join-item w-full sombra"
+    >
+    <button 
+      type="button"
+      class="btn btn-warning join-item text-3xl sombra"
+      data-target="{{ field.name }}">
+      °
+    </button>
+  </div>
+
+  {# Texto de ayuda #}
+  {% if field.help_text %}
+    <span id="help-text-{{ field.name }}" class="text-xs text-base-content mt-1">{{ field.help_text }}</span>
+  {% endif %}
+
+  {# Errores #}
+  {% if field.errors %}
+    <span class="text-xs text-error mt-1">{{ field.errors|join:", " }}</span>
+  {% endif %}
+</div>

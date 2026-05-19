@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<script>
+  (function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
+</script>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Reportes Tekon{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}{% endblock %}">
+
+    {% load static tailwind_tags %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap" rel="stylesheet">
+    <link rel="icon" href="{% static 'img/favicon.ico' %}" type="image/x-icon">
+    {% tailwind_css %}
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    {% block content %}{% endblock %}
+    {% block extra_scripts %}{% endblock %}
+    {% if debug %}
+        {% url 'django_browser_reload:reload' as reload_url %}
+        <script src="{{ reload_url }}" defer></script>
+    {% endif %}
+</body>
+</html>

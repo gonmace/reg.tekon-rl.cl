@@ -1,0 +1,38 @@
+from widgets.base import WidgetBase
+from widgets.registry import register_widget
+
+
+@register_widget
+class PosteFormWidget(WidgetBase):
+    slug = "poste_form_widget"
+    nombre = "Datos del Poste"
+    icon = "fa-brands fa-wpforms"
+
+    def validate_data(self, data):
+        errors = []
+        for field in ("tipo_estructura", "altura", "tension"):
+            if not str(data.get(field, "")).strip():
+                errors.append(f"{field.replace('_', ' ').title()} es requerido")
+        return errors
+
+    def completeness(self, data):
+        checkable = ["tipo_estructura", "altura", "tension", "placa_poste", "obstaculos", "comentario"]
+        filled = sum(1 for f in checkable if str(data.get(f, "")).strip())
+        if filled == 0:
+            return 1
+        return 3 if filled == len(checkable) else 2
+
+    def to_display(self, data, config):
+        return {
+            "tipo_estructura": data.get("tipo_estructura", "Poste de Hormigón Armado"),
+            "altura": data.get("altura", "13 m"),
+            "placa_poste": data.get("placa_poste", ""),
+            "obstaculos": data.get("obstaculos", ""),
+            "luminaria": data.get("luminaria", False),
+            "red_protegida": data.get("red_protegida", False),
+            "acceso_camion_grua": data.get("acceso_camion_grua", True),
+            "vegetacion": data.get("vegetacion", False),
+            "antena_microondas": data.get("antena_microondas", False),
+            "tension": data.get("tension", "Baja Tension"),
+            "comentario": data.get("comentario", ""),
+        }

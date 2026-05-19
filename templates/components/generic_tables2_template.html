@@ -1,0 +1,113 @@
+{% extends 'components/common/data_table_page.html' %}
+{% load static %}
+{% load django_tables2 %}
+
+{% block title %}{{ page_title|default:"Registros" }}{% endblock %}
+
+{% block pre_content %}
+  {% csrf_token %}
+{% endblock pre_content %}
+
+{% block table_title %}{{ page_title|default:"Registros" }}{% endblock %}
+{% block table_subtitle %}{{ page_subtitle|default:"" }}{% endblock %}
+
+{% block table_search %}
+  <div class="table-search">
+    <i class="fa-solid fa-magnifying-glass table-search-icon"></i>
+    <input type="search" name="q" value="{{ request.GET.q }}"
+           hx-get="{{ request.path }}"
+           hx-trigger="keyup changed delay:300ms, search"
+           hx-target="#registros-table-wrapper"
+           hx-push-url="true"
+           hx-indicator="#registros-loader"
+           class="input input-sm" placeholder="Buscar..." autocomplete="off" />
+  </div>
+  <span id="registros-loader" class="htmx-indicator loading loading-spinner loading-sm text-primary"></span>
+{% endblock %}
+
+{% block table_actions %}
+  {% if show_activate_button %}
+  <button type="button" class="btn btn-add btn-sm" id="activar-registro-btn"
+          onclick="document.getElementById('activar-registro-modal').showModal()">
+    <i class="fa-solid fa-plus mr-1"></i>
+    {{ activate_button_text|default:"Activar Registro" }}
+  </button>
+  {% endif %}
+{% endblock %}
+
+{% block table_content %}
+  <div id="registros-table-wrapper">
+    {% render_table table %}
+  </div>
+{% endblock %}
+
+{% block extra_modals %}
+  {% if show_activate_button and form %}
+    {% include 'components/activar_registro_form.html' %}
+  {% endif %}
+{% endblock extra_modals %}
+
+{% block extra_js %}
+<script src="{% static 'js/changeStatus.js' %}?v=1.4"></script>
+<script>
+(function () {
+    function initActivarModal() {
+        const modal = document.getElementById('activar-registro-modal');
+        if (!modal || modal.dataset.listenerAttached) return;
+
+        const form = modal.querySelector('#activar-registro-form');
+        if (!form) return;
+
+        modal.dataset.listenerAttached = 'true';
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const submitBtn = form.querySelector('[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: new FormData(form),
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    modal.close();
+                    window.Alert.success(result.message || 'Registro activado exitosamente', { autoHide: 3000 });
+                    setTimeout(() => {
+                        window.location.href = result.redirect_url || window.location.pathname;
+                    }, 1000);
+                } else {
+                    let msg = result.message || 'Error al activar el registro';
+                    if (result.errors) {
+                        const fieldErrors = Object.entries(result.errors)
+                            .map(([f, errs]) => `${f}: ${errs.join(', ')}`)
+                            .join(' | ');
+                        msg += ` — ${fieldErrors}`;
+                    }
+                    window.Alert.error(msg, { autoHide: 0, dismissible: true });
+                    if (submitBtn) submitBtn.disabled = false;
+                }
+            } catch (err) {
+                window.Alert.error('Error de conexión. Por favor, inténtalo de nuevo.', { autoHide: 0, dismissible: true });
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
+    }
+
+    // El script está al fondo del body: DOM ya disponible, llamar directo.
+    initActivarModal();
+    document.addEventListener('htmx:afterSwap', initActivarModal);
+})();
+</script>
+{% endblock extra_js %}

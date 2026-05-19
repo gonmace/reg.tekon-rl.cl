@@ -1,0 +1,45 @@
+{% load static %}
+
+<div class="mapa-container">
+    <!-- Botón para abrir el mapa -->
+    <button type="button" 
+            id="map-btn-{{ config.id|default:'default' }}"
+            class="btn btn-{{ config.icon_config.color|default:'primary' }} btn-circle sombra"
+            data-map-type="{{ config.type|default:'single_point' }}"
+            data-coord1-lat="{{ config.lat_field|default:'lat' }}"
+            data-coord1-lon="{{ config.lon_field|default:'lon' }}"
+            data-coord1-label="{{ config.name_field|default:'name' }}"
+            data-coord1-color="{{ config.icon_config.color|default:'#F59E0B' }}"
+            data-coord1-size="{{ config.icon_config.size|default:'mid' }}"
+            title="Ver mapa de {{ config.title|default:'ubicación' }}"
+            onclick="openMapModal(this)">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+    </button>
+    
+    <!-- Información del mapa -->
+    {% if config.description %}
+        <div class="text-xs text-gray-600 mt-1">
+            {{ config.description }}
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Verificar si las coordenadas están disponibles para habilitar/deshabilitar el botón
+document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('map-btn-{{ config.id|default:"default" }}');
+    if (btn) {
+        // Verificar si hay coordenadas válidas
+        const lat = btn.dataset.coord1Lat;
+        const lon = btn.dataset.coord1Lon;
+        
+        if (!lat || !lon || lat === 'null' || lon === 'null') {
+            btn.classList.add('btn-disabled');
+            btn.title = 'No hay coordenadas disponibles';
+        }
+    }
+});
+</script> 

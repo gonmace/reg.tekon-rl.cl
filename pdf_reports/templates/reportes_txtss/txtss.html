@@ -1,0 +1,284 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>TX/TSS — {{ registro.sitio.pti_cell_id }}</title>
+  <link rel="stylesheet" href="{% static 'css/weasyprint.css' %}">
+</head>
+<body>
+
+<!-- ENCABEZADO -->
+<div id="page-header">
+  <table class="header-table">
+    <tr>
+      <td class="header-logo left">
+        {% include "svgs/phoenix_tower_logo_horizontal.svg" %}
+      </td>
+      <td class="header-title">
+        <h1>TX / Technical Site Survey<br>
+        {{ registro.sitio.pti_cell_id }}</h1>
+      </td>
+      <td class="header-logo right">
+        {% include "svgs/tekon_logo.svg" %}
+      </td>
+    </tr>
+  </table>
+</div>
+
+<!-- PIE DE PÁGINA -->
+<div id="page-footer">
+  <span class="page-number"></span>
+</div>
+
+<!-- ============================================================
+     1. DATOS GENERALES + INSPECCIÓN (lado a lado)
+     ============================================================ -->
+<div class="seccion-2col">
+  <article class="seccion-2col-izq">
+    <h2>Datos Generales del Sitio</h2>
+    <table class="datos-2col">
+      {% for key, value in datos_generales.items %}
+      <tr>
+        <th>{{ key }}</th>
+        <td>{{ value }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </article>
+
+  <article class="seccion-2col-der">
+    <h2>Datos de Inspección</h2>
+    <table class="datos-2col">
+      {% for key, value in inspeccion_sitio.items %}
+      <tr>
+        <th>{{ key }}</th>
+        <td>{{ value }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </article>
+</div>
+
+<!-- ============================================================
+     2. MAPA DEL PUNTO DE MANDATO  (antes de Datos Geográficos)
+     ============================================================ -->
+{% if mapa_mandato_src %}
+<article id="mapa-mandato">
+  <h2>Punto de Mandato</h2>
+  <table class="mapa-table">
+    <tr>
+      <td class="mapa-img-cell">
+        <img src="{{ mapa_mandato_src }}" alt="Mapa del punto de mandato">
+      </td>
+      <td class="mapa-leyenda-cell">
+        {% include "reportes_txtss/partials/leyenda.html" with icon_color="#3b82f6" name="Mandato" %}
+        <p class="mapa-leyenda-nota">
+          Lat: {{ registro.sitio.lat_man }}<br>
+          Lon: {{ registro.sitio.lon_man }}
+        </p>
+      </td>
+    </tr>
+  </table>
+</article>
+{% endif %}
+
+<!-- ============================================================
+     3. DATOS GEOGRÁFICOS + ALERTA DE DESFASE
+     ============================================================ -->
+<article id="tabla-datos-geograficos">
+  <h2>Datos Geográficos</h2>
+  {% include "reportes_txtss/partials/tabla.html" with tabla=datos_geograficos %}
+</article>
+
+<!-- ============================================================
+     4. MAPA DESFASE MANDATO — INSPECCIÓN
+     ============================================================ -->
+{% if mapa_desfase_src %}
+<article id="mapa-desfase">
+  <h2>Desfase Mandato — Inspección (Poste)</h2>
+  <table class="mapa-table">
+    <tr>
+      <td class="mapa-img-cell">
+        <img src="{{ mapa_desfase_src }}" alt="Mapa de desfase Mandato vs Inspección">
+      </td>
+      <td class="mapa-leyenda-cell">
+        {% include "reportes_txtss/partials/leyenda.html" with icon_color="#3b82f6" name="Mandato" %}
+        {% include "reportes_txtss/partials/leyenda.html" with icon_color="#e74c3c" name="Poste (Inspección)" %}
+      </td>
+    </tr>
+  </table>
+  {% if desfase_metros %}
+  <div class="desfase-alerta">
+    <span class="desfase-dot" style="background-color: {{ desfase_color }};"></span>
+    <span>
+      <strong>Desfase Mandato — Inspección:</strong>&nbsp;{{ desfase_metros }}
+      {% if desfase_color == '#FF4040' %}— <em>Fuera de tolerancia (&gt; 200 m)</em>
+      {% elif desfase_color == '#FFFF44' %}— <em>Revisar (150–200 m)</em>
+      {% else %}— <em>Dentro de tolerancia (&le; 150 m)</em>
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+</article>
+{% endif %}
+
+<!-- ============================================================
+     5. DATOS DEL POSTE
+     ============================================================ -->
+{% if poste_form or poste_ubic %}
+<article id="datos-poste">
+  <h2>Datos del Poste</h2>
+
+  {% if poste_ubic and not poste_ubic.is_empty %}
+  <h3>Ubicación GPS</h3>
+  <table class="datos-2col">
+    <tr>
+      <th>Latitud:</th>
+      <td>
+        {{ poste_lat_dms }}<br>
+        <span style="color:#555; font-size:9.5pt;">{{ poste_ubic.lat|floatformat:6 }}°</span>
+        {% if poste_ubic.accuracy %}&nbsp;<span style="color:#888; font-size:9pt;">(±{{ poste_ubic.accuracy|floatformat:0 }} m)</span>{% endif %}
+      </td>
+    </tr>
+    <tr>
+      <th>Longitud:</th>
+      <td>
+        {{ poste_lon_dms }}<br>
+        <span style="color:#555; font-size:9.5pt;">{{ poste_ubic.lon|floatformat:6 }}°</span>
+      </td>
+    </tr>
+    {% if poste_comp.distancia_mandato_str %}
+    <tr>
+      <th>{{ poste_comp.distancia_mandato_label }}:</th>
+      <td>
+        <strong>{{ poste_comp.distancia_mandato_str }}</strong>&nbsp;
+        <svg width="10" height="10" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="6" cy="6" r="6" fill="{{ desfase_color }}"/>
+        </svg>
+      </td>
+    </tr>
+    {% endif %}
+  </table>
+  {% endif %}
+
+  {% if poste_form %}
+  <h3>Características</h3>
+  <table class="datos-2col">
+    {% if poste_form.tipo_estructura %}<tr><th>Tipo de Estructura:</th><td>{{ poste_form.tipo_estructura }}</td></tr>{% endif %}
+    {% if poste_form.altura %}<tr><th>Altura:</th><td>{{ poste_form.altura }}</td></tr>{% endif %}
+    {% if poste_form.tension %}<tr><th>Tensión:</th><td>{{ poste_form.tension }}</td></tr>{% endif %}
+    {% if poste_form.placa_poste %}<tr><th>Placa del Poste:</th><td>{{ poste_form.placa_poste }}</td></tr>{% endif %}
+    {% if poste_form.obstaculos %}<tr><th>Obstáculos:</th><td>{{ poste_form.obstaculos }}</td></tr>{% endif %}
+    <tr>
+      <th>Luminaria:</th>
+      <td>{% if poste_form.luminaria %}Sí{% else %}No{% endif %}</td>
+    </tr>
+    <tr>
+      <th>Red Protegida:</th>
+      <td>{% if poste_form.red_protegida %}Sí{% else %}No{% endif %}</td>
+    </tr>
+    <tr>
+      <th>Acceso Camión Grúa:</th>
+      <td>{% if poste_form.acceso_camion_grua %}Sí{% else %}No{% endif %}</td>
+    </tr>
+    <tr>
+      <th>Vegetación:</th>
+      <td>{% if poste_form.vegetacion %}Sí{% else %}No{% endif %}</td>
+    </tr>
+    <tr>
+      <th>Antena de Microondas:</th>
+      <td>{% if poste_form.antena_microondas %}Sí{% else %}No{% endif %}</td>
+    </tr>
+    {% if poste_form.comentario %}<tr><th>Comentario:</th><td>{{ poste_form.comentario }}</td></tr>{% endif %}
+  </table>
+  {% endif %}
+</article>
+{% endif %}
+
+<!-- ============================================================
+     6. REGISTRO FOTOGRÁFICO DEL POSTE
+     ============================================================ -->
+{% if poste_fotos %}
+<section class="imagenes">
+  <div class="foto-titulo">
+    <p><strong>Registro Fotográfico del Poste</strong></p>
+  </div>
+  {% include "reportes_txtss/partials/fotos_tabla.html" with fotos=poste_fotos %}
+</section>
+{% endif %}
+
+<!-- ============================================================
+     7. IMÁGENES DE COBERTURA
+     ============================================================ -->
+{% if imagenes_fotos %}
+<section class="imagenes">
+  <div class="foto-titulo">
+    <p><strong>Imágenes de Cobertura</strong></p>
+  </div>
+  {% include "reportes_txtss/partials/fotos_tabla.html" with fotos=imagenes_fotos %}
+</section>
+{% endif %}
+
+<!-- ============================================================
+     DATOS LEGACY (se muestran sólo si existen, para registros con RSitio/RAcceso/REmpalme)
+     ============================================================ -->
+{% if registro_sitio %}
+<article id="inspeccion-sitio-legacy">
+  <h2>Inspección del Sitio</h2>
+  <section class="content-registro">
+    {% for key, value in registro_sitio.items %}
+    {% if value != '' and value != 'None' %}
+      <p><strong>{{ key }}</strong> {{ value }}</p>
+    {% endif %}
+    {% endfor %}
+  </section>
+</article>
+{% endif %}
+
+{% if registro_acceso %}
+<article id="registro-acceso">
+  <h2>Camino de Acceso</h2>
+  <section class="content-registro">
+    {% for key, value in registro_acceso.items %}
+    {% if value != '' and value != 'None' %}
+      <p><strong>{{ key }}</strong> {{ value }}</p>
+    {% endif %}
+    {% endfor %}
+  </section>
+</article>
+{% endif %}
+
+{% if registro_empalme %}
+<article id="registro-empalme">
+  <h2>Empalme Eléctrico</h2>
+  <section class="content-registro">
+    {% for key, value in registro_empalme.items %}
+    {% if value != '' and value != 'None' %}
+      <p><strong>{{ key }}</strong> {{ value }}</p>
+    {% endif %}
+    {% endfor %}
+  </section>
+</article>
+{% endif %}
+
+{% if pasos_widgets %}
+{% for paso in pasos_widgets %}
+<article class="paso-widget-section">
+  <h2>{{ paso.titulo }}</h2>
+  {% for widget in paso.widgets %}
+    {% if widget.slug != "camera_widget" and widget.slug != "imgs_desc_widget" %}
+      {% include "reportes_txtss/partials/widget_render.html" %}
+    {% endif %}
+  {% endfor %}
+  {% for widget in paso.widgets %}
+    {% if widget.slug == "camera_widget" or widget.slug == "imgs_desc_widget" %}
+      {% include "reportes_txtss/partials/widget_render.html" %}
+    {% endif %}
+  {% endfor %}
+</article>
+{% endfor %}
+{% endif %}
+
+</body>
+</html>

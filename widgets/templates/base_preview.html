@@ -1,0 +1,16 @@
+{% load static tailwind_tags %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <script src="{% static 'js/theme-navigation.js' %}"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% tailwind_css %}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-base-200 p-6">
+  {% csrf_token %}
+  {% block content %}{% endblock %}
+</body>
+</html>

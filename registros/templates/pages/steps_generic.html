@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% load static %} 
+
+{% block pre_content %}{% endblock pre_content %}
+
+{% block content %}
+
+{% if allow_multiple_per_site %}
+<!-- Selector de fecha para múltiples registros del mismo sitio -->
+<div class="mb-6 p-4 bg-base-100 rounded-lg shadow-sm border sombra">
+    <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-2">
+            <span class="text-sm font-medium text-base-content">Seleccionar fecha:</span>
+            <span class="text-xs text-base-content/60">(Hoy para nueva fecha, fechas existentes para navegar)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <select id="fecha-selector" class="select select-bordered select-sm" onchange="cambiarRegistro(this.value)">
+                <!-- Opción para fecha de hoy -->
+                <option value="hoy" style="font-weight: bold; color: #3b82f6;">
+                    🗓️ Hoy ({{ "now"|date:"d/m/Y" }})
+                </option>
+                <!-- Separador -->
+                <option value="" disabled>──────────</option>
+                <!-- Registros existentes -->
+                {% for reg in registros_sitio %}
+                    <option value="{{ reg.id }}" {% if reg.id == registro.id %}selected{% endif %}>
+                        {{ reg.fecha|date:"d/m/Y" }} {% if reg.id == registro.id %}(Actual){% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-primary btn-sm" id="activar-registro-btn" type="button">
+                <i class="fa-solid fa-plus"></i>
+                Nueva Fecha
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Datos del sitio y PDF -->
+<div class="mb-4 flex justify-between items-center gap-3">
+  {% if registro.sitio %}
+  <span class="text-sm font-bold text-accent">
+    {% if registro.sitio.pti_cell_id %}{{ registro.sitio.pti_cell_id }}{% endif %}
+    {% if registro.sitio.operator_id %} · {{ registro.sitio.operator_id }}{% endif %}
+    {% if registro.sitio.name %} · {{ registro.sitio.name }}{% endif %}
+  </span>
+  {% endif %}
+  {% if pdf_url %}
+  <a href="{{ pdf_url }}" target="_blank" class="btn btn-sm text-white" style="background-color:#dc2626;border-color:#b91c1c;" title="Generar PDF">
+    <i class="fa-solid fa-file-pdf"></i>
+    PDF
+  </a>
+  {% endif %}
+</div>
+
+<ul class="timeline timeline-vertical">
+    {% for step_name, step in steps %}
+        {% include 'pages/step_generic.html' with step=step first=forloop.first last=forloop.last %}
+    {% endfor %}
+</ul>
+
+<!-- Leyenda de colores -->
+<div class="mt-8 p-4 bg-base-100 rounded-lg shadow-sm border sombra">
+    <div class="flex flex-row items-start gap-3">
+
+        <div class="flex flex-col gap-1 shrink-0">
+            <span class="badge badge-sm w-20 justify-center text-white" style="background-color:#dc2626;border-color:#b91c1c;">Sin Datos</span>
+            <span class="badge badge-sm w-20 justify-center text-white" style="background-color:#ca8a04;border-color:#a16207;">Parciales</span>
+            <span class="badge badge-sm w-20 justify-center text-white" style="background-color:#16a34a;border-color:#15803d;">Completos</span>
+        </div>
+
+        <div class="flex flex-col flex-1 gap-2 min-w-0">
+            <div class="flex flex-col">
+            {% for step_name, step in steps %}
+                {% if step.datos_clave_template %}
+                    {% include step.datos_clave_template %}
+                {% endif %}
+            {% endfor %}
+            </div>
+
+            <div class="flex flex-col gap-1">
+            {% for step_name, step in steps %}
+                {% if step.computed.distancia_mandato_str %}
+                <div class="flex items-center gap-2 text-sm">
+                    <i class="fa-solid fa-ruler-combined text-base-content/40 text-xs shrink-0"></i>
+                    <span class="text-xs text-base-content/60 shrink-0">{{ step.computed.distancia_mandato_label }}:</span>
+                    <span class="font-mono font-bold text-sm
+                        {% if step.computed.distancia_mandato_metros <= 150 %}text-success
+                        {% elif step.computed.distancia_mandato_metros <= 200 %}text-warning
+                        {% else %}text-error{% endif %}">
+                        {{ step.computed.distancia_mandato_str }}
+                    </span>
+                </div>
+                {% endif %}
+            {% endfor %}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal para activar registro -->
+{% include 'components/activar_registro_form.html' with form=form %}
+
+<script>
+function cambiarRegistro(registroId) {
+    if (registroId === 'hoy') {
+        // Si selecciona "Hoy", abrir el modal para crear un nuevo registro con fecha de hoy
+        const modal = document.getElementById('activar-registro-modal');
+        const activarBtn = document.getElementById('activar-registro-btn');
+        if (activarBtn && modal) {
+            activarBtn.click();
+        }
+    } else if (registroId) {
+        // Si selecciona un registro existente, navegar a él
+        window.location.href = '/{{ app_namespace }}/' + registroId + '/';
+    }
+}
+
+// Configuración para el modal de activación
+window.ACTIVAR_URL = '{% url app_namespace|add:":activar" %}';
+window.MODAL_ID = '#activar-registro-modal';
+window.ACTIVAR_BTN_ID = '#activar-registro-btn';
+window.SITIO_ACTUAL = {{ registro.sitio.id }};
+window.USUARIO_ACTUAL = {{ registro.user.id }};
+window.FECHA_ACTUAL = '{{ registro.fecha|date:"Y-m-d" }}';
+
+// Inicializar modal cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('activar-registro-modal');
+    const activarBtn = document.getElementById('activar-registro-btn');
+    const sitioSelect = document.getElementById('id_sitio');
+    
+    if (activarBtn && modal) {
+        activarBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            modal.showModal();
+            
+            // Pre-seleccionar el sitio actual
+            if (sitioSelect && window.SITIO_ACTUAL) {
+                sitioSelect.value = window.SITIO_ACTUAL;
+            }
+            
+            // Pre-seleccionar el usuario actual
+            const userSelect = document.getElementById('id_user');
+            if (userSelect && window.USUARIO_ACTUAL) {
+                userSelect.value = window.USUARIO_ACTUAL;
+            }
+            
+            // Pre-seleccionar la fecha actual
+            const fechaInput = document.getElementById('id_fecha');
+            if (fechaInput) {
+                // Siempre usar la fecha actual cuando se abre el modal
+                const today = new Date().toISOString().split('T')[0];
+                fechaInput.value = today;
+            }
+        });
+    }
+    
+    // Función global para cerrar modal
+    window.closeModal = function() {
+        modal.close();
+    };
+    
+    // Manejar envío del formulario
+    const form = modal.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            try {
+                const response = await fetch(window.ACTIVAR_URL, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    modal.close();
+                    alert(result.message || 'Registro activado exitosamente');
+                    setTimeout(() => {
+                        // Redirigir al nuevo registro si se proporciona la URL
+                        if (result.redirect_url) {
+                            window.location.href = result.redirect_url;
+                        } else {
+                            window.location.reload();
+                        }
+                    }, 1000);
+                } else {
+                    const errorMessage = result.message || 'Error al activar el registro';
+                    alert(errorMessage);
+                }
+            } catch (error) {
+                console.error('Error en la petición:', error);
+                alert('Error al crear el registro. Por favor, inténtalo de nuevo.');
+            }
+        });
+    }
+});
+</script>
+{% endblock %} 

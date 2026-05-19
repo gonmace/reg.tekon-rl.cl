@@ -1,0 +1,71 @@
+{% extends 'components/common/data_table_page.html' %}
+{% load static django_tables2 %}
+
+{% block title %}Catálogo de Pasos{% endblock %}
+
+{% block pre_content %}{% csrf_token %}{% endblock %}
+
+{% block table_title %}
+  <i class="fas fa-list-ol mr-2 opacity-70"></i>Catálogo de Pasos
+{% endblock %}
+
+{% block table_subtitle %}Pasos reutilizables entre distintos tipos de actividad{% endblock %}
+
+{% block table_search %}
+  <div class="table-search">
+    <i class="fa-solid fa-magnifying-glass table-search-icon"></i>
+    <input type="search" name="q" value="{{ request.GET.q }}"
+           hx-get="{% url 'actividades:paso_list' %}"
+           hx-trigger="keyup changed delay:300ms, search"
+           hx-target="#paso-table-wrapper"
+           hx-push-url="true"
+           hx-indicator="#paso-loader"
+           class="input input-sm" placeholder="Buscar paso..." autocomplete="off" />
+  </div>
+  <span id="paso-loader" class="htmx-indicator loading loading-spinner loading-sm text-primary"></span>
+{% endblock %}
+
+{% block table_actions %}
+  <button id="addPasoBtn" class="btn btn-add btn-sm">
+    <i class="fa-solid fa-plus mr-1"></i>Nuevo Paso
+  </button>
+{% endblock %}
+
+{% block table_content %}
+  <div id="paso-table-wrapper"
+       hx-boost="true"
+       hx-target="#paso-table-wrapper"
+       hx-swap="innerHTML"
+       hx-push-url="true"
+       hx-indicator="#paso-loader">
+    {% render_table table %}
+  </div>
+{% endblock %}
+
+{% block extra_modals %}
+<dialog id="paso-modal" class="modal">
+  <div class="modal-box w-full sm:w-11/12 max-w-lg">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+    </form>
+    <h3 id="paso-modal-title" class="font-bold text-lg mb-4">Nuevo Paso</h3>
+    <div id="paso-modal-content">
+      <span class="loading loading-spinner loading-md"></span>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+window.pasoCatalogoConfig = {
+  createModalUrl: '{% url "actividades:paso_create_modal" %}',
+  editModalUrl:   '{% url "actividades:paso_list" %}',
+  deleteUrl:      '{% url "actividades:paso_list" %}',
+  csrfToken:      '{{ csrf_token }}',
+};
+</script>
+<script src="{% static 'actividades/js/paso_catalogo.js' %}?v=1.0"></script>
+{% endblock %}

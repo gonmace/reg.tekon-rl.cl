@@ -1,0 +1,54 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+
+        <script src="{% static 'js/theme-navigation.js' %}"></script>
+        <script src="{% static 'js/jquery-3.7.1.js' %}"></script>
+        <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous" defer></script>
+        
+        {% include 'base_head.html' %}
+        {% csrf_token %}
+        <meta name="csrf-token" content="{{ csrf_token }}">
+        
+        {% block css %}
+        {% endblock css %}
+
+        {% block javascript_top %}
+        {% endblock javascript_top %}
+
+        <title>{% block title %}{% endblock %}</title>
+    </head>
+
+<body class="bg-base-300 transition-colors duration-200 font-nunito border-2 border-base-300 overflow-hidden">
+
+<div class="flex h-screen overflow-hidden mx-auto">
+    <!-- Sidebar -->
+    {% include 'components/sidebar.html' %}
+
+    <!-- Main Content Wrapper -->
+    <div class="flex-1 flex flex-col">
+        <!-- Top Navigation -->
+        {% block header_title_override %}{% endblock header_title_override %}
+        {% include 'components/common/header.html' %}
+
+        <!-- Page Content -->
+        <main class="flex-1 overflow-y-auto w-full max-w-7xl mx-auto lg:px-6">
+            {% block pre_content %}{% endblock %}
+            {% block content %}{% endblock %}
+            {% block post_content %}{% endblock %}
+        </main>
+    </div>
+</div>
+
+<!-- Overlay for mobile sidebar -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-opacity-50 z-40 hidden lg:hidden"></div>
+
+{% block extra_modals %}{% endblock %}
+<script src="{% static 'js/components/alert-component.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
+
+

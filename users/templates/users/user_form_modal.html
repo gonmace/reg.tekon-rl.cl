@@ -1,0 +1,127 @@
+<form id="userForm" class="space-y-4">
+    {% csrf_token %}
+
+    {% if action == 'create' %}
+    <div class="form-control">
+        <label for="{{ form.username.id_for_label }}" class="label">
+            <span class="label-text font-medium">{{ form.username.label }}</span>
+            <span class="label-text-alt text-error">*</span>
+        </label>
+        {{ form.username }}
+        {% if form.username.errors %}
+            <div class="label"><span class="label-text-alt text-error">{{ form.username.errors|join:", " }}</span></div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if action == 'edit' %}
+    <div class="form-control">
+        <label class="label">
+            <span class="label-text font-medium">Correo electrónico</span>
+        </label>
+        <input type="email" class="input input-bordered w-full opacity-60" value="{{ user.email }}" disabled />
+    </div>
+    {% endif %}
+
+    <div class="flex gap-3">
+        <div class="form-control flex-1">
+            <label for="{{ form.first_name.id_for_label }}" class="label">
+                <span class="label-text font-medium">{{ form.first_name.label }}</span>
+            </label>
+            {{ form.first_name }}
+        </div>
+        <div class="form-control flex-1">
+            <label for="{{ form.last_name.id_for_label }}" class="label">
+                <span class="label-text font-medium">{{ form.last_name.label }}</span>
+            </label>
+            {{ form.last_name }}
+        </div>
+    </div>
+
+    <div class="form-control">
+        <label for="{{ form.user_type.id_for_label }}" class="label">
+            <span class="label-text font-medium">{{ form.user_type.label }}</span>
+        </label>
+        {{ form.user_type }}
+    </div>
+
+    <div class="form-control">
+        <label for="{{ form.contractor.id_for_label }}" class="label">
+            <span class="label-text font-medium">{{ form.contractor.label }}</span>
+            <span class="label-text-alt text-error">*</span>
+        </label>
+        {{ form.contractor }}
+        {% if form.contractor.errors %}
+            <div class="label"><span class="label-text-alt text-error">{{ form.contractor.errors|join:", " }}</span></div>
+        {% endif %}
+    </div>
+
+    {# ── Acceso a Reportes ────────────────────────────────────────── #}
+    <div id="reportAccessSection" class="form-control hidden">
+        <label class="label pb-1">
+            <span class="label-text font-medium">Acceso a Reportes</span>
+            <span class="label-text-alt text-base-content/50">Sin selección = acceso total</span>
+        </label>
+        <div class="border border-base-300 rounded-lg px-4 py-3 flex flex-col gap-2">
+            {% for code, label in report_access_choices %}
+            <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox"
+                       name="report_access"
+                       value="{{ code }}"
+                       class="checkbox checkbox-sm checkbox-primary"
+                       {% if code in current_report_access %}checked{% endif %}>
+                <span class="text-sm">{{ label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="form-control">
+        <label class="label">
+            <span class="label-text font-medium">Contraseña</span>
+            {% if action == 'create' %}
+                <span class="label-text-alt text-error">*</span>
+            {% else %}
+                <span class="label-text-alt text-base-content/60">Dejar vacío para mantener</span>
+            {% endif %}
+        </label>
+        <input type="password" name="password" class="input input-bordered w-full"
+               placeholder="{% if action == 'create' %}Ingrese contraseña{% else %}Nueva contraseña (opcional){% endif %}" />
+    </div>
+
+    {% if form.is_active %}
+    <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-3">
+            {{ form.is_active }}
+            <span class="label-text font-medium">{{ form.is_active.label }}</span>
+        </label>
+    </div>
+    {% endif %}
+
+    <div class="flex gap-2 justify-center mt-6">
+        <button type="button" class="btn btn-cancel" onclick="closeUserModal()">
+            <i class="fa-solid fa-xmark mr-1"></i> Cancelar
+        </button>
+        <button type="submit" id="saveUserBtn" class="btn btn-save flex-grow">
+            <i class="fa-solid fa-check mr-1"></i> Guardar
+        </button>
+    </div>
+</form>
+
+<script>
+(function () {
+    var restrictedRoles = {{ restricted_roles|safe }};
+    var typeSelect = document.getElementById('{{ form.user_type.id_for_label }}');
+    var section = document.getElementById('reportAccessSection');
+
+    function toggleSection() {
+        if (!typeSelect || !section) return;
+        section.classList.toggle('hidden', restrictedRoles.indexOf(typeSelect.value) === -1);
+    }
+
+    if (typeSelect) {
+        typeSelect.addEventListener('change', toggleSection);
+        toggleSection();
+    }
+})();
+</script>
