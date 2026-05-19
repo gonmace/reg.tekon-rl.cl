@@ -312,32 +312,26 @@ if DEBUG:
         'root': {'handlers': ['console'], 'level': 'INFO'},
     }
 else:
-    _log_file = config('DJANGO_LOG_FILE', default='/app/logs/django.log')
-    os.makedirs(os.path.dirname(_log_file), exist_ok=True)
     LOGGING = {
         'version': 1,
         'disable_existing_loggers': False,
         'formatters': {
             'verbose': {
-                'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+                'format': '{levelname} {asctime} {module} {message}',
                 'style': '{',
             },
         },
         'handlers': {
-            'file': {
+            'console': {
                 'level': 'INFO',
-                'class': 'logging.handlers.RotatingFileHandler',
-                'filename': _log_file,
-                'maxBytes': 10 * 1024 * 1024,
-                'backupCount': 5,
+                'class': 'logging.StreamHandler',
                 'formatter': 'verbose',
             },
-            'console': {'level': 'INFO', 'class': 'logging.StreamHandler'},
         },
-        'root': {'handlers': ['console', 'file'], 'level': 'INFO'},
+        'root': {'handlers': ['console'], 'level': 'INFO'},
         'loggers': {
             'django': {
-                'handlers': ['console', 'file'],
+                'handlers': ['console'],
                 'level': 'INFO',
                 'propagate': False,
             },
