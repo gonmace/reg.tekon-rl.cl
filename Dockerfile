@@ -25,6 +25,9 @@ RUN apt-get update \
 # Copiar código y cambiar ownership
 COPY . /app/
 
+# Crear directorios necesarios antes del chown para que el volumen herede el owner correcto
+RUN mkdir -p /app/logs /app/staticfiles /app/media
+
 # Instalar dependencias de Python
 RUN pip install --no-cache-dir -r /app/requirements.txt
 RUN chown -R appuser:appuser /app
