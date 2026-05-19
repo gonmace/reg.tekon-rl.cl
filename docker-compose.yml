@@ -1,7 +1,7 @@
 services:
-  construccion-db:
+  db:
     image: postgres:15-alpine
-    container_name: construccion_db
+    container_name: db_reg_tekon
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -9,9 +9,9 @@ services:
     ports:
       - "5435:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data/
+      - db_data:/var/lib/postgresql/data/
     networks:
-      - construccion_network
+      - reg_tekon_network
     restart: unless-stopped
     deploy:
       resources:
@@ -25,11 +25,11 @@ services:
       timeout: 5s
       retries: 5
 
-  construccion-dj:
+  django:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: construccion_app
+    container_name: django_reg_tekon
     user: "1000:1000"
     command: ./entrypoint.sh
     environment:
@@ -37,19 +37,19 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_HOST=construccion-db
+      - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
     ports:
       - "8001:8000"
     env_file:
       - .env
     depends_on:
-      construccion-db:
+      db:
         condition: service_healthy
       redis:
         condition: service_started
     networks:
-      - construccion_network
+      - reg_tekon_network
     restart: unless-stopped
     deploy:
       resources:
@@ -70,9 +70,9 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: construccion_redis
+    container_name: redis_reg_tekon
     networks:
-      - construccion_network
+      - reg_tekon_network
     restart: unless-stopped
     deploy:
       resources:
@@ -80,8 +80,8 @@ services:
           memory: 128M
 
 volumes:
-  postgres_data:
+  db_data:
 
 networks:
-  construccion_network:
+  reg_tekon_network:
     driver: bridge
