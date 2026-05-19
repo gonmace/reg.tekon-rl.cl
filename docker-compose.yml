@@ -46,6 +46,8 @@ services:
     depends_on:
       construccion-db:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - construccion_network
     restart: unless-stopped
@@ -65,6 +67,17 @@ services:
       - ./staticfiles:/app/staticfiles
       - ./media:/app/media
       - ./logs:/app/logs
+
+  redis:
+    image: redis:7-alpine
+    container_name: construccion_redis
+    networks:
+      - construccion_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
 volumes:
   postgres_data:
