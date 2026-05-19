@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
-# Crear usuario no-root para seguridad
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Crear usuario no-root con UID 1000 para que coincida con el usuario del host en bind mounts
+RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser appuser
 
 ENV PYTHONUNBUFFERED=1
 ENV DJANGO_SETTINGS_MODULE=config.settings
