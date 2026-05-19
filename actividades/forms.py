@@ -39,6 +39,7 @@ def build_dynamic_form(paso, data=None, initial=None, widget_slug=None):
             fields['vegetacion'] = forms.BooleanField(required=False, label='Vegetación')
             fields['antena_microondas'] = forms.BooleanField(required=False, label='Antena Microondas')
             fields['tension'] = forms.CharField(required=True, label='Tensión')
+            fields['empresa_energia'] = forms.CharField(required=False, label='Empresa de Energía')
             fields['comentario'] = forms.CharField(
                 required=False,
                 widget=forms.Textarea(attrs={'rows': 3}),

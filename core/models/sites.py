@@ -27,7 +27,6 @@ class Site(models.Model):
     alt = models.IntegerField(null=True, blank=True, verbose_name="Altura (m)")
     region = models.CharField(max_length=100, blank=True, null=True, verbose_name="Región")
     comuna = models.CharField(max_length=100, blank=True, null=True, verbose_name="Comuna")
-    empresa_energia = models.CharField(max_length=200, blank=True, null=True, verbose_name="Empresa de Energía")
     is_deleted = models.BooleanField(default=False)
     history = HistoricalRecords()
 

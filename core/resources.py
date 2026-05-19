@@ -21,18 +21,16 @@ class SiteResource(resources.ModelResource):
     alt = fields.Field(attribute='alt', column_name='Altura (m)')
     region = fields.Field(attribute='region', column_name='Region / Provincia')
     comuna = fields.Field(attribute='comuna', column_name='Comuna / Municipio')
-    empresa_energia = fields.Field(attribute='empresa_energia', column_name='Empresa de Energía')
-
     class Meta:
         model = Site
         fields = (
             'pti_cell_id', 'operator_id', 'nombre_sitio', 'tipo_sitio',
             'lat_man', 'lon_man', 'lat_ing', 'lon_ing', 'lat_con', 'lon_con',
-            'alt', 'region', 'comuna', 'empresa_energia',
+            'alt', 'region', 'comuna',
         )
         export_order = (
             'pti_cell_id', 'operator_id', 'nombre_sitio', 'tipo_sitio',
             'lat_man', 'lon_man', 'lat_ing', 'lon_ing', 'lat_con', 'lon_con',
-            'alt', 'region', 'comuna', 'empresa_energia',
+            'alt', 'region', 'comuna',
         )
         import_id_fields = ('pti_cell_id',)

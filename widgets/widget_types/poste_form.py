@@ -16,7 +16,7 @@ class PosteFormWidget(WidgetBase):
         return errors
 
     def completeness(self, data):
-        checkable = ["tipo_estructura", "altura", "tension", "placa_poste", "obstaculos", "comentario"]
+        checkable = ["tipo_estructura", "altura", "tension", "placa_poste", "obstaculos", "empresa_energia", "comentario"]
         filled = sum(1 for f in checkable if str(data.get(f, "")).strip())
         if filled == 0:
             return 1
@@ -34,5 +34,6 @@ class PosteFormWidget(WidgetBase):
             "vegetacion": data.get("vegetacion", False),
             "antena_microondas": data.get("antena_microondas", False),
             "tension": data.get("tension", "Baja Tension"),
+            "empresa_energia": data.get("empresa_energia", ""),
             "comentario": data.get("comentario", ""),
         }

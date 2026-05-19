@@ -217,11 +217,11 @@ class RegistroPDFView(WeasyTemplateView):
                 f'Alternativa:': registro.alternativa,
                 f'{registro.sitio._meta.get_field("region").verbose_name}:': registro.sitio.region,
                 f'{registro.sitio._meta.get_field("comuna").verbose_name}:': registro.sitio.comuna,
-                f'{registro.sitio._meta.get_field("alt").verbose_name}:': f'{registro.sitio.alt} m' if registro.sitio.alt else 'N/A',
-                f'{registro.sitio._meta.get_field("empresa_energia").verbose_name}:': registro.sitio.empresa_energia or 'N/A',
+                'Altura:': poste_form.get('altura') or 'N/A',
+                'Empresa de Energía:': poste_form.get('empresa_energia') or 'N/A',
             },
             'inspeccion_sitio': {
-                'Responsable Técnico:': registro.user.first_name + ' ' + registro.user.last_name,
+                'Responsable Técnico:': (registro.user.first_name + ' ' + registro.user.last_name).strip() if registro.user else 'N/A',
                 'Fecha de Inspección:': registro.fecha.strftime('%d/%m/%Y'),
             },
             'datos_geograficos': {

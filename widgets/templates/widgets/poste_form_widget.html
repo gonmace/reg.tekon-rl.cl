@@ -54,6 +54,20 @@ Estados:
     </div>
   </div>
 
+  <!-- Empresa de Energía -->
+  <div class="form-control">
+    <label class="label pb-1" for="id_empresa_energia">
+      <span class="label-text text-sm">
+        Empresa de Energía
+        <span class="text-base-content/40 text-xs ml-1">(opcional)</span>
+      </span>
+    </label>
+    <input type="text" name="empresa_energia" id="id_empresa_energia"
+           value="{{ datos.empresa_energia|default:'' }}"
+           placeholder="Ej: Enel, CGE, Frontel..."
+           class="input input-bordered w-full" />
+  </div>
+
   <!-- Placa Poste y Obstáculos -->
   <div class="grid grid-cols-2 gap-3">
     <div class="form-control">
@@ -133,7 +147,7 @@ Estados:
 
 <script>
 (function () {
-  var FIELDS = ['tipo_estructura', 'altura', 'tension', 'placa_poste', 'obstaculos', 'comentario'];
+  var FIELDS = ['tipo_estructura', 'altura', 'tension', 'placa_poste', 'obstaculos', 'empresa_energia', 'comentario'];
 
   function computeLevel() {
     var filled = FIELDS.filter(function (name) {
