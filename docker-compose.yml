@@ -69,7 +69,7 @@ services:
     volumes:
       - ./staticfiles:/app/staticfiles
       - ./media:/app/media
-      - ./logs:/app/logs
+      - logs_data:/app/logs
 
   redis:
     image: redis:7-alpine
@@ -84,6 +84,7 @@ services:
 
 volumes:
   db_data:
+  logs_data:
 
 networks:
   reg_tekon_network:
