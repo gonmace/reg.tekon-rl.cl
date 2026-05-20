@@ -24,16 +24,16 @@ class PosteFormWidget(WidgetBase):
 
     def to_display(self, data, config):
         return {
-            "tipo_estructura": data.get("tipo_estructura", "Poste de Hormigón Armado"),
-            "altura": data.get("altura", "13 m"),
+            "tipo_estructura": data.get("tipo_estructura") or config.get("default_tipo_estructura", ""),
+            "altura": data.get("altura") or config.get("default_altura", ""),
             "placa_poste": data.get("placa_poste", ""),
             "obstaculos": data.get("obstaculos", ""),
             "luminaria": data.get("luminaria", False),
             "red_protegida": data.get("red_protegida", False),
-            "acceso_camion_grua": data.get("acceso_camion_grua", True),
+            "acceso_camion_grua": data.get("acceso_camion_grua", bool(config.get("default_acceso_camion_grua"))),
             "vegetacion": data.get("vegetacion", False),
             "antena_microondas": data.get("antena_microondas", False),
-            "tension": data.get("tension", "Baja Tension"),
+            "tension": data.get("tension") or config.get("default_tension", ""),
             "empresa_energia": data.get("empresa_energia", ""),
             "comentario": data.get("comentario", ""),
         }

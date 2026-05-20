@@ -1,5 +1,11 @@
 <div class="flex items-center justify-center gap-1">
   <span class="reg-txtss-row-id" data-id="{{ record.id }}" style="display:none;"></span>
+  {% if record.concluido %}
+  <a href="{% url 'reg_txtss:pdf' registro_id=record.id %}" target="_blank"
+     class="btn btn-sm btn-ghost btn-circle text-error" title="Generar PDF">
+    <i class="fa-solid fa-file-pdf"></i>
+  </a>
+  {% endif %}
   {% if request.user.is_ito_like or not request.user.is_limited %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-info reg-txtss-copy-btn"
@@ -22,6 +28,17 @@
           data-nombre="{{ record.sitio.name }}"
           title="Eliminar registro">
     <i class="fa-solid fa-trash"></i>
+  </button>
+  {% endif %}
+  {% if request.user.is_superuser and record.has_widgets and not record.concluido %}
+  <button type="button"
+          class="btn btn-sm btn-ghost btn-circle text-error reg-txtss-formatear-btn"
+          data-id="{{ record.id }}"
+          data-nombre="{{ record.sitio.name }}"
+          data-url="{% url 'reg_txtss:api_formatear' registro_id=record.id %}"
+          data-resumen-url="{% url 'reg_txtss:api_resumen_formatear' registro_id=record.id %}"
+          title="Formatear todos los datos">
+    <i class="fa-solid fa-eraser"></i>
   </button>
   {% endif %}
 </div>

@@ -21,12 +21,24 @@ class Photos(BaseModel):
     exif_lon = models.FloatField(null=True, blank=True, verbose_name='Longitud EXIF')
     exif_datetime = models.DateTimeField(null=True, blank=True, verbose_name='Fecha/hora EXIF')
 
+    file_size = models.PositiveIntegerField(null=True, blank=True, verbose_name='Tamaño (bytes)')
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         super().save(*args, **kwargs)
-        # Extraer EXIF solo en fotos nuevas (o si aún no se procesó)
-        if is_new and self.imagen and self.exif_lat is None and self.exif_datetime is None:
-            self._extract_exif()
+        if is_new and self.imagen:
+            self._populate_file_size()
+            if self.exif_lat is None and self.exif_datetime is None:
+                self._extract_exif()
+
+    def _populate_file_size(self):
+        try:
+            import os
+            size = os.path.getsize(self.imagen.path)
+            Photos.objects.filter(pk=self.pk).update(file_size=size)
+            self.file_size = size
+        except Exception:
+            pass
 
     def _extract_exif(self):
         """Extrae GPS y fecha/hora del EXIF de la imagen y guarda en los campos."""

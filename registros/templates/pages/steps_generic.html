@@ -39,19 +39,19 @@
 {% endif %}
 
 <!-- Datos del sitio y PDF -->
-<div class="mb-4 flex justify-between items-center gap-3">
+<div class="mb-4 flex items-center gap-3">
+  {% if back_url %}
+  <a href="{{ back_url }}" class="btn btn-sm btn-ghost" title="Volver al listado">
+    <i class="fa-solid fa-arrow-left"></i>
+    Atrás
+  </a>
+  {% endif %}
   {% if registro.sitio %}
   <span class="text-sm font-bold text-accent">
     {% if registro.sitio.pti_cell_id %}{{ registro.sitio.pti_cell_id }}{% endif %}
     {% if registro.sitio.operator_id %} · {{ registro.sitio.operator_id }}{% endif %}
     {% if registro.sitio.name %} · {{ registro.sitio.name }}{% endif %}
   </span>
-  {% endif %}
-  {% if pdf_url %}
-  <a href="{{ pdf_url }}" target="_blank" class="btn btn-sm text-white" style="background-color:#dc2626;border-color:#b91c1c;" title="Generar PDF">
-    <i class="fa-solid fa-file-pdf"></i>
-    PDF
-  </a>
   {% endif %}
 </div>
 
@@ -84,7 +84,6 @@
             {% for step_name, step in steps %}
                 {% if step.computed.distancia_mandato_str %}
                 <div class="flex items-center gap-2 text-sm">
-                    <i class="fa-solid fa-ruler-combined text-base-content/40 text-xs shrink-0"></i>
                     <span class="text-xs text-base-content/60 shrink-0">{{ step.computed.distancia_mandato_label }}:</span>
                     <span class="font-mono font-bold text-sm
                         {% if step.computed.distancia_mandato_metros <= 150 %}text-success
@@ -98,8 +97,63 @@
             </div>
         </div>
 
+        {% if pdf_url %}
+        <div class="flex flex-col items-center gap-1 self-start ml-auto shrink-0">
+          <a id="btn-pdf" href="{{ pdf_url }}" target="_blank"
+             class="btn btn-sm text-white {% if not concluido %}btn-disabled opacity-40 pointer-events-none{% endif %}"
+             style="background-color:#dc2626;border-color:#b91c1c;" title="Generar PDF">
+            <i class="fa-solid fa-file-pdf"></i>
+            PDF
+          </a>
+          {% if toggle_concluido_url %}
+          <label class="flex flex-col items-center gap-0.5 cursor-pointer select-none">
+            <span class="text-xs text-base-content/70">Concluido</span>
+            <input id="toggle-concluido" type="checkbox" class="toggle toggle-success"
+                   {% if concluido %}checked{% endif %}
+                   data-url="{{ toggle_concluido_url }}"
+                   data-csrf="{{ csrf_token }}">
+          </label>
+          {% endif %}
+        </div>
+        {% endif %}
+
     </div>
 </div>
+
+<!-- Modal formatear registro (solo superusuario) -->
+{% if formatear_url %}
+<dialog id="modal-formatear" class="modal">
+  <div class="modal-box max-w-sm">
+    <div class="flex items-center gap-2 mb-2">
+      <i class="fa-solid fa-triangle-exclamation text-error text-xl"></i>
+      <h3 class="font-bold text-lg text-error">Formatear registro</h3>
+    </div>
+    <p class="text-sm text-base-content/70 mb-4">Esta acción eliminará <strong>todos los datos</strong> del registro: formularios, fotos, mapas y contexto. La operación es <strong>irreversible</strong>.</p>
+    <label class="flex items-center gap-2 cursor-pointer select-none mb-4 p-3 bg-error/10 rounded-lg border border-error/30">
+      <input id="toggle-formatear-confirm" type="checkbox" class="toggle toggle-error toggle-sm">
+      <span class="text-sm font-medium text-error">Entiendo que se borrarán todos los datos</span>
+    </label>
+    <div class="modal-action">
+      <button id="modal-formatear-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+      <button id="modal-formatear-confirm" class="btn btn-error btn-sm text-white" disabled>Formatear</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}
+
+<!-- Modal confirmación concluido -->
+<dialog id="modal-concluido" class="modal">
+  <div class="modal-box max-w-sm">
+    <h3 class="font-bold text-lg">¿Marcar como concluido?</h3>
+    <p class="py-3 text-sm text-base-content/70">Esta acción indica que el registro está finalizado y habilitará la generación del PDF.</p>
+    <div class="modal-action">
+      <button id="modal-concluido-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+      <button id="modal-concluido-confirm" class="btn btn-success btn-sm text-white">Confirmar</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
 
 <!-- Modal para activar registro -->
 {% include 'components/activar_registro_form.html' with form=form %}
@@ -207,5 +261,98 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+const toggleConcluido = document.getElementById('toggle-concluido');
+const modalConcluido = document.getElementById('modal-concluido');
+
+async function guardarConcluido() {
+    const btnPdf = document.getElementById('btn-pdf');
+    try {
+        const resp = await fetch(toggleConcluido.dataset.url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': toggleConcluido.dataset.csrf, 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const data = await resp.json();
+        if (btnPdf) {
+            if (data.concluido) {
+                btnPdf.classList.remove('btn-disabled', 'opacity-40', 'pointer-events-none');
+            } else {
+                btnPdf.classList.add('btn-disabled', 'opacity-40', 'pointer-events-none');
+            }
+        }
+    } catch (e) {
+        console.error('Error al cambiar estado concluido:', e);
+        toggleConcluido.checked = !toggleConcluido.checked;
+    }
+}
+
+if (toggleConcluido && modalConcluido) {
+    toggleConcluido.addEventListener('change', function () {
+        if (this.checked) {
+            this.checked = false;
+            modalConcluido.showModal();
+        } else {
+            guardarConcluido();
+        }
+    });
+
+    document.getElementById('modal-concluido-confirm').addEventListener('click', function () {
+        modalConcluido.close();
+        toggleConcluido.checked = true;
+        guardarConcluido();
+    });
+
+    document.getElementById('modal-concluido-cancel').addEventListener('click', function () {
+        modalConcluido.close();
+    });
+}
+
+// ── Formatear registro ────────────────────────────────────────────────────────
+const modalFormatear = document.getElementById('modal-formatear');
+if (modalFormatear) {
+    const toggleConfirm = document.getElementById('toggle-formatear-confirm');
+    const btnConfirm = document.getElementById('modal-formatear-confirm');
+    const btnCancel = document.getElementById('modal-formatear-cancel');
+
+    toggleConfirm.addEventListener('change', function () {
+        btnConfirm.disabled = !this.checked;
+    });
+
+    btnCancel.addEventListener('click', function () {
+        toggleConfirm.checked = false;
+        btnConfirm.disabled = true;
+        modalFormatear.close();
+    });
+
+    btnConfirm.addEventListener('click', async function () {
+        btnConfirm.disabled = true;
+        btnConfirm.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Formateando...';
+        try {
+            const resp = await fetch('{{ formatear_url }}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const data = await resp.json();
+            if (data.success) {
+                modalFormatear.close();
+                window.location.reload();
+            } else {
+                alert(data.message || 'Error al formatear');
+                btnConfirm.disabled = false;
+                btnConfirm.innerHTML = 'Formatear';
+            }
+        } catch (e) {
+            console.error(e);
+            btnConfirm.disabled = false;
+            btnConfirm.innerHTML = 'Formatear';
+        }
+    });
+
+    modalFormatear.addEventListener('close', function () {
+        toggleConfirm.checked = false;
+        btnConfirm.disabled = true;
+        btnConfirm.innerHTML = 'Formatear';
+    });
+}
 </script>
 {% endblock %} 

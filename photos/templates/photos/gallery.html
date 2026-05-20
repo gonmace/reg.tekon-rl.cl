@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Imágenes{% endblock %}
+
+{% block content %}
+<div class="p-2 md:p-4 flex flex-col gap-3 h-full">
+
+  {# ── Filter bar ─────────────────────────────────────────────────────────── #}
+  <div id="gallery-filters" class="table-card">
+    <div class="table-card-header flex-wrap gap-2">
+      <h2 class="table-card-title">
+        Imágenes
+        <span class="badge badge-neutral badge-sm ml-2">{{ total_count }}</span>
+      </h2>
+
+      <div class="flex flex-wrap items-center gap-2">
+
+        {# Tipo de reporte #}
+        <select name="tipo" id="filter-tipo"
+                hx-get="{% url 'photos:gallery' %}"
+                hx-trigger="change"
+                hx-target="#gallery-grid-wrapper"
+                hx-push-url="true"
+                hx-include="#gallery-filters select, #gallery-filters input"
+                class="select select-sm select-bordered w-auto">
+          <option value="">Todos los tipos</option>
+          <option value="POSTE" {% if tipo_filter == 'POSTE' %}selected{% endif %}>TX/TSS Postes</option>
+          <option value="TORRE" {% if tipo_filter == 'TORRE' %}selected{% endif %}>TX/TSS Torres</option>
+        </select>
+
+        {# Sitio #}
+        <select name="sitio" id="filter-sitio"
+                hx-get="{% url 'photos:gallery' %}"
+                hx-trigger="change"
+                hx-target="#gallery-grid-wrapper"
+                hx-push-url="true"
+                hx-include="#gallery-filters select, #gallery-filters input"
+                class="select select-sm select-bordered w-auto max-w-[200px]">
+          <option value="">Todos los sitios</option>
+          {% for site in sites %}
+            <option value="{{ site.pk }}" {% if sitio_filter == site.pk|stringformat:'s' %}selected{% endif %}>
+              {{ site.pti_cell_id }} – {{ site.name }}
+            </option>
+          {% endfor %}
+        </select>
+
+        {# Etapa #}
+        <select name="etapa" id="filter-etapa"
+                hx-get="{% url 'photos:gallery' %}"
+                hx-trigger="change"
+                hx-target="#gallery-grid-wrapper"
+                hx-push-url="true"
+                hx-include="#gallery-filters select, #gallery-filters input"
+                class="select select-sm select-bordered w-auto">
+          <option value="">Todas las etapas</option>
+          {% for e in etapas %}
+            <option value="{{ e }}" {% if etapa_filter == e %}selected{% endif %}>{{ e|title }}</option>
+          {% endfor %}
+        </select>
+
+        {# Tamaño mínimo (KB) #}
+        <label class="flex items-center gap-1 text-sm text-base-content/70">
+          Desde
+          <input type="number" name="size_min" id="filter-size-min"
+                 value="{{ size_min }}" min="0" placeholder="KB"
+                 hx-get="{% url 'photos:gallery' %}"
+                 hx-trigger="change delay:600ms"
+                 hx-target="#gallery-grid-wrapper"
+                 hx-push-url="true"
+                 hx-include="#gallery-filters select, #gallery-filters input"
+                 class="input input-sm input-bordered w-20 text-right" />
+          KB
+        </label>
+
+        {# Tamaño máximo (KB) #}
+        <label class="flex items-center gap-1 text-sm text-base-content/70">
+          Hasta
+          <input type="number" name="size_max" id="filter-size-max"
+                 value="{{ size_max }}" min="0" placeholder="KB"
+                 hx-get="{% url 'photos:gallery' %}"
+                 hx-trigger="change delay:600ms"
+                 hx-target="#gallery-grid-wrapper"
+                 hx-push-url="true"
+                 hx-include="#gallery-filters select, #gallery-filters input"
+                 class="input input-sm input-bordered w-20 text-right" />
+          KB
+        </label>
+
+        {# Spinner #}
+        <span id="gallery-loader" class="htmx-indicator loading loading-spinner loading-sm text-primary"></span>
+
+      </div>
+    </div>
+  </div>
+
+  {# ── Bulk action bar ─────────────────────────────────────────────────────── #}
+  <div id="bulk-actions"
+       class="hidden flex items-center gap-2 flex-wrap px-2 py-1.5 bg-base-200 rounded-lg border border-base-300">
+    <span class="text-sm font-medium mr-1">
+      <span id="selected-count">0</span> seleccionada(s)
+    </span>
+
+    <button id="select-all-btn"
+            class="btn btn-ghost btn-xs">Seleccionar todas</button>
+    <button id="deselect-all-btn"
+            class="btn btn-ghost btn-xs">Deseleccionar</button>
+
+    <div class="flex-1"></div>
+
+    <button id="bulk-download-btn"
+            data-url="{% url 'photos:bulk_download' %}"
+            class="btn btn-info btn-sm gap-1">
+      <i class="fa-solid fa-download text-xs"></i>
+      Descargar ZIP
+    </button>
+
+    <button id="bulk-compress-btn"
+            data-url="{% url 'photos:compress' %}"
+            class="btn btn-warning btn-sm gap-1">
+      <i class="fa-solid fa-compress text-xs"></i>
+      Comprimir
+    </button>
+
+    <button id="bulk-delete-btn"
+            data-url="{% url 'photos:bulk_delete' %}"
+            class="btn btn-error btn-sm gap-1">
+      <i class="fa-solid fa-trash text-xs"></i>
+      Eliminar
+    </button>
+  </div>
+
+  {# ── Photo grid ──────────────────────────────────────────────────────────── #}
+  <div id="gallery-grid-wrapper" class="flex-1 min-h-0">
+    {% include 'photos/partials/gallery_grid.html' %}
+  </div>
+
+</div>
+
+{# ── Lightbox modal ──────────────────────────────────────────────────────── #}
+<dialog id="lightbox-modal" class="modal">
+  <div class="modal-box max-w-[92vw] max-h-[92vh] p-0 overflow-hidden bg-black/90 relative flex flex-col items-center justify-center">
+    <form method="dialog" class="absolute top-2 right-2 z-20">
+      <button class="btn btn-sm btn-circle btn-ghost text-white/80 hover:text-white hover:bg-white/10">✕</button>
+    </form>
+    <img id="lightbox-img" src="" alt=""
+         class="max-w-full max-h-[82vh] object-contain block mx-auto" />
+    <div id="lightbox-info"
+         class="w-full bg-black/70 text-white/80 text-xs px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 min-h-[2rem]">
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/photo-gallery.js' %}"></script>
+{% endblock %}

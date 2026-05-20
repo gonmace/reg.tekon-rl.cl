@@ -1,7 +1,29 @@
 {% extends 'components/generic_tables2_template.html' %}
 {% load static %}
 
+{% block table_title %}
+  <span class="flex items-center gap-2 flex-wrap">
+    {{ page_title|default:"Registros" }}
+    {% if count_amarillo or count_verde or count_rojo %}
+    <span class="flex items-center gap-1 font-normal">
+      {% if count_amarillo %}
+      <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white" style="background-color:var(--color-warning);" title="Con datos sin concluir">{{ count_amarillo }}</span>
+      {% endif %}
+      {% if count_verde %}
+      <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white" style="background-color:var(--color-success);" title="Concluidos">{{ count_verde }}</span>
+      {% endif %}
+      {% if count_rojo %}
+      <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white" style="background-color:var(--color-error);" title="Sin datos">{{ count_rojo }}</span>
+      {% endif %}
+    </span>
+    {% endif %}
+  </span>
+{% endblock %}
+
 {% block table_search %}
+  <img src="{% static 'img/map-marker.svg' %}" alt="Ver mapa"
+       id="reg-txtss-mapa-btn" title="Ver mapa"
+       class="w-10 h-10 cursor-pointer">
   {% if pasos_config_url %}
   <a href="{{ pasos_config_url }}" class="btn btn-sm btn-outline btn-accent" hx-boost="false">
     <i class="fa-solid fa-stairs mr-1"></i>Pasos
@@ -12,6 +34,76 @@
 
 {% block extra_modals %}
   {{ block.super }}
+
+  <!-- Modal formatear registro (superusuario) -->
+  <dialog id="reg-txtss-formatear-modal" class="modal">
+    <div class="modal-box max-w-sm">
+      <div class="flex items-center gap-2 mb-2">
+        <i class="fa-solid fa-triangle-exclamation text-error text-xl"></i>
+        <h3 class="font-bold text-lg text-error">Formatear registro</h3>
+      </div>
+      <p class="text-sm text-base-content/70 mb-1">Se eliminarán todos los datos de:</p>
+      <p id="reg-txtss-formatear-nombre" class="text-sm font-bold text-base-content mb-3 truncate"></p>
+      <div id="reg-txtss-formatear-resumen" class="mb-4 flex gap-3 text-sm">
+        <span class="loading loading-spinner loading-xs"></span>
+      </div>
+      <p class="text-sm text-base-content/70 mb-4">La operación es <strong>irreversible</strong>.</p>
+      <label class="flex items-center gap-2 cursor-pointer select-none mb-4 p-3 bg-error/10 rounded-lg border border-error/30">
+        <input id="reg-txtss-formatear-toggle" type="checkbox" class="toggle toggle-error toggle-sm">
+        <span class="text-sm font-medium text-error">Entiendo que se borrarán todos los datos</span>
+      </label>
+      <div class="modal-action">
+        <button id="reg-txtss-formatear-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+        <button id="reg-txtss-formatear-confirm" class="btn btn-error btn-sm text-white" disabled>Formatear</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <!-- Modal mapa Leaflet -->
+  <dialog id="reg-txtss-mapa-modal" class="modal">
+    <div class="modal-box w-screen h-dvh max-w-none max-h-none rounded-none p-0 overflow-hidden flex flex-col">
+      <!-- Cabecera: título + cerrar -->
+      <div class="flex-shrink-0 bg-base-200 border-b">
+        <div class="flex items-center justify-between px-4 py-2">
+          <span class="font-bold text-sm">Mapa de registros</span>
+          <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost">✕</button></form>
+        </div>
+        <!-- Controles: se wrappean en mobile -->
+        <div class="flex flex-wrap items-center gap-2 px-4 pb-2">
+          <label class="flex items-center gap-1 cursor-pointer select-none">
+            <input type="checkbox" id="mapa-toggle-amarillo" checked class="checkbox checkbox-warning checkbox-xs">
+            <span class="text-xs font-medium">Parcial</span>
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer select-none">
+            <input type="checkbox" id="mapa-toggle-verde" checked class="checkbox checkbox-success checkbox-xs">
+            <span class="text-xs font-medium">Concluidos</span>
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer select-none">
+            <input type="checkbox" id="mapa-toggle-rojo" checked class="checkbox checkbox-error checkbox-xs">
+            <span class="text-xs font-medium">Sin datos</span>
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer select-none pl-2 border-l border-base-300">
+            <input type="checkbox" id="mapa-toggle-azul" class="checkbox checkbox-info checkbox-xs">
+            <span class="text-xs font-medium text-info">Mandato</span>
+          </label>
+          <input type="search" id="mapa-buscar" placeholder="Buscar sitio..."
+                 class="input input-xs input-bordered flex-1 min-w-32">
+          <select id="mapa-sitio-select" class="select select-xs select-bordered flex-1 min-w-40">
+            <option value="">Ir a sitio...</option>
+          </select>
+          <button id="mapa-fit-btn" type="button"
+                  class="btn btn-xs btn-outline btn-ghost"
+                  title="Ajustar vista a marcadores visibles">
+            <i class="fa-solid fa-expand"></i>
+          </button>
+        </div>
+      </div>
+      <!-- Mapa: ocupa el espacio restante -->
+      <div id="reg-txtss-mapa-container" class="flex-1 min-h-0" style="min-height:50vh;"></div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
 
   <!-- Modal editar registro TX/TSS -->
   <dialog id="reg-txtss-edit-modal" class="modal">
@@ -30,5 +122,12 @@
 
 {% block extra_js %}
   {{ block.super }}
+  <script>
+    window.LEAFLET_JS_URL  = "{% static 'js/leaflet.js' %}";
+    window.LEAFLET_CSS_URL = "{% static 'css/leaflet.css' %}";
+    window.addEventListener('pageshow', function (e) {
+      if (e.persisted) window.location.reload();
+    });
+  </script>
   <script src="{% static 'js/reg_txtss.js' %}?v=1.0"></script>
 {% endblock extra_js %}

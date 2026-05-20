@@ -44,11 +44,6 @@ def _fotos_to_media_urls(fotos):
     return result
 
 
-def _filter_legacy(d):
-    """Retorna solo las entradas del dict que tienen valor real (no vacío ni 'None')."""
-    return {k: v for k, v in d.items() if v and str(v).strip() not in ('', 'None', 'metros')}
-
-
 def convert_lat_to_dms(lat):
     if lat is None:
         return 'N/A'
@@ -75,8 +70,7 @@ def convert_lon_to_dms(lon):
 
 class RegistroPDFView(WeasyTemplateView):
     template_name = 'reportes_txtss/txtss.html'
-    # pdf_attachment = True
-    # pdf_filename = 'registro_individual.pdf'
+    pdf_attachment = False  # abre inline; el filename se usa al guardar
     pdf_options = {
         'default-font-family': 'Arial',
         'default-font-size': 12,
@@ -84,24 +78,30 @@ class RegistroPDFView(WeasyTemplateView):
     }
     pdf_stylesheets = [str(Path(settings.BASE_DIR) / 'static/css/weasyprint.css')]
 
+    def get_pdf_filename(self):
+        import re
+        registro_id = self.kwargs.get('registro_id')
+        try:
+            reg = RegTxtss.objects.select_related('sitio').get(id=registro_id)
+            def _clean(s):
+                # Remove characters invalid in filenames, keep spaces/hyphens/underscores
+                return re.sub(r'[\\/:*?"<>|]', '', str(s or '')).strip()
+            parts = [
+                _clean(reg.sitio.pti_cell_id),
+                _clean(reg.sitio.operator_id),
+                _clean(reg.sitio.name),
+                _clean(reg.alternativa),
+            ]
+            return '-'.join(p for p in parts if p) + '.pdf'
+        except Exception:
+            return 'registro.pdf'
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         registro_id = self.kwargs.get('registro_id')
 
-        registro = RegTxtss.objects.select_related('sitio', 'user')\
-            .prefetch_related('racceso_set', 'rsitio_set', 'rempalme_set')\
-            .get(id=registro_id)
-        
-        paso_sitio = registro.rsitio_set.first()
-        paso_sitio_lat = paso_sitio.lat if paso_sitio else None
-        paso_sitio_lon = paso_sitio.lon if paso_sitio else None
-        
-        paso_acceso = registro.racceso_set.first()
-        
-        paso_empalme = registro.rempalme_set.first()
-        paso_empalme_lat = paso_empalme.lat if paso_empalme else None
-        paso_empalme_lon = paso_empalme.lon if paso_empalme else None
-        
+        registro = RegTxtss.objects.select_related('sitio', 'user').get(id=registro_id)
+
         registro_content_type = ContentType.objects.get_for_model(registro)
 
         # Mapas de widgets mapa_1p (mandato) y mapa_2_puntos (desfase)
@@ -158,13 +158,13 @@ class RegistroPDFView(WeasyTemplateView):
         pasos_ctx = reg_contexto.get('pasos', {})
         flat_ctx  = reg_contexto.get('flat', {})
 
-        # Coordenadas de inspección: preferir widget ubicacion, fallback al paso legacy
+        # Coordenadas de inspección desde widget ubicacion
         try:
-            inspeccion_lat = float(flat_ctx['poste.lat']) if flat_ctx.get('poste.lat') else paso_sitio_lat
-            inspeccion_lon = float(flat_ctx['poste.lon']) if flat_ctx.get('poste.lon') else paso_sitio_lon
+            inspeccion_lat = float(flat_ctx['poste.lat']) if flat_ctx.get('poste.lat') else None
+            inspeccion_lon = float(flat_ctx['poste.lon']) if flat_ctx.get('poste.lon') else None
         except (TypeError, ValueError):
-            inspeccion_lat = paso_sitio_lat
-            inspeccion_lon = paso_sitio_lon
+            inspeccion_lat = None
+            inspeccion_lon = None
 
         # Desfase: preferir mapa_desfase_obj (siempre actualizado), fallback legacy
         desfase_metros_val = (
@@ -191,6 +191,7 @@ class RegistroPDFView(WeasyTemplateView):
 
         mapa_mandato_src = _file_uri(mapa_mandato_obj) or _file_uri(mapa_sitio)
         mapa_desfase_src = _file_uri(mapa_desfase_obj) or _file_uri(mapa_empalme)
+        tekon_logo_src = Path(settings.BASE_DIR, 'templates', 'svgs', 'tekon_logo.png').as_uri()
 
         # Datos del paso poste (widgets)
         poste_paso  = pasos_ctx.get('poste', {})
@@ -234,6 +235,7 @@ class RegistroPDFView(WeasyTemplateView):
             # Mapas desde contexto de widgets
             'mapa_mandato_src': mapa_mandato_src,
             'mapa_desfase_src': mapa_desfase_src,
+            'tekon_logo_src': tekon_logo_src,
 
             # Datos del poste (widget system)
             'poste_form': poste_form,
@@ -244,24 +246,6 @@ class RegistroPDFView(WeasyTemplateView):
             'poste_fotos': poste_fotos,
             'imagenes_fotos': imagenes_fotos,
 
-            # Datos legacy (fallback para registros con RSitio/RAcceso/REmpalme)
-            # Solo se incluyen si tienen valores reales (no vacíos ni None)
-            'registro_sitio': _filter_legacy({
-                f'{paso_sitio._meta.get_field("altura").verbose_name}:': f'{paso_sitio.altura} m',
-                f'{paso_sitio._meta.get_field("dimensiones").verbose_name}:': f'{paso_sitio.dimensiones}',
-                f'{paso_sitio._meta.get_field("deslindes").verbose_name}:': f'{paso_sitio.deslindes} metros',
-                f'{paso_sitio._meta.get_field("comentarios").verbose_name}:': f'{paso_sitio.comentarios}',
-            }) if paso_sitio else {},
-            'registro_acceso': _filter_legacy({
-                f'{paso_acceso._meta.get_field("tipo_suelo").verbose_name}:': f'{paso_acceso.tipo_suelo}',
-                f'{paso_acceso._meta.get_field("distancia").verbose_name}:': f'{paso_acceso.distancia} metros',
-                f'{paso_acceso._meta.get_field("comentarios").verbose_name}:': f'{paso_acceso.comentarios}',
-            }) if paso_acceso else {},
-            'registro_empalme': _filter_legacy({
-                f'{paso_empalme._meta.get_field("proveedor").verbose_name}:': f'{paso_empalme.proveedor}',
-                f'{paso_empalme._meta.get_field("capacidad").verbose_name}:': f'{paso_empalme.capacidad}',
-                f'{paso_empalme._meta.get_field("comentarios").verbose_name}:': f'{paso_empalme.comentarios}',
-            }) if paso_empalme else {},
             'pasos_widgets': get_registro_report_data(registro),
             'reg_contexto': reg_contexto,
         })

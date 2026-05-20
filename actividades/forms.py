@@ -1,13 +1,6 @@
 from django import forms
 from .models import PasoDefinicion
 
-_POSTE_DEFAULTS = {
-    'tipo_estructura': 'Poste de Hormigón Armado',
-    'altura': '13 m',
-    'tension': 'Baja Tension',
-    'acceso_camion_grua': True,
-}
-
 
 def build_dynamic_form(paso, data=None, initial=None, widget_slug=None):
     """Builds a form for a paso's widgets. If widget_slug is given, only that widget's fields."""
@@ -28,7 +21,16 @@ def build_dynamic_form(paso, data=None, initial=None, widget_slug=None):
                 label='Comentario',
             )
         elif slug == 'poste_form_widget':
-            merged_initial.update(_POSTE_DEFAULTS)
+            cfg = pw.config
+            poste_defaults = {
+                k: v for k, v in {
+                    'tipo_estructura': cfg.get('default_tipo_estructura', ''),
+                    'altura': cfg.get('default_altura', ''),
+                    'tension': cfg.get('default_tension', ''),
+                    'acceso_camion_grua': bool(cfg.get('default_acceso_camion_grua')),
+                }.items() if v != '' and v is not False
+            }
+            merged_initial.update(poste_defaults)
             fields['tipo_estructura'] = forms.CharField(required=True, label='Tipo de Estructura')
             fields['altura'] = forms.CharField(required=True, label='Altura')
             fields['placa_poste'] = forms.CharField(required=False, label='Placa Poste')

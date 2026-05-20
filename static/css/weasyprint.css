@@ -103,6 +103,7 @@ p {
     width: 20%;
     text-align: center;
     vertical-align: middle;
+    border: none;
 }
   
 /* Estilo general para SVGs (por si no se aplica otro más específico) */
@@ -118,7 +119,15 @@ p {
   
 /* Logo derecho: más pequeño */
 .header-logo.right svg {
-    height: 28px; /* ajusta a tu gusto */
+    height: 28px;
+}
+
+.header-logo.right img {
+    height: 42px;
+    max-width: 100%;
+    border: none;
+    display: block;
+    margin: 0 auto;
 }
 
 .header-title {

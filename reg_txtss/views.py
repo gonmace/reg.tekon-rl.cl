@@ -32,6 +32,34 @@ class ListRegistrosView(GenericRegistroTableListView):
     def get_registro_config(self):
         return REGISTRO_CONFIG
 
+    def get_queryset(self):
+        from django.db.models import Exists, OuterRef, Case, When, IntegerField, Value
+        from django.contrib.contenttypes.models import ContentType
+        from actividades.models import DatoPaso
+        from photos.models import Photos
+        from core.models.google_maps import GoogleMapsImage
+
+        ct = ContentType.objects.get_for_model(RegTxtss)
+        # DatoPaso con al menos un valor no vacío (filtra dicts como {'lat': '', 'lon': ''})
+        datopaso_con_datos = DatoPaso.objects.filter(
+            content_type=ct,
+            object_id=OuterRef('pk'),
+        ).extra(where=["EXISTS(SELECT 1 FROM jsonb_each_text(datos) j WHERE j.value != '')"])
+        has_widgets_qs = (
+            Exists(datopaso_con_datos)
+            | Exists(Photos.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
+            | Exists(GoogleMapsImage.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
+        )
+        return super().get_queryset().annotate(
+            has_widgets=has_widgets_qs,
+            orden_estado=Case(
+                When(concluido=False, has_widgets=True,  then=Value(1)),  # amarillo
+                When(concluido=True,                     then=Value(2)),  # verde
+                default=Value(3),                                          # rojo
+                output_field=IntegerField(),
+            )
+        ).order_by('orden_estado', '-fecha')
+
     def get_table(self, **kwargs):
         table = super().get_table(**kwargs)
         if self.request.user.is_superuser:
@@ -79,6 +107,10 @@ class ListRegistrosPostesView(ListRegistrosView):
         ctx = super().get_context_data(**kwargs)
         if self.request.user.is_superuser:
             ctx['pasos_config_url'] = reverse('reg_txtss:pasos_postes')
+        qs = self.get_queryset()
+        ctx['count_verde']   = qs.filter(concluido=True).count()
+        ctx['count_amarillo'] = qs.filter(concluido=False, has_widgets=True).count()
+        ctx['count_rojo']    = qs.filter(concluido=False, has_widgets=False).count()
         return ctx
 
 
@@ -135,6 +167,17 @@ class StepsRegistroView(GenericRegistroStepsView):
             context['header_subtitle'] = title[1]
 
         context['steps'] = _get_dynamic_steps(self.registro)
+
+        tipo = getattr(getattr(self.registro, 'sitio', None), 'tipo_sitio', None)
+        if tipo == 'POSTE':
+            context['back_url'] = reverse('reg_txtss:list_postes')
+        else:
+            context['back_url'] = reverse('reg_txtss:list_torres')
+
+        context['concluido'] = self.registro.concluido
+        context['toggle_concluido_url'] = reverse('reg_txtss:api_toggle_concluido', kwargs={'registro_id': self.registro.id})
+        if self.request.user.is_superuser:
+            context['formatear_url'] = reverse('reg_txtss:api_formatear', kwargs={'registro_id': self.registro.id})
 
         return context
 
@@ -623,3 +666,223 @@ class MapaSaveView(LoginRequiredMixin, View):
         rebuild_contexto(registro)
 
         return JsonResponse({'success': True, 'image_url': obj.imagen.url})
+
+
+@login_required
+@require_POST
+def toggle_concluido(request, registro_id):
+    registro = get_object_or_404(RegTxtss, id=registro_id)
+    registro.concluido = not registro.concluido
+    registro.save()
+    return JsonResponse({'concluido': registro.concluido})
+
+
+@login_required
+@require_POST
+def formatear_registro(request, registro_id):
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
+
+    from django.contrib.contenttypes.models import ContentType
+    from actividades.models import DatoPaso, ContextoRegistro
+    from photos.models import Photos
+    from core.models.google_maps import GoogleMapsImage
+
+    registro = get_object_or_404(RegTxtss, id=registro_id)
+    ct = ContentType.objects.get_for_model(RegTxtss)
+
+    # Borrar fotos (archivos incluidos)
+    fotos = Photos.objects.filter(content_type=ct, object_id=registro.id)
+    for foto in fotos:
+        if foto.imagen:
+            foto.imagen.delete(save=False)
+    fotos.delete()
+
+    # Borrar imágenes de mapas (archivos incluidos)
+    mapas = GoogleMapsImage.objects.filter(content_type=ct, object_id=registro.id)
+    for mapa in mapas:
+        if mapa.imagen:
+            mapa.imagen.delete(save=False)
+    mapas.delete()
+
+    # Borrar datos de widgets (formularios)
+    DatoPaso.objects.filter(content_type=ct, object_id=registro.id).delete()
+
+    # Borrar contexto acumulado
+    ContextoRegistro.objects.filter(content_type=ct, object_id=registro.id).delete()
+
+    # Resetear concluido
+    registro.concluido = False
+    registro.save()
+
+    return JsonResponse({'success': True})
+
+
+@login_required
+def resumen_formatear(request, registro_id):
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False}, status=403)
+
+    from django.contrib.contenttypes.models import ContentType
+    from actividades.models import DatoPaso, ContextoRegistro
+    from photos.models import Photos
+    from core.models.google_maps import GoogleMapsImage
+
+    registro = get_object_or_404(RegTxtss, id=registro_id)
+    ct = ContentType.objects.get_for_model(RegTxtss)
+
+    fotos = Photos.objects.filter(content_type=ct, object_id=registro.id, is_deleted=False).count()
+    mapas = GoogleMapsImage.objects.filter(content_type=ct, object_id=registro.id, is_deleted=False).count()
+
+    # Contar widgets de formulario con datos reales desde el contexto
+    widgets = 0
+    try:
+        ctx_obj = ContextoRegistro.objects.get(content_type=ct, object_id=registro.id)
+        pasos = ctx_obj.contexto.get('pasos', {})
+        for paso_data in pasos.values():
+            if isinstance(paso_data, dict):
+                for widget_data in paso_data.values():
+                    if isinstance(widget_data, dict) and widget_data.get('level', 1) > 1:
+                        widgets += 1
+    except ContextoRegistro.DoesNotExist:
+        pass
+
+    return JsonResponse({'fotos': fotos, 'mapas': mapas, 'widgets': widgets})
+
+
+@login_required
+@require_GET
+def locate_registro(request, registro_id):
+    """Devuelve el número de página donde aparece el registro en la lista."""
+    from django.db.models import Exists, OuterRef, Case, When, IntegerField, Value
+    from django.contrib.contenttypes.models import ContentType
+    from actividades.models import DatoPaso
+    from photos.models import Photos
+    from core.models.google_maps import GoogleMapsImage
+
+    registro = get_object_or_404(RegTxtss, pk=registro_id, is_deleted=False)
+    list_path = request.GET.get('list_path', '')
+    tipo = 'TORRE' if 'torres' in list_path else 'POSTE'
+
+    ct = ContentType.objects.get_for_model(RegTxtss)
+    datopaso_con_datos = DatoPaso.objects.filter(
+        content_type=ct, object_id=OuterRef('pk'),
+    ).extra(where=["EXISTS(SELECT 1 FROM jsonb_each_text(datos) j WHERE j.value != '')"])
+    has_widgets_qs = (
+        Exists(datopaso_con_datos)
+        | Exists(Photos.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
+        | Exists(GoogleMapsImage.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
+    )
+    qs = RegTxtss.objects.filter(is_deleted=False, sitio__tipo_sitio=tipo).annotate(
+        has_widgets=has_widgets_qs,
+        orden_estado=Case(
+            When(concluido=False, has_widgets=True,  then=Value(1)),
+            When(concluido=True,                     then=Value(2)),
+            default=Value(3),
+            output_field=IntegerField(),
+        )
+    ).order_by('orden_estado', '-fecha')
+
+    if not request.user.is_superuser and not request.user.is_visita:
+        qs = qs.filter(user=request.user)
+
+    ids = list(qs.values_list('id', flat=True))
+    try:
+        position = ids.index(registro_id)
+    except ValueError:
+        return JsonResponse({'page': 1})
+
+    per_page = 25
+    page = position // per_page + 1
+    return JsonResponse({'page': page})
+
+
+@login_required
+@require_GET
+def mapa_registros_geojson(request):
+    """GeoJSON con todos los registros que tienen coordenadas, para el mapa Leaflet."""
+    from django.db.models import Exists, OuterRef, Case, When, IntegerField, Value
+    from django.contrib.contenttypes.models import ContentType
+    from actividades.models import DatoPaso, ContextoRegistro
+    from photos.models import Photos
+    from core.models.google_maps import GoogleMapsImage
+
+    ct = ContentType.objects.get_for_model(RegTxtss)
+    datopaso_con_datos = DatoPaso.objects.filter(
+        content_type=ct, object_id=OuterRef('pk'),
+    ).extra(where=["EXISTS(SELECT 1 FROM jsonb_each_text(datos) j WHERE j.value != '')"])
+    has_widgets_qs = (
+        Exists(datopaso_con_datos)
+        | Exists(Photos.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
+        | Exists(GoogleMapsImage.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
+    )
+    qs = RegTxtss.objects.filter(is_deleted=False).annotate(
+        has_widgets=has_widgets_qs,
+        orden_estado=Case(
+            When(concluido=False, has_widgets=True, then=Value(1)),
+            When(concluido=True,                    then=Value(2)),
+            default=Value(3),
+            output_field=IntegerField(),
+        )
+    ).select_related('sitio')
+
+    contextos = {
+        c.object_id: c.contexto
+        for c in ContextoRegistro.objects.filter(content_type=ct)
+    }
+
+    features = []
+    for reg in qs:
+        lat, lon = None, None
+        flat = (contextos.get(reg.id) or {}).get('flat', {})
+        for key, val in flat.items():
+            if key.endswith('.lat') and val:
+                paso_prefix = key[:-4]
+                lon_candidate = flat.get(f'{paso_prefix}.lon')
+                if lon_candidate:
+                    try:
+                        lat = float(val)
+                        lon = float(lon_candidate)
+                        break
+                    except (ValueError, TypeError):
+                        pass
+
+        if lat is None and reg.sitio:
+            try:
+                if reg.sitio.lat_man and reg.sitio.lon_man:
+                    lat = float(reg.sitio.lat_man)
+                    lon = float(reg.sitio.lon_man)
+            except (ValueError, TypeError):
+                pass
+
+        if lat is None or lon is None:
+            continue
+
+        estado = 'verde' if reg.concluido else ('amarillo' if reg.has_widgets else 'rojo')
+        sitio = reg.sitio
+        lat_man, lon_man = None, None
+        if sitio:
+            try:
+                if sitio.lat_man and sitio.lon_man:
+                    lat_man = float(sitio.lat_man)
+                    lon_man = float(sitio.lon_man)
+            except (ValueError, TypeError):
+                pass
+        features.append({
+            'type': 'Feature',
+            'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
+            'properties': {
+                'id': reg.id,
+                'pti_id': sitio.pti_cell_id if sitio else '',
+                'operador_id': sitio.operator_id if sitio else '',
+                'nombre': sitio.name if sitio else '',
+                'alternativa': reg.alternativa or '',
+                'fecha': reg.fecha.strftime('%d/%m/%Y') if reg.fecha else '',
+                'estado': estado,
+                'url': f'/reg_txtss/{reg.id}/',
+                'lat_man': lat_man,
+                'lon_man': lon_man,
+            },
+        })
+
+    return JsonResponse({'type': 'FeatureCollection', 'features': features})

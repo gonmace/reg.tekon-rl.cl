@@ -1,12 +1,15 @@
 from django.views.generic import ListView
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.shortcuts import get_object_or_404
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from core.utils.breadcrumbs import BreadcrumbsMixin
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 import json
+import os
 from .models import Photos
 from django.apps import apps
 from django.http import Http404
@@ -643,4 +646,229 @@ class DeletePhotoView(View):
         except Exception as e:
             return JsonResponse({'success': False, 'message': f'Error al eliminar: {str(e)}'}, status=400)
 
+
+# ── Gallery (admin view — all photos) ──────────────────────────────────────
+
+def _get_reg_ids_for_sitio_filter(sitio_id=None, tipo_sitio=None):
+    """Return RegTxtss IDs filtered by site id or tipo_sitio."""
+    from reg_txtss.models import RegTxtss
+    qs = RegTxtss.objects.all()
+    if sitio_id:
+        qs = qs.filter(sitio_id=sitio_id)
+    if tipo_sitio:
+        qs = qs.filter(sitio__tipo_sitio=tipo_sitio)
+    return list(qs.values_list('id', flat=True))
+
+
+def _build_photos_q_from_reg_ids(reg_ids):
+    """Return a Q() covering all Photos linked to the given RegTxtss IDs."""
+    from reg_txtss.models import RegTxtss
+
+    if not reg_ids:
+        return Q(pk__in=[])
+
+    q = Q()
+    ct_reg = ContentType.objects.get_for_model(RegTxtss)
+    q |= Q(content_type=ct_reg, object_id__in=reg_ids)
+
+    return q
+
+
+class PhotoGalleryView(LoginRequiredMixin, UserPassesTestMixin, BreadcrumbsMixin, ListView):
+    model = Photos
+    context_object_name = 'photos'
+    template_name = 'photos/gallery.html'
+    paginate_by = 60
+    raise_exception = True
+
+    def test_func(self):
+        return not self.request.user.is_limited
+
+    def get_queryset(self):
+        from core.models import Site
+        qs = Photos.objects.select_related('content_type')
+        tipo = self.request.GET.get('tipo', '')
+        sitio_id = self.request.GET.get('sitio', '')
+        etapa = self.request.GET.get('etapa', '')
+        size_min = self.request.GET.get('size_min', '')
+        size_max = self.request.GET.get('size_max', '')
+
+        # Site and/or tipo filter (combined into one Q query)
+        if sitio_id or tipo in ('POSTE', 'TORRE'):
+            reg_ids = _get_reg_ids_for_sitio_filter(
+                sitio_id=sitio_id if sitio_id else None,
+                tipo_sitio=tipo if tipo in ('POSTE', 'TORRE') else None,
+            )
+            qs = qs.filter(_build_photos_q_from_reg_ids(reg_ids))
+
+        if etapa:
+            qs = qs.filter(etapa=etapa)
+
+        try:
+            if size_min:
+                qs = qs.filter(file_size__gte=int(float(size_min) * 1024))
+        except (ValueError, TypeError):
+            pass
+        try:
+            if size_max:
+                qs = qs.filter(file_size__lte=int(float(size_max) * 1024))
+        except (ValueError, TypeError):
+            pass
+
+        return qs.order_by('-created_at')
+
+    def get_template_names(self):
+        if self.request.headers.get('HX-Request'):
+            return ['photos/partials/gallery_grid.html']
+        return [self.template_name]
+
+    def get_context_data(self, **kwargs):
+        from core.models import Site
+        context = super().get_context_data(**kwargs)
+        context['tipo_filter'] = self.request.GET.get('tipo', '')
+        context['sitio_filter'] = self.request.GET.get('sitio', '')
+        context['etapa_filter'] = self.request.GET.get('etapa', '')
+        context['size_min'] = self.request.GET.get('size_min', '')
+        context['size_max'] = self.request.GET.get('size_max', '')
+        context['total_count'] = self.get_queryset().count()
+        context['etapas'] = (
+            Photos.objects.values_list('etapa', flat=True)
+            .distinct().order_by('etapa')
+        )
+        # Only sites that actually have at least one photo (trace Photos → RegTxtss → site)
+        from reg_txtss.models import RegTxtss
+        ct_reg = ContentType.objects.get_for_model(RegTxtss)
+        reg_ids_with_photos = set(
+            Photos.objects.filter(content_type=ct_reg).values_list('object_id', flat=True)
+        )
+        site_ids_with_photos = (
+            RegTxtss.objects.filter(pk__in=reg_ids_with_photos)
+            .values_list('sitio_id', flat=True).distinct()
+        )
+        context['sites'] = Site.objects.filter(pk__in=site_ids_with_photos).order_by('pti_cell_id')
+        return context
+
+    def get_breadcrumbs(self):
+        return self._resolve_breadcrumbs([
+            {'label': 'Inicio', 'url_name': 'dashboard:dashboard'},
+            {'label': 'Imágenes'},
+        ])
+
+
+class BulkDeletePhotosView(LoginRequiredMixin, UserPassesTestMixin, View):
+    raise_exception = True
+
+    def test_func(self):
+        return not self.request.user.is_limited
+
+    def post(self, request):
+        data = json.loads(request.body)
+        ids = [int(i) for i in data.get('ids', []) if str(i).isdigit()]
+        if not ids:
+            return JsonResponse({'success': False, 'message': 'No se seleccionaron fotos'}, status=400)
+
+        photos = Photos.objects.filter(pk__in=ids)
+        count = photos.count()
+
+        for photo in photos:
+            try:
+                if photo.imagen and os.path.exists(photo.imagen.path):
+                    os.remove(photo.imagen.path)
+            except Exception:
+                pass
+
+        photos.delete()
+        return JsonResponse({'success': True, 'message': f'{count} foto(s) eliminada(s)'})
+
+
+class BulkDownloadPhotosView(LoginRequiredMixin, UserPassesTestMixin, View):
+    raise_exception = True
+
+    def test_func(self):
+        return not self.request.user.is_limited
+
+    def post(self, request):
+        import zipfile
+        import io
+
+        data = json.loads(request.body)
+        ids = [int(i) for i in data.get('ids', []) if str(i).isdigit()]
+        if not ids:
+            return JsonResponse({'success': False, 'message': 'No se seleccionaron fotos'}, status=400)
+
+        photos = list(Photos.objects.filter(pk__in=ids))
+
+        buffer = io.BytesIO()
+        seen_names = {}
+        with zipfile.ZipFile(buffer, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+            for photo in photos:
+                try:
+                    path = photo.imagen.path
+                    if not os.path.exists(path):
+                        continue
+                    filename = os.path.basename(path)
+                    if filename in seen_names:
+                        seen_names[filename] += 1
+                        name, ext = os.path.splitext(filename)
+                        filename = f"{name}_{seen_names[filename]}{ext}"
+                    else:
+                        seen_names[filename] = 0
+                    zf.write(path, filename)
+                except Exception:
+                    pass
+
+        buffer.seek(0)
+        response = StreamingHttpResponse(
+            iter([buffer.read()]),
+            content_type='application/zip'
+        )
+        response['Content-Disposition'] = 'attachment; filename="fotos.zip"'
+        return response
+
+
+class CompressPhotosView(LoginRequiredMixin, UserPassesTestMixin, View):
+    raise_exception = True
+
+    def test_func(self):
+        return not self.request.user.is_limited
+
+    def post(self, request):
+        from PIL import Image
+
+        data = json.loads(request.body)
+        ids = [int(i) for i in data.get('ids', []) if str(i).isdigit()]
+        quality = int(data.get('quality', 70))
+        quality = max(10, min(quality, 95))
+
+        if not ids:
+            return JsonResponse({'success': False, 'message': 'No se seleccionaron fotos'}, status=400)
+
+        photos = Photos.objects.filter(pk__in=ids)
+        compressed = 0
+        saved_bytes = 0
+
+        for photo in photos:
+            try:
+                path = photo.imagen.path
+                if not path.lower().endswith(('.jpg', '.jpeg')):
+                    continue
+                original_size = os.path.getsize(path)
+                with Image.open(path) as img:
+                    exif_data = img.info.get('exif', b'')
+                    if img.mode in ('RGBA', 'P'):
+                        img = img.convert('RGB')
+                    img.save(path, quality=quality, optimize=True, exif=exif_data)
+                new_size = os.path.getsize(path)
+                saved_bytes += max(0, original_size - new_size)
+                Photos.objects.filter(pk=photo.pk).update(file_size=new_size)
+                compressed += 1
+            except Exception:
+                pass
+
+        saved_kb = saved_bytes // 1024
+        return JsonResponse({
+            'success': True,
+            'message': f'{compressed} foto(s) comprimida(s). Ahorro: {saved_kb} KB',
+            'saved_bytes': saved_bytes,
+        })
 

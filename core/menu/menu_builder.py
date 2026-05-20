@@ -65,6 +65,7 @@ class MenuBuilder:
             MenuItem('Sitios', 'sitios:sitios_list', 'fas fa-map-marker-alt', module='supervision', elevated_only=True),
             MenuItem('Empresas', 'contractors:contractors_list', 'fas fa-building', module='supervision', elevated_only=True),
             MenuItem('Usuarios', 'users:list', 'fas fa-users', module='supervision', elevated_only=True),
+            MenuItem('Imágenes', 'photos:gallery', 'fas fa-images', module='supervision', elevated_only=True),
             MenuItem(divider=True, section_label='Reportes'),
             MenuItem('TX/TSS Postes', 'reg_txtss:list_postes', 'fas fa-wifi', module='registros', report_code='txtss_postes'),
             MenuItem('TX/TSS Torres', 'reg_txtss:list_torres', 'fa-solid fa-broadcast-tower', module='registros', report_code='txtss_torres'),

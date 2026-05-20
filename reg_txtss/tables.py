@@ -44,6 +44,15 @@ class RegTxtssTable(GenericRegistrosTable):
         model = RegTxtss
         fields = ('pti_id', 'operador_id', 'nombre_sitio', 'alternativa', 'tipo_sitio', 'fecha')
         sequence = ('pti_id', 'operador_id', 'nombre_sitio', 'alternativa', 'tipo_sitio', 'fecha')
+        row_attrs = {
+            'class': lambda record: (
+                'pt-2 row-concluido'
+                if getattr(record, 'concluido', False)
+                else 'pt-2 row-parcial'
+                if getattr(record, 'has_widgets', False)
+                else 'pt-2 row-vacio'
+            )
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -52,9 +61,18 @@ class RegTxtssTable(GenericRegistrosTable):
         self.columns.hide('ito')
         self.sequence = ('pti_id', 'operador_id', 'nombre_sitio', 'alternativa', 'tipo_sitio', 'fecha', 'acciones')
 
+    ALT_BADGE_CLASS = {
+        'A': 'badge-accent',
+        'B': 'badge-accent opacity-70',
+        'C': 'badge-accent opacity-50',
+        'D': 'badge-accent opacity-35',
+        'E': 'badge-accent opacity-20',
+    }
+
     def render_alternativa(self, value, record):
         choices = ['A', 'B', 'C', 'D', 'E']
         display = value or '—'
+        badge_cls = self.ALT_BADGE_CLASS.get(value, 'badge-neutral')
 
         if self.user and self.user.is_superuser:
             options = ''.join(
@@ -64,16 +82,16 @@ class RegTxtssTable(GenericRegistrosTable):
             return format_html(
                 '<div class="alternativa-cell-container">'
                 '<span class="alternativa-text" style="cursor:pointer;" data-registro-id="{}">'
-                '<span class="badge badge-neutral badge-sm">{}</span>'
+                '<span class="badge {} badge-sm">{}</span>'
                 '</span>'
                 '<select class="alternativa-select select select-warning select-sm select-bordered w-full max-w-xs"'
                 ' style="display:none;" data-registro-id="{}">'
                 '<option value="">—</option>{}'
                 '</select>'
                 '</div>',
-                record.id, display, record.id, options,
+                record.id, badge_cls, display, record.id, options,
             )
-        return format_html('<span class="badge badge-neutral badge-sm">{}</span>', display)
+        return format_html('<span class="badge {} badge-sm">{}</span>', badge_cls, display)
 
     def render_fecha(self, value, record):
         fecha_str = value.strftime('%d/%m/%Y') if value else '—'
@@ -92,7 +110,10 @@ class RegTxtssTable(GenericRegistrosTable):
         )
 
     def render_ito(self, value, record):
-        return value or '—'
+        user = getattr(record, 'user', None)
+        if user:
+            return user.get_full_name or user.username or '—'
+        return '—'
 
     def render_tipo_sitio(self, value, record):
         sitio = getattr(record, 'sitio', None)

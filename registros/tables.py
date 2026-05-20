@@ -20,7 +20,7 @@ class GenericRegistrosTable(tables.Table):
     pti_id = tables.Column(
         accessor='sitio.pti_cell_id',
         verbose_name='PTI ID',
-        attrs={'td': {'class': 'text-left py-1 md:px-4'}, 'th': {'class': 'text-left'}}
+        attrs={'td': {'class': 'text-left py-1 md:px-4'}, 'th': {'class': 'text-left min-w-32'}}
     )
 
     operador_id = tables.Column(
