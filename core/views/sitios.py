@@ -93,7 +93,7 @@ class SiteViewSet(viewsets.ModelViewSet):
 @method_decorator(csrf_exempt, name='dispatch')
 class SiteEditModalView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
-        return self.request.user.is_superuser
+        return self.request.user.is_supermanager
 
     def get(self, request, site_id):
         site = get_object_or_404(Site, id=site_id)
@@ -196,7 +196,7 @@ class SiteCreateModalView(LoginRequiredMixin, UserPassesTestMixin, View):
     """GET: devuelve form HTML para crear sitio. POST: crea el sitio."""
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return self.request.user.is_supermanager
 
     def get(self, request):
         form = SiteForm()
@@ -246,7 +246,7 @@ class SiteImportView(LoginRequiredMixin, UserPassesTestMixin, View):
     """POST con archivo Excel/CSV: importa sitios usando SiteResource."""
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return self.request.user.is_supermanager
 
     def post(self, request):
         from core.resources import SiteResource
@@ -307,7 +307,7 @@ class SiteImportTemplateView(LoginRequiredMixin, UserPassesTestMixin, View):
     """Descarga un Excel vacío (solo headers) como plantilla de importación."""
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return self.request.user.is_supermanager
 
     def get(self, request):
         from core.resources import SiteResource

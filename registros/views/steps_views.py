@@ -90,10 +90,13 @@ class GenericRegistroTableListView(LoginRequiredMixin, BreadcrumbsMixin, SingleT
         if fk_names:
             queryset = queryset.select_related(*fk_names)
 
-        if self.request.user.is_superuser or self.request.user.is_visita:
-            pass  # Superuser y Visita ven todos los registros
+        user = self.request.user
+        if user.is_supermanager or user.is_visita or user.is_gerencia:
+            pass  # ven todos los registros
+        elif user.is_coord and user.contractor:
+            queryset = queryset.filter(user__contractor=user.contractor)
         else:
-            queryset = queryset.filter(user=self.request.user)
+            queryset = queryset.filter(user=user)
 
         # Búsqueda por ?q= sobre campos comunes y opcionales del modelo
         from django.db.models import Q

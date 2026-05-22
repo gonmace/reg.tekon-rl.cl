@@ -21,22 +21,28 @@ Estados:
   2 — Fotos cargadas pero bajo el mínimo requerido
   3 — Fotos suficientes o no hay mínimo definido
 {% endcomment %}
+{% load access_tags %}
+{% btn_access as access_val %}
 {% with wid=upload_url|default:"preview"|slugify %}
 <div class="camera-widget bg-base-100 rounded-lg p-4 sombra"
      data-upload-url="{{ upload_url }}"
      data-foto-min="{{ foto_min|default:0 }}"
-     data-foto-count="{{ foto_count|default:0 }}">
+     data-foto-count="{{ foto_count|default:0 }}"
+     data-superuser="{{ request.user.is_supermanager|yesno:'true,false' }}">
 
-  <input type="file" id="cam-{{ wid }}" class="sr-only camera-file-input" accept="image/*" multiple>
+  <input type="file" id="cam-{{ wid }}" class="sr-only camera-file-input" accept="image/*" multiple
+         {% if access_val != 'allowed' %}disabled{% endif %}>
 
-  <label for="cam-{{ wid }}" class="btn btn-success w-full mb-3 cursor-pointer">
+  <label for="cam-{{ wid }}" class="btn btn-success w-full mb-3 cursor-pointer"
+         data-access="{{ access_val }}">
     <i class="fa-solid fa-images mr-2"></i> Seleccionar imágenes
   </label>
 
   <label for="cam-{{ wid }}"
          class="camera-drop-zone hidden md:flex flex-col items-center justify-center
                 border-2 border-dashed border-base-content/20 rounded-lg p-6 mb-4
-                bg-base-200 cursor-pointer transition-colors duration-150">
+                bg-base-200 cursor-pointer transition-colors duration-150"
+         data-access="{{ access_val }}">
     <i class="fas fa-cloud-upload-alt text-3xl text-base-content/30 mb-2"></i>
     <p class="text-sm text-base-content/50 mb-1">Arrastra imágenes aquí</p>
     <p class="text-xs text-base-content/40">o toca para seleccionar</p>
@@ -124,7 +130,7 @@ Estados:
       });
 
       imgWrap.appendChild(img);
-      imgWrap.appendChild(delBtn);
+      if (widget.dataset.superuser === 'true') imgWrap.appendChild(delBtn);
 
       var exifDateEl = document.createElement('p');
       exifDateEl.className = 'text-xs text-base-content/40 hidden px-0.5';

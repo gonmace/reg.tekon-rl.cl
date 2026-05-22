@@ -1,6 +1,7 @@
 {% extends 'components/common/data_table_page.html' %}
 {% load static %}
 {% load django_tables2 %}
+{% load access_tags %}
 
 {% block title %}{{ page_title|default:"Registros" }}{% endblock %}
 
@@ -27,11 +28,13 @@
 
 {% block table_actions %}
   {% if show_activate_button %}
+  {% for_role 'COORD' 'GERENCIA' %}
   <button type="button" class="btn btn-add btn-sm" id="activar-registro-btn"
           onclick="document.getElementById('activar-registro-modal').showModal()">
     <i class="fa-solid fa-plus mr-1"></i>
     {{ activate_button_text|default:"Activar Registro" }}
   </button>
+  {% endfor_role %}
   {% endif %}
 {% endblock %}
 

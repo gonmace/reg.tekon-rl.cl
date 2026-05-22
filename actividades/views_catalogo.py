@@ -4,6 +4,7 @@ import re
 
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from core.permissions import SuperuserRequiredMixin
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -79,12 +80,6 @@ def _widget_meta_map():
     """Devuelve {slug: {tipo, config_fields}} para lookups en templates."""
     return {w['slug']: {'tipo': w['tipo'], 'config_fields': w['config_fields']} for w in _available_widgets()}
 
-
-class SuperuserRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
-    raise_exception = True
-
-    def test_func(self):
-        return self.request.user.is_superuser
 
 
 # ── Catálogo de Pasos ─────────────────────────────────────────────────────────

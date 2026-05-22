@@ -1,3 +1,4 @@
+{% load access_tags %}
 <div class="flex items-center justify-center gap-1">
   <span class="reg-txtss-row-id" data-id="{{ record.id }}" style="display:none;"></span>
   {% if record.concluido %}
@@ -6,7 +7,7 @@
     <i class="fa-solid fa-file-pdf"></i>
   </a>
   {% endif %}
-  {% if request.user.is_ito_like or not request.user.is_limited %}
+  {% for_role 'ITO' 'SEARCHER' %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-info reg-txtss-copy-btn"
           data-id="{{ record.id }}"
@@ -14,8 +15,8 @@
           title="Copiar con siguiente alternativa">
     <i class="fa-solid fa-copy"></i>
   </button>
-  {% endif %}
-  {% if not request.user.is_limited %}
+  {% endfor_role %}
+  {% supermanager_only %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-edit reg-txtss-edit-btn"
           data-id="{{ record.id }}"
@@ -29,8 +30,9 @@
           title="Eliminar registro">
     <i class="fa-solid fa-trash"></i>
   </button>
-  {% endif %}
-  {% if request.user.is_superuser and record.has_widgets and not record.concluido %}
+  {% endsupermanager_only %}
+  {% supermanager_only %}
+  {% if record.has_widgets and not record.concluido %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-error reg-txtss-formatear-btn"
           data-id="{{ record.id }}"
@@ -41,4 +43,5 @@
     <i class="fa-solid fa-eraser"></i>
   </button>
   {% endif %}
+  {% endsupermanager_only %}
 </div>

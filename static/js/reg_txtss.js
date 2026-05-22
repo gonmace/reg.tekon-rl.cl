@@ -633,6 +633,14 @@
     document.addEventListener('htmx:afterSwap', function () {
         initRowClick();
     });
+
+    // Auto-abrir mapa si ?mapa=1 en la URL (viene del dashboard)
+    if (new URLSearchParams(window.location.search).get('mapa') === '1') {
+        const params = new URLSearchParams(window.location.search);
+        params.delete('mapa');
+        history.replaceState(null, '', window.location.pathname + (params.toString() ? '?' + params : ''));
+        setTimeout(() => document.getElementById('reg-txtss-mapa-btn')?.click(), 200);
+    }
 })();
 
 function flashRow(id) {

@@ -1,4 +1,6 @@
+{% load access_tags %}
 <div class="flex items-center justify-center gap-1">
+  {% supermanager_only %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-edit site-edit-btn"
           data-id="{{ record.id }}"
@@ -13,4 +15,5 @@
           title="Eliminar sitio">
     <i class="fa-solid fa-trash"></i>
   </button>
+  {% endsupermanager_only %}
 </div>

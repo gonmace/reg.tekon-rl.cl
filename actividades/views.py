@@ -1,11 +1,13 @@
 import json
 
+from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from photos.models import Photos
+from core.permissions import not_visita
 
 from .models import DatoPaso, PasoDefinicion
 
@@ -250,6 +252,8 @@ def _compute_map_info(paso, registro, ct, paso_url=None):
 
 
 
+@login_required
+@not_visita
 @require_POST
 def save_widget_data(request, paso_nombre, widget_slug):
     """
@@ -258,8 +262,6 @@ def save_widget_data(request, paso_nombre, widget_slug):
     Espera JSON: {"registro_ct": "app_label.model", "registro_id": 42, "data": {...}}
     Retorna: {"level": N} o {"errors": [...]}
     """
-    if request.user.is_visita:
-        return JsonResponse({"error": "Acceso de solo lectura"}, status=403)
     from widgets.registry import get_widget
     widget = get_widget(widget_slug)
     if not widget:

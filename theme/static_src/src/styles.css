@@ -201,6 +201,8 @@ html {
       align-items: center;
       align-content: flex-start;
       gap: 0 0.5rem;
+      margin-left: 0.25rem;
+      margin-right: 0.25rem;
       margin-bottom: 0.25rem;
       padding-top: 0.25rem;
       padding-bottom: 0;
@@ -1004,6 +1006,34 @@ select option:hover {
       0 0 0 1px color-mix(in srgb, var(--color-error) 25%, transparent) !important;
     background-color: color-mix(in srgb, var(--color-error) 5%, var(--color-base-100)) !important;
   }
+
+  /* Mobile: border-left real (igual que los cards del dashboard) */
+  @media (max-width: 768px) {
+    .table tbody tr.row-concluido,
+    .table tbody tr.row-parcial,
+    .table tbody tr.row-vacio {
+      box-shadow:
+        0 1px 3px color-mix(in oklab, var(--color-base-content) 8%, transparent),
+        0 2px 6px color-mix(in oklab, var(--color-base-content) 5%, transparent) !important;
+    }
+    .table tbody tr.row-concluido {
+      border-left: 4px solid var(--color-success) !important;
+    }
+    .table tbody tr.row-parcial {
+      border-left: 4px solid var(--color-warning) !important;
+    }
+    .table tbody tr.row-vacio {
+      border-left: 4px solid var(--color-error) !important;
+    }
+  }
+}
+
+/* ── Acceso por rol: data-access en botones de widgets ───────────────────── */
+[data-access="hidden"] { display: none !important; }
+[data-access="disabled"] {
+  pointer-events: none !important;
+  opacity: 0.4;
+  cursor: not-allowed !important;
 }
 
 /* ── Helpers legacy del proyecto (en uso por templates) ──────────────────── */

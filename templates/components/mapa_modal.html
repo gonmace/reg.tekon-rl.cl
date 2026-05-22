@@ -1,4 +1,5 @@
 {% load static %}
+{% load access_tags %}
 
 <dialog id="map-modal" class="modal">
     <div class="modal-box w-full sm:w-11/12 max-w-4xl">
@@ -6,7 +7,8 @@
         <div class="flex justify-between items-center mb-2 flex-shrink-0">
             <h3 id="map-modal-title" class="font-bold text-lg">Mapa</h3>
             <div class="flex gap-2">
-                <button id="save-map-btn" class="btn btn-sm btn-success" onclick="saveMapImage()">
+                <button id="save-map-btn" class="btn btn-sm btn-success" onclick="saveMapImage()"
+                        data-access="{% btn_access %}">
                     Confirmar imagen
                 </button>
                 <button class="btn btn-sm btn-circle btn-ghost" onclick="closeMapModal()">✕</button>

@@ -56,7 +56,7 @@ class EditableTableElemento(ElementoRegistro):
             queryset = self.model_class.objects.filter(is_deleted=False)
             
             # Filtrar por usuario si no es superusuario ni ITO/Buscador/Visita
-            if not request.user.is_superuser and not request.user.is_visita:
+            if not request.user.is_supermanager and not request.user.is_visita:
                 if hasattr(self.model_class, 'user'):
                     queryset = queryset.filter(user=request.user)
                 elif hasattr(self.model_class, 'registro'):
@@ -140,7 +140,7 @@ class EditableTableElemento(ElementoRegistro):
             obj = get_object_or_404(self.model_class, id=pk)
             
             # Verificar permisos
-            if not request.user.is_superuser:
+            if not request.user.is_supermanager:
                 if hasattr(obj, 'user') and obj.user != request.user:
                     return JsonResponse({'error': 'No tiene permisos'}, status=403)
                 elif hasattr(obj, 'registro') and obj.registro.user != request.user:
@@ -187,7 +187,7 @@ class EditableTableElemento(ElementoRegistro):
             obj = get_object_or_404(self.model_class, id=pk)
             
             # Verificar permisos
-            if not request.user.is_superuser:
+            if not request.user.is_supermanager:
                 if hasattr(obj, 'user') and obj.user != request.user:
                     return JsonResponse({'error': 'No tiene permisos'}, status=403)
                 elif hasattr(obj, 'registro') and obj.registro.user != request.user:

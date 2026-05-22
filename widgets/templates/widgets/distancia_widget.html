@@ -29,6 +29,8 @@ Estados:
   2 — Distancia calculada pero no guardada
   3 — Distancia guardada
 {% endcomment %}
+{% load access_tags %}
+{% btn_access as access_val %}
 {% with wid=save_url|default:"preview"|slugify %}
 <div class="distancia-widget bg-base-100 rounded-lg p-4 sombra"
      data-save-url="{{ save_url }}"
@@ -86,10 +88,12 @@ Estados:
 
   <!-- Botones -->
   <div class="flex gap-2">
-    <button type="button" class="dist-calc-btn btn btn-primary btn-sm flex-1 gap-2">
+    <button type="button" class="dist-calc-btn btn btn-primary btn-sm flex-1 gap-2"
+            data-access="{{ access_val }}">
       <i class="fa-solid fa-calculator"></i> Calcular
     </button>
-    <button type="button" class="dist-save-btn btn btn-success btn-sm flex-1 gap-2" disabled>
+    <button type="button" class="dist-save-btn btn btn-success btn-sm flex-1 gap-2"
+            data-access="{{ access_val }}" disabled>
       <i class="fa-solid fa-floppy-disk"></i>
       <span class="dist-save-label">
         {% if distancia_metros %}Actualizar{% else %}Guardar{% endif %}

@@ -8,10 +8,11 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from django.http import JsonResponse
 from registros.forms.activar import create_activar_registro_form
+from core.permissions import CoordOrAboveMixin
 from typing import Dict, Any
 
 
-class GenericActivarRegistroView(LoginRequiredMixin, FormView):
+class GenericActivarRegistroView(LoginRequiredMixin, CoordOrAboveMixin, FormView):
     """
     Vista genérica para activar registros.
     Puede ser usada por cualquier aplicación que herede de RegistroBase.

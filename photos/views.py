@@ -6,6 +6,7 @@ from django.views import View
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from core.utils.breadcrumbs import BreadcrumbsMixin
+from core.permissions import NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 import json
@@ -383,7 +384,7 @@ class ListPhotosView(BreadcrumbsMixin, ListView):
         return super().get_header_title()
 
 @method_decorator(csrf_exempt, name='dispatch')
-class UploadPhotosView(View):
+class UploadPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
     def post(self, request, registro_id=None, paso_nombre=None, app_name=None, step_name=None):
         if not registro_id:
             resolved_url = request.resolver_match
@@ -478,7 +479,7 @@ class UploadPhotosView(View):
             }, status=400)
 
 @method_decorator(csrf_exempt, name='dispatch')
-class UpdatePhotoView(View):
+class UpdatePhotoView(LoginRequiredMixin, ItoLikeMixin, View):
     def post(self, request, registro_id=None, paso_nombre=None, app_name=None, step_name=None):
         if not registro_id:
             resolved_url = request.resolver_match
@@ -589,7 +590,7 @@ class ReorderPhotosView(View):
             return JsonResponse({'success': False, 'message': f'Error al reordenar: {str(e)}'}, status=400)
 
 @method_decorator(csrf_exempt, name='dispatch')
-class DeletePhotoView(View):
+class DeletePhotoView(LoginRequiredMixin, SuperuserRequiredMixin, View):
     def post(self, request, photo_id, registro_id=None, paso_nombre=None, app_name=None, step_name=None):
         resolved_url = request.resolver_match
         if resolved_url and hasattr(resolved_url, 'kwargs'):
@@ -674,15 +675,11 @@ def _build_photos_q_from_reg_ids(reg_ids):
     return q
 
 
-class PhotoGalleryView(LoginRequiredMixin, UserPassesTestMixin, BreadcrumbsMixin, ListView):
+class PhotoGalleryView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
     model = Photos
     context_object_name = 'photos'
     template_name = 'photos/gallery.html'
     paginate_by = 60
-    raise_exception = True
-
-    def test_func(self):
-        return not self.request.user.is_limited
 
     def get_queryset(self):
         from core.models import Site
@@ -755,11 +752,7 @@ class PhotoGalleryView(LoginRequiredMixin, UserPassesTestMixin, BreadcrumbsMixin
         ])
 
 
-class BulkDeletePhotosView(LoginRequiredMixin, UserPassesTestMixin, View):
-    raise_exception = True
-
-    def test_func(self):
-        return not self.request.user.is_limited
+class BulkDeletePhotosView(LoginRequiredMixin, SuperuserRequiredMixin, View):
 
     def post(self, request):
         data = json.loads(request.body)
@@ -781,11 +774,7 @@ class BulkDeletePhotosView(LoginRequiredMixin, UserPassesTestMixin, View):
         return JsonResponse({'success': True, 'message': f'{count} foto(s) eliminada(s)'})
 
 
-class BulkDownloadPhotosView(LoginRequiredMixin, UserPassesTestMixin, View):
-    raise_exception = True
-
-    def test_func(self):
-        return not self.request.user.is_limited
+class BulkDownloadPhotosView(LoginRequiredMixin, View):
 
     def post(self, request):
         import zipfile
@@ -826,11 +815,7 @@ class BulkDownloadPhotosView(LoginRequiredMixin, UserPassesTestMixin, View):
         return response
 
 
-class CompressPhotosView(LoginRequiredMixin, UserPassesTestMixin, View):
-    raise_exception = True
-
-    def test_func(self):
-        return not self.request.user.is_limited
+class CompressPhotosView(LoginRequiredMixin, SuperuserRequiredMixin, View):
 
     def post(self, request):
         from PIL import Image

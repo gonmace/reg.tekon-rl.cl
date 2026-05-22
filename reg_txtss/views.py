@@ -4,7 +4,7 @@ Vistas para registros TX/TSS.
 
 import json
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -19,6 +19,7 @@ from registros.views.activation_views import GenericActivarRegistroView
 from registros.config import RegistroConfig
 from .config import REGISTRO_CONFIG
 from .models import RegTxtss, ALTERNATIVA_CHOICES
+from core.permissions import not_visita, superuser_required, NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin
 
 
 class ListRegistrosView(GenericRegistroTableListView):
@@ -62,7 +63,7 @@ class ListRegistrosView(GenericRegistroTableListView):
 
     def get_table(self, **kwargs):
         table = super().get_table(**kwargs)
-        if self.request.user.is_superuser:
+        if self.request.user.is_supermanager:
             table.columns.show('ito')
             table.sequence = ('pti_id', 'operador_id', 'nombre_sitio', 'alternativa', 'tipo_sitio', 'ito', 'acciones')
         return table
@@ -90,7 +91,7 @@ class ListRegistrosPostesView(ListRegistrosView):
     def get_table(self, **kwargs):
         table = super().get_table(**kwargs)
         table.columns.hide('tipo_sitio')
-        if self.request.user.is_superuser:
+        if self.request.user.is_supermanager:
             table.sequence = ('pti_id', 'operador_id', 'nombre_sitio', 'alternativa', 'ito', 'acciones')
         return table
 
@@ -105,7 +106,7 @@ class ListRegistrosPostesView(ListRegistrosView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        if self.request.user.is_superuser:
+        if self.request.user.is_supermanager:
             ctx['pasos_config_url'] = reverse('reg_txtss:pasos_postes')
         qs = self.get_queryset()
         ctx['count_verde']   = qs.filter(concluido=True).count()
@@ -127,7 +128,7 @@ class ListRegistrosTorresView(ListRegistrosView):
     def get_table(self, **kwargs):
         table = super().get_table(**kwargs)
         table.columns.hide('tipo_sitio')
-        if self.request.user.is_superuser:
+        if self.request.user.is_supermanager:
             table.sequence = ('pti_id', 'operador_id', 'nombre_sitio', 'alternativa', 'ito', 'acciones')
         return table
 
@@ -142,7 +143,7 @@ class ListRegistrosTorresView(ListRegistrosView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        if self.request.user.is_superuser:
+        if self.request.user.is_supermanager:
             ctx['pasos_config_url'] = reverse('reg_txtss:pasos_torres')
         return ctx
 
@@ -176,7 +177,7 @@ class StepsRegistroView(GenericRegistroStepsView):
 
         context['concluido'] = self.registro.concluido
         context['toggle_concluido_url'] = reverse('reg_txtss:api_toggle_concluido', kwargs={'registro_id': self.registro.id})
-        if self.request.user.is_superuser:
+        if self.request.user.is_supermanager:
             context['formatear_url'] = reverse('reg_txtss:api_formatear', kwargs={'registro_id': self.registro.id})
 
         return context
@@ -205,22 +206,17 @@ class ActivarRegistroView(GenericActivarRegistroView):
 
 # ── Configuración de Pasos ────────────────────────────────────────────────────
 
-from django.contrib.auth.mixins import UserPassesTestMixin
 from django.http import HttpResponseRedirect
 from urllib.parse import urlencode
 
 
-class _PasosConfigRedirectView(LoginRequiredMixin, UserPassesTestMixin, View):
+class _PasosConfigRedirectView(LoginRequiredMixin, SuperuserRequiredMixin, View):
     """Redirige directo a los pasos del TipoActividad (auto-creando si no existe)."""
-    raise_exception = True
     _app_namespace = None
     _nombre = None
     _tipo_sitio = None
     _back_label = None
     _back_url_name = None
-
-    def test_func(self):
-        return self.request.user.is_superuser
 
     def get(self, request):
         from actividades.models import TipoActividad
@@ -260,11 +256,12 @@ class PasosTorresView(_PasosConfigRedirectView):
 # ── API views ──────────────────────────────────────────────────────────────────
 
 @login_required
+@not_visita
 @require_POST
 def copy_registro(request, registro_id):
     """Crea una copia del registro con la siguiente alternativa (A→B→C→D→E)."""
     registro = get_object_or_404(RegTxtss, pk=registro_id)
-    if not request.user.is_superuser and registro.user != request.user:
+    if not request.user.is_supermanager and registro.user != request.user:
         return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
 
     orden = [c[0] for c in ALTERNATIVA_CHOICES]
@@ -310,7 +307,7 @@ def copy_registro(request, registro_id):
 def get_edit_form(request, registro_id):
     """Devuelve el HTML del formulario de edición de un registro."""
     registro = get_object_or_404(RegTxtss, pk=registro_id)
-    if not request.user.is_superuser and registro.user != request.user:
+    if not request.user.is_supermanager and registro.user != request.user:
         return JsonResponse({'error': 'Sin permisos'}, status=403)
 
     from users.models import User
@@ -326,13 +323,11 @@ def get_edit_form(request, registro_id):
 
 
 @login_required
+@superuser_required
 @require_POST
 def update_registro(request, registro_id):
     """Actualiza buscador y alternativa de un registro."""
     registro = get_object_or_404(RegTxtss, pk=registro_id)
-    if not request.user.is_superuser and registro.user != request.user:
-        return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
-
     try:
         from users.models import User
         user_id = request.POST.get('user_id')
@@ -359,12 +354,11 @@ def update_registro(request, registro_id):
 
 
 @login_required
+@superuser_required
 @require_POST
 def delete_registro(request, registro_id):
     """Soft-delete de un registro TX/TSS."""
     registro = get_object_or_404(RegTxtss, pk=registro_id)
-    if not request.user.is_superuser and registro.user != request.user:
-        return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
     try:
         registro.soft_delete()
         return JsonResponse({'success': True, 'message': 'Registro eliminado'})
@@ -423,10 +417,10 @@ def _get_dynamic_steps(registro):
 
 @login_required
 @require_POST
-@require_POST
-@login_required
 def update_fecha(request, registro_id):
-    """Actualiza la fecha de inspección de un registro. Editable por cualquier usuario."""
+    """Actualiza la fecha de inspección. Solo ITO y Buscador (y supermanager)."""
+    if not (request.user.is_supermanager or request.user.is_ito_like):
+        return JsonResponse({'success': False, 'message': 'Solo ITO y Buscador pueden cambiar la fecha'}, status=403)
     from datetime import date as date_type
     registro = get_object_or_404(RegTxtss, pk=registro_id)
     try:
@@ -440,11 +434,12 @@ def update_fecha(request, registro_id):
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
+@login_required
+@superuser_required
+@require_POST
 def update_alternativa(request, registro_id):
     """Actualiza el campo alternativa de un registro."""
     registro = get_object_or_404(RegTxtss, pk=registro_id)
-    if not request.user.is_superuser:
-        return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
     try:
         data = json.loads(request.body)
         alternativa = data.get('alternativa') or None
@@ -458,7 +453,7 @@ def update_alternativa(request, registro_id):
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
-class DynamicPasoView(LoginRequiredMixin, View):
+class DynamicPasoView(LoginRequiredMixin, ItoLikeMixin, View):
     """Vista GET/POST para pasos dinámicos (configurados en actividades) de RegTxtss."""
 
     def _get_objects(self, registro_id, paso_nombre):
@@ -567,8 +562,6 @@ class DynamicPasoView(LoginRequiredMixin, View):
         return self._render(request, registro, paso, form, datos=datos)
 
     def post(self, request, registro_id, paso_nombre):
-        if request.user.is_visita:
-            return HttpResponseForbidden()
         from actividades.models import DatoPaso
         from actividades.forms import build_dynamic_form
         from django.contrib.contenttypes.models import ContentType
@@ -591,12 +584,10 @@ class DynamicPasoView(LoginRequiredMixin, View):
         return self._render(request, registro, paso, form)
 
 
-class MapaSaveView(LoginRequiredMixin, View):
+class MapaSaveView(LoginRequiredMixin, ItoLikeMixin, View):
     """Guarda imagen estática del mapa para un paso dinámico de RegTxtss."""
 
     def post(self, request, registro_id, paso_nombre):
-        if request.user.is_visita:
-            return JsonResponse({"error": "Acceso de solo lectura"}, status=403)
         import json as _json
         from django.core.files.base import ContentFile
         from django.contrib.contenttypes.models import ContentType
@@ -671,6 +662,8 @@ class MapaSaveView(LoginRequiredMixin, View):
 @login_required
 @require_POST
 def toggle_concluido(request, registro_id):
+    if not (request.user.is_supermanager or request.user.is_ito_like):
+        return JsonResponse({'success': False, 'message': 'Solo ITO y Buscador pueden cambiar el estado concluido'}, status=403)
     registro = get_object_or_404(RegTxtss, id=registro_id)
     registro.concluido = not registro.concluido
     registro.save()
@@ -678,10 +671,9 @@ def toggle_concluido(request, registro_id):
 
 
 @login_required
+@superuser_required
 @require_POST
 def formatear_registro(request, registro_id):
-    if not request.user.is_superuser:
-        return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
 
     from django.contrib.contenttypes.models import ContentType
     from actividades.models import DatoPaso, ContextoRegistro
@@ -719,9 +711,8 @@ def formatear_registro(request, registro_id):
 
 
 @login_required
+@superuser_required
 def resumen_formatear(request, registro_id):
-    if not request.user.is_superuser:
-        return JsonResponse({'success': False}, status=403)
 
     from django.contrib.contenttypes.models import ContentType
     from actividades.models import DatoPaso, ContextoRegistro
@@ -783,7 +774,7 @@ def locate_registro(request, registro_id):
         )
     ).order_by('orden_estado', '-fecha')
 
-    if not request.user.is_superuser and not request.user.is_visita:
+    if not request.user.is_supermanager and not request.user.is_visita:
         qs = qs.filter(user=request.user)
 
     ids = list(qs.values_list('id', flat=True))

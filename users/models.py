@@ -223,8 +223,8 @@ class User(AbstractUser):
         return self.user_type == User.COORD
 
     @property
-    def is_superuser_type(self):
-        """Usuario sin rol asignado = superusuario, no visible en listas."""
+    def is_supermanager(self):
+        """Sin rol asignado = superusuario."""
         return self.user_type == ''
 
     @property

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
-{% load static %} 
+{% load static %}
+{% load access_tags %}
 
 {% block pre_content %}{% endblock pre_content %}
 
@@ -29,10 +30,12 @@
                     </option>
                 {% endfor %}
             </select>
+            {% for_role 'COORD' 'GERENCIA' %}
             <button class="btn btn-primary btn-sm" id="activar-registro-btn" type="button">
                 <i class="fa-solid fa-plus"></i>
                 Nueva Fecha
             </button>
+            {% endfor_role %}
         </div>
     </div>
 </div>
@@ -106,6 +109,7 @@
             PDF
           </a>
           {% if toggle_concluido_url %}
+          {% for_role 'ITO' 'SEARCHER' %}
           <label class="flex flex-col items-center gap-0.5 cursor-pointer select-none">
             <span class="text-xs text-base-content/70">Concluido</span>
             <input id="toggle-concluido" type="checkbox" class="toggle toggle-success"
@@ -113,6 +117,12 @@
                    data-url="{{ toggle_concluido_url }}"
                    data-csrf="{{ csrf_token }}">
           </label>
+          {% endfor_role %}
+          {% if request.user.is_visita or request.user.is_coord or request.user.is_gerencia %}
+          <span class="badge badge-sm {% if concluido %}badge-success{% else %}badge-ghost{% endif %}">
+            {% if concluido %}Concluido{% else %}Pendiente{% endif %}
+          </span>
+          {% endif %}
           {% endif %}
         </div>
         {% endif %}

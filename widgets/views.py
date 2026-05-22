@@ -8,6 +8,7 @@ from django.conf import settings
 from django.template.loader import get_template
 from django.views import View
 from django.views.decorators.clickjacking import xframe_options_sameorigin
+from core.permissions import superuser_required
 
 WIDGETS_DIR = os.path.join(settings.BASE_DIR, 'widgets', 'templates', 'widgets')
 
@@ -197,6 +198,7 @@ def _boton_ctx(slug):
     }
 
 
+@superuser_required
 def catalog(request):
     templates = sorted(
         f for f in os.listdir(WIDGETS_DIR)

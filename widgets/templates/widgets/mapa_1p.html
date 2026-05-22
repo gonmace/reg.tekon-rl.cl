@@ -28,6 +28,7 @@ Estados:
   3 — Imagen estática guardada correctamente
 {% endcomment %}
 {% load static %}
+{% load access_tags %}
 
 {% if lat and lon %}
 <link rel="stylesheet" href="{% static 'css/leaflet.css' %}">
@@ -39,9 +40,11 @@ Estados:
      {% if save_url %}data-save-url="{{ save_url }}"{% endif %}>
   <div class="mapa-1-punto-container w-full" style="aspect-ratio:1/1;"></div>
   {% if save_url %}
+  {% btn_access as access_val %}
   <div class="p-2 bg-base-100 border-t border-base-300 flex justify-end">
     <button type="button"
             class="btn btn-sm {% if imagen_guardada %}btn-success{% else %}btn-primary{% endif %} mapa-save-btn gap-2"
+            data-access="{{ access_val }}"
             {% if imagen_guardada %}data-saved="true"{% endif %}>
       {% if imagen_guardada %}
         <i class="fas fa-check"></i> Imagen guardada

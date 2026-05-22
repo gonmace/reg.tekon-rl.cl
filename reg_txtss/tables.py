@@ -96,18 +96,22 @@ class RegTxtssTable(GenericRegistrosTable):
     def render_fecha(self, value, record):
         fecha_str = value.strftime('%d/%m/%Y') if value else '—'
         fecha_iso = value.isoformat() if value else ''
-        return format_html(
-            '<div class="fecha-cell-container flex items-center justify-center gap-1">'
-            '<span class="fecha-text text-sm">{}</span>'
-            '<button type="button" class="btn btn-xs btn-ghost btn-circle fecha-edit-btn"'
-            ' data-registro-id="{}" title="Editar fecha">'
-            '<i class="fa-regular fa-calendar text-xs"></i>'
-            '</button>'
-            '<input type="date" class="fecha-input input input-warning input-sm w-28"'
-            ' style="display:none;" data-registro-id="{}" value="{}">'
-            '</div>',
-            fecha_str, record.id, record.id, fecha_iso,
-        )
+        user = getattr(self, 'user', None)
+        can_edit = user and (user.is_supermanager or user.is_ito_like)
+        if can_edit:
+            return format_html(
+                '<div class="fecha-cell-container flex items-center justify-center gap-1">'
+                '<span class="fecha-text text-sm">{}</span>'
+                '<button type="button" class="btn btn-xs btn-ghost btn-circle fecha-edit-btn"'
+                ' data-registro-id="{}" title="Editar fecha">'
+                '<i class="fa-regular fa-calendar text-xs"></i>'
+                '</button>'
+                '<input type="date" class="fecha-input input input-warning input-sm w-28"'
+                ' style="display:none;" data-registro-id="{}" value="{}">'
+                '</div>',
+                fecha_str, record.id, record.id, fecha_iso,
+            )
+        return format_html('<span class="text-sm">{}</span>', fecha_str)
 
     def render_ito(self, value, record):
         user = getattr(record, 'user', None)

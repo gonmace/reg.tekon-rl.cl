@@ -25,6 +25,8 @@ Estados:
   3 — Latitud y longitud con valores válidos
 {% endcomment %}
 {% load static %}
+{% load access_tags %}
+{% btn_access as access_val %}
 {% with wid=lat_field.html_name|default:"ubicacion" %}
 
 <!-- ── Modal del mapa ───────────────────────────────────────────────────── -->
@@ -55,7 +57,8 @@ Estados:
           <button type="button" id="btn-str-{{ wid }}" class="btn btn-xs join-item">Calles</button>
         </div>
         <span id="gps-status-{{ wid }}" class="text-xs text-error flex-1 text-center"></span>
-        <button type="button" id="btn-capturar-{{ wid }}" class="btn btn-success btn-sm gap-2 shrink-0">
+        <button type="button" id="btn-capturar-{{ wid }}" class="btn btn-success btn-sm gap-2 shrink-0"
+                data-access="{{ access_val }}">
           <i class="fa-solid fa-location-crosshairs"></i>
           Capturar Coordenadas
         </button>
@@ -98,7 +101,8 @@ Estados:
              placeholder="{{ lat_field.field.widget.attrs.placeholder|default:'' }}"
              class="input join-item w-full sombra {% if lat_field.value %}input-success{% else %}input-error{% endif %}">
       <button type="button" class="btn btn-warning join-item text-3xl sombra"
-              data-dms-target="{{ lat_field.name }}" data-wid="{{ wid }}">°</button>
+              data-dms-target="{{ lat_field.name }}" data-wid="{{ wid }}"
+              data-access="{{ access_val }}">°</button>
     </div>
     {% if lat_field.help_text %}
       <span id="help-text-{{ lat_field.name }}-{{ wid }}" class="text-xs text-base-content mt-1">{{ lat_field.help_text }}</span>
@@ -123,7 +127,8 @@ Estados:
              placeholder="{{ lon_field.field.widget.attrs.placeholder|default:'' }}"
              class="input join-item w-full sombra {% if lon_field.value %}input-success{% else %}input-error{% endif %}">
       <button type="button" class="btn btn-warning join-item text-3xl sombra"
-              data-dms-target="{{ lon_field.name }}" data-wid="{{ wid }}">°</button>
+              data-dms-target="{{ lon_field.name }}" data-wid="{{ wid }}"
+              data-access="{{ access_val }}">°</button>
     </div>
     {% if lon_field.help_text %}
       <span id="help-text-{{ lon_field.name }}-{{ wid }}" class="text-xs text-base-content mt-1">{{ lon_field.help_text }}</span>

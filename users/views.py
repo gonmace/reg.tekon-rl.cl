@@ -87,12 +87,19 @@ class UserApiView(View):
         from core.models.contractors import Contractor
         contractor_id = data.get('contractor')
         contractor = Contractor.objects.filter(pk=contractor_id, is_active=True, is_deleted=False).first() if contractor_id else None
+        user_type = data.get('user_type', User.ITO)
+        if request.user.is_gerencia and user_type != User.COORD:
+            return JsonResponse({'success': False, 'message': 'GERENCIA solo puede crear usuarios de tipo Coordinador'}, status=403)
+        if request.user.is_coord and user_type not in User.ITO_LIKE_ROLES:
+            return JsonResponse({'success': False, 'message': 'COORD solo puede crear usuarios ITO o Buscador'}, status=403)
+        if request.user.is_coord and contractor and contractor != request.user.contractor:
+            return JsonResponse({'success': False, 'message': 'COORD solo puede crear usuarios de su empresa'}, status=403)
         user = User(
             username=email,
             email=email,
             first_name=data.get('first_name', '').strip(),
             last_name=data.get('last_name', '').strip(),
-            user_type=data.get('user_type', User.ITO),
+            user_type=user_type,
             contractor=contractor,
             report_access=data.get('report_access', []),
         )
@@ -109,13 +116,21 @@ class UserApiView(View):
             data = json.loads(request.body.decode('utf-8'))
             user.first_name = data.get('first_name', user.first_name).strip()
             user.last_name = data.get('last_name', user.last_name).strip()
-            user.user_type = data.get('user_type', user.user_type)
+            new_type = data.get('user_type', user.user_type)
+            if request.user.is_gerencia and new_type != User.COORD:
+                return JsonResponse({'success': False, 'message': 'GERENCIA solo puede asignar tipo Coordinador'}, status=403)
+            if request.user.is_coord and new_type not in User.ITO_LIKE_ROLES:
+                return JsonResponse({'success': False, 'message': 'COORD solo puede asignar tipo ITO o Buscador'}, status=403)
+            user.user_type = new_type
             if 'is_active' in data:
                 user.is_active = bool(data['is_active'])
             contractor_id = data.get('contractor')
             if contractor_id:
                 from core.models.contractors import Contractor
-                user.contractor = Contractor.objects.filter(pk=contractor_id, is_active=True, is_deleted=False).first()
+                new_contractor = Contractor.objects.filter(pk=contractor_id, is_active=True, is_deleted=False).first()
+                if request.user.is_coord and new_contractor != request.user.contractor:
+                    return JsonResponse({'success': False, 'message': 'COORD solo puede asignar usuarios a su empresa'}, status=403)
+                user.contractor = new_contractor
             elif 'contractor' in data:
                 user.contractor = None
             if 'report_access' in data:
@@ -160,8 +175,19 @@ class UserEditModalView(View):
         form = UserForm(instance=user)
 
         from core.models.contractors import Contractor
-        form.fields['contractor'].queryset = Contractor.objects.filter(is_active=True, is_deleted=False).order_by('name')
+        if request.user.is_coord and request.user.contractor:
+            form.fields['contractor'].queryset = Contractor.objects.filter(pk=request.user.contractor.pk)
+        else:
+            form.fields['contractor'].queryset = Contractor.objects.filter(is_active=True, is_deleted=False).order_by('name')
         form.fields['contractor'].empty_label = 'Seleccionar empresa...'
+
+        if request.user.is_gerencia:
+            form.fields['user_type'].choices = [(User.COORD, 'Coordinador')]
+        elif request.user.is_coord:
+            form.fields['user_type'].choices = [
+                (User.ITO, 'ITO'),
+                (User.SEARCHER, 'Buscador'),
+            ]
 
         input_class = 'input input-bordered w-full'
         select_class = 'select select-bordered w-full'
