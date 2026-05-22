@@ -743,6 +743,12 @@ class PhotoGalleryView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
             .values_list('sitio_id', flat=True).distinct()
         )
         context['sites'] = Site.objects.filter(pk__in=site_ids_with_photos).order_by('pti_cell_id')
+
+        # Backfill lazy: genera thumbnails de la página actual que aún no los tienen
+        for photo in context.get('photos', []):
+            if not photo.thumbnail:
+                photo.generate_thumbnail()
+
         return context
 
     def get_breadcrumbs(self):

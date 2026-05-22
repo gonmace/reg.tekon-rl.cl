@@ -1,4 +1,7 @@
+import os
+from io import BytesIO
 from django.db import models
+from django.conf import settings
 from core.models import BaseModel
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -13,6 +16,7 @@ class Photos(BaseModel):
     app = models.CharField(max_length=100, verbose_name='Aplicación')
     etapa = models.CharField(max_length=255)
     imagen = models.ImageField(upload_to='photos/')
+    thumbnail = models.ImageField(upload_to='photos/thumbs/', null=True, blank=True, verbose_name='Miniatura')
     descripcion = models.CharField(max_length=128, blank=True, null=True)
     orden = models.IntegerField(default=0)
 
@@ -23,6 +27,38 @@ class Photos(BaseModel):
 
     file_size = models.PositiveIntegerField(null=True, blank=True, verbose_name='Tamaño (bytes)')
 
+    @property
+    def thumbnail_url(self):
+        if self.thumbnail:
+            return self.thumbnail.url
+        return self.imagen.url if self.imagen else ''
+
+    def generate_thumbnail(self, size=(400, 400)):
+        if not self.imagen:
+            return
+        try:
+            from PIL import Image, ImageOps
+            orig_path = self.imagen.path
+            thumb_dir = os.path.join(os.path.dirname(orig_path), 'thumbs')
+            os.makedirs(thumb_dir, exist_ok=True)
+            thumb_filename = os.path.splitext(os.path.basename(orig_path))[0] + '.jpg'
+            thumb_abs = os.path.join(thumb_dir, thumb_filename)
+
+            with Image.open(orig_path) as img:
+                img = ImageOps.exif_transpose(img)  # corrige rotación EXIF
+                img.thumbnail(size, Image.LANCZOS)
+                buf = BytesIO()
+                img.convert('RGB').save(buf, format='JPEG', quality=82, optimize=True)
+
+            with open(thumb_abs, 'wb') as f:
+                f.write(buf.getvalue())
+
+            relative = os.path.relpath(thumb_abs, settings.MEDIA_ROOT)
+            Photos.objects.filter(pk=self.pk).update(thumbnail=relative)
+            self.thumbnail = relative
+        except Exception:
+            pass
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         super().save(*args, **kwargs)
@@ -30,6 +66,7 @@ class Photos(BaseModel):
             self._populate_file_size()
             if self.exif_lat is None and self.exif_datetime is None:
                 self._extract_exif()
+            self.generate_thumbnail()
 
     def _populate_file_size(self):
         try:

@@ -45,7 +45,7 @@
         <div class="photo-selected-ring absolute inset-0 ring-2 ring-primary ring-inset rounded-lg opacity-0 pointer-events-none z-10 transition-opacity duration-150"></div>
 
         {# Thumbnail — click opens lightbox #}
-        <img src="{{ photo.imagen.url }}"
+        <img src="{{ photo.thumbnail_url }}"
              alt="{{ photo.descripcion|default:'' }}"
              loading="lazy"
              class="photo-thumb w-full h-32 object-cover cursor-pointer hover:brightness-90 transition-brightness duration-150"
