@@ -3,8 +3,8 @@
   {% for foto in fotos %}
   {% if forloop.counter0|divisibleby:2 %}<tr class="foto-row">{% endif %}
   <td class="foto-td">
-    <div class="foto-card">
-      <div class="foto-img-wrap">
+    <div class="foto-card foto-card-{{ foto.orientation }}">
+      <div class="foto-img-wrap foto-{{ foto.orientation }}">
         <img src="{{ foto.url }}" alt="{{ foto.descripcion|default:'-' }}">
       </div>
       {% if foto.exif_datetime or foto.exif_lat %}

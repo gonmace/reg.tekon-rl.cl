@@ -235,6 +235,25 @@
     }
   });
 
+  // ── Orientación de fotos (portrait vs landscape) ──────────────────────────
+  function applyOrientationFit(img) {
+    if (!img.naturalWidth) return;
+    if (img.naturalHeight > img.naturalWidth) {
+      img.classList.remove('h-32', 'object-cover');
+      img.classList.add('h-auto', 'object-contain');
+    }
+  }
+
+  function initOrientationFit(root) {
+    (root || document).querySelectorAll('.photo-thumb').forEach(function (img) {
+      if (img.complete && img.naturalWidth) {
+        applyOrientationFit(img);
+      } else {
+        img.addEventListener('load', function () { applyOrientationFit(img); }, { once: true });
+      }
+    });
+  }
+
   // ── Reset on HTMX swap ────────────────────────────────────────────────────
   document.body.addEventListener('htmx:afterSwap', function (e) {
     if (e.detail.target && e.detail.target.id === 'gallery-grid-wrapper') {
@@ -242,6 +261,9 @@
       const sa = document.getElementById('select-all-photos');
       if (sa) { sa.checked = false; sa.indeterminate = false; }
       updateBulkBar();
+      initOrientationFit(e.detail.target);
     }
   });
+
+  initOrientationFit();
 })();

@@ -467,6 +467,8 @@ section.imagenes {
 section.imagenes .foto-titulo {
   width: 100%;
   margin-bottom: 0.8em;
+  break-after: avoid;
+  page-break-after: avoid;
 }
 
 /* ========================================
@@ -554,15 +556,27 @@ img {
   background: #fff;
 }
 
+.foto-card-landscape {
+  margin-bottom: 22px;
+}
+
 .foto-img-wrap {
   width: 100%;
   background: #f5f5f5;
 }
 
-.foto-img-wrap img {
+.foto-img-wrap.foto-landscape img {
   width: 100%;
   height: 215px;
   object-fit: cover;
+  display: block;
+  border: none;
+  border-radius: 0;
+}
+
+.foto-img-wrap.foto-portrait img {
+  width: 100%;
+  height: auto;
   display: block;
   border: none;
   border-radius: 0;

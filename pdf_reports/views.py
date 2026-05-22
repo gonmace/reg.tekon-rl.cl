@@ -8,17 +8,30 @@ from core.models.google_maps import GoogleMapsImage
 from django.contrib.contenttypes.models import ContentType
 from widgets.report import get_registro_report_data
 from core.utils.coordenadas import calcular_distancia_geopy
+from PIL import Image as PilImage
+
+def _foto_orientation(path_str):
+    """Devuelve 'portrait' si alto > ancho, 'landscape' en cualquier otro caso."""
+    try:
+        with PilImage.open(path_str) as img:
+            w, h = img.size
+            return 'portrait' if h > w else 'landscape'
+    except Exception:
+        return 'landscape'
+
 
 def _get_fotos_pdf(registro, etapa, ct):
-    """Fotos de una etapa con EXIF, usando file:// URI para WeasyPrint."""
+    """Fotos de una etapa con EXIF, orientación y file:// URI para WeasyPrint."""
     from photos.models import Photos
     fotos = []
     for p in Photos.objects.filter(
         content_type=ct, object_id=registro.id, etapa=etapa
     ).order_by('orden', '-created_at'):
         try:
-            url = Path(p.imagen.path).as_uri()
+            path_str = p.imagen.path
+            url = Path(path_str).as_uri()
         except Exception:
+            path_str = None
             url = p.imagen.url if p.imagen else ''
         fotos.append({
             'url': url,
@@ -26,6 +39,7 @@ def _get_fotos_pdf(registro, etapa, ct):
             'exif_datetime': p.exif_datetime.strftime('%d/%m/%Y %H:%M') if p.exif_datetime else None,
             'exif_lat': round(p.exif_lat, 6) if p.exif_lat is not None else None,
             'exif_lon': round(p.exif_lon, 6) if p.exif_lon is not None else None,
+            'orientation': _foto_orientation(path_str) if path_str else 'landscape',
         })
     return fotos
 
