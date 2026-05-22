@@ -7,6 +7,7 @@ from django.shortcuts import render
 from core.models.google_maps import GoogleMapsImage
 from django.contrib.contenttypes.models import ContentType
 from widgets.report import get_registro_report_data
+from core.utils.coordenadas import calcular_distancia_geopy
 
 def _get_fotos_pdf(registro, etapa, ct):
     """Fotos de una etapa con EXIF, usando file:// URI para WeasyPrint."""
@@ -132,14 +133,8 @@ class RegistroPDFView(WeasyTemplateView):
         empalme_icon3_color = '#0054FF'
         empalme_name3 = 'Mandato'
             
-        desfase = mapa_sitio.distancia_total_metros if mapa_sitio else 0
-        if desfase <= 150:
-            desfase_color = '#90EE90'
-        elif desfase <= 200:
-            desfase_color = '#FFFF44'
-        else:
-            desfase_color = '#FF4040'
-            
+        desfase_color = '#90EE90'  # placeholder; se recalcula más abajo con geopy
+
         geo_rows = [
             ['Mandato', registro.sitio.lat_man, convert_lat_to_dms(registro.sitio.lat_man), registro.sitio.lon_man, convert_lon_to_dms(registro.sitio.lon_man)],
         ]
@@ -166,18 +161,10 @@ class RegistroPDFView(WeasyTemplateView):
             inspeccion_lat = None
             inspeccion_lon = None
 
-        # Desfase: preferir mapa_desfase_obj (siempre actualizado), fallback legacy
-        desfase_metros_val = (
-            (mapa_desfase_obj.distancia_total_metros if mapa_desfase_obj else None)
-            or (mapa_sitio.distancia_total_metros if mapa_sitio else None)
-            or 0
-        )
-        if desfase_metros_val <= 150:
-            desfase_color = '#90EE90'
-        elif desfase_metros_val <= 200:
-            desfase_color = '#FFFF44'
-        else:
-            desfase_color = '#FF4040'
+        # Desfase calculado con geopy (misma fórmula que ubicacion_widget).
+        # Fuente primaria: GPS de inspección vs lat_man/lon_man del sitio en BD.
+        # Fallback: distancia_total_metros del mapa de desfase (puntos colocados manualmente).
+        desfase_metros_val = None
 
         # Src de mapas: file:// URI para que WeasyPrint lea el archivo directamente,
         # sin necesidad de petición HTTP al servidor.
@@ -200,6 +187,26 @@ class RegistroPDFView(WeasyTemplateView):
         poste_comp  = poste_paso.get('ubicacion_widget', {}).get('computed', {})
         poste_fotos = _get_fotos_pdf(registro, 'poste', registro_content_type)
         imagenes_fotos = _get_fotos_pdf(registro, 'imagenes', registro_content_type)
+
+        # Calcular desfase usando geopy (misma fórmula que ubicacion_widget).
+        # Prioridad: GPS capturado vs mandato en BD → mapa_desfase_obj → mapa_sitio legacy.
+        if inspeccion_lat and inspeccion_lon and registro.sitio.lat_man and registro.sitio.lon_man:
+            desfase_metros_val = calcular_distancia_geopy(
+                registro.sitio.lat_man, registro.sitio.lon_man,
+                inspeccion_lat, inspeccion_lon,
+            )
+        if not desfase_metros_val:
+            desfase_metros_val = (
+                (mapa_desfase_obj.distancia_total_metros if mapa_desfase_obj else None)
+                or (mapa_sitio.distancia_total_metros if mapa_sitio else None)
+                or 0
+            )
+        if desfase_metros_val <= 150:
+            desfase_color = '#90EE90'
+        elif desfase_metros_val <= 200:
+            desfase_color = '#FFFF44'
+        else:
+            desfase_color = '#FF4040'
 
         # Coordenadas del poste en formato DMS
         poste_lat_dms = convert_lat_to_dms(inspeccion_lat) if inspeccion_lat else 'N/A'

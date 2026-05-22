@@ -1,5 +1,4 @@
-import math
-
+from core.utils.coordenadas import calcular_distancia_geopy
 from widgets.registry import register_widget
 from widgets.widget_types.comentario import FormWidget
 
@@ -50,17 +49,9 @@ class UbicacionWidget(FormWidget):
         lon_man = getattr(sitio, "lon_man", None) if sitio else None
         if not (lat and lon and lat_man and lon_man):
             return {}
-        try:
-            lat, lon = float(lat), float(lon)
-            lat_man, lon_man = float(lat_man), float(lon_man)
-        except (ValueError, TypeError):
+        d = calcular_distancia_geopy(lat_man, lon_man, lat, lon)
+        if d is None:
             return {}
-        R = 6371000
-        f1, f2 = math.radians(lat_man), math.radians(lat)
-        df = math.radians(lat - lat_man)
-        dl = math.radians(lon - lon_man)
-        a = math.sin(df / 2) ** 2 + math.cos(f1) * math.cos(f2) * math.sin(dl / 2) ** 2
-        d = R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         d_rounded = round(d, 1)
         dist_str = f"{d:.0f} m" if d < 1000 else f"{d / 1000:.3f} km ({d:.0f} m)"
         paso_titulo = paso_datos.get("_paso_titulo", "Ubicación")
