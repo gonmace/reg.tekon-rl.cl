@@ -135,13 +135,16 @@ class RegistroPDFView(WeasyTemplateView):
             
         desfase_color = '#90EE90'  # placeholder; se recalcula más abajo con geopy
 
+        def _fmt6(v):
+            return f'{float(v):.6f}' if v is not None else ''
+
         geo_rows = [
-            ['Mandato', registro.sitio.lat_man, convert_lat_to_dms(registro.sitio.lat_man), registro.sitio.lon_man, convert_lon_to_dms(registro.sitio.lon_man)],
+            ['Mandato', _fmt6(registro.sitio.lat_man), convert_lat_to_dms(registro.sitio.lat_man), _fmt6(registro.sitio.lon_man), convert_lon_to_dms(registro.sitio.lon_man)],
         ]
         if registro.sitio.lat_ing is not None and registro.sitio.lon_ing is not None:
-            geo_rows.append(['Ingeniería', registro.sitio.lat_ing, convert_lat_to_dms(registro.sitio.lat_ing), registro.sitio.lon_ing, convert_lon_to_dms(registro.sitio.lon_ing)])
+            geo_rows.append(['Ingeniería', _fmt6(registro.sitio.lat_ing), convert_lat_to_dms(registro.sitio.lat_ing), _fmt6(registro.sitio.lon_ing), convert_lon_to_dms(registro.sitio.lon_ing)])
         if registro.sitio.lat_con is not None and registro.sitio.lon_con is not None:
-            geo_rows.append(['Construcción', registro.sitio.lat_con, convert_lat_to_dms(registro.sitio.lat_con), registro.sitio.lon_con, convert_lon_to_dms(registro.sitio.lon_con)])
+            geo_rows.append(['Construcción', _fmt6(registro.sitio.lat_con), convert_lat_to_dms(registro.sitio.lat_con), _fmt6(registro.sitio.lon_con), convert_lon_to_dms(registro.sitio.lon_con)])
 
         from actividades.models import ContextoRegistro
         ctx_obj = ContextoRegistro.objects.filter(
@@ -213,7 +216,7 @@ class RegistroPDFView(WeasyTemplateView):
         poste_lon_dms = convert_lon_to_dms(inspeccion_lon) if inspeccion_lon else 'N/A'
 
         # Actualizar fila de inspección con coordenadas correctas
-        geo_rows.append(['Inspección', inspeccion_lat, convert_lat_to_dms(inspeccion_lat), inspeccion_lon, convert_lon_to_dms(inspeccion_lon)])
+        geo_rows.append(['Inspección', _fmt6(inspeccion_lat), convert_lat_to_dms(inspeccion_lat), _fmt6(inspeccion_lon), convert_lon_to_dms(inspeccion_lon)])
 
         context.update({
             'registro': registro,

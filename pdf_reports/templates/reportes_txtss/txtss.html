@@ -74,8 +74,8 @@
       <td class="mapa-leyenda-cell">
         {% include "reportes_txtss/partials/leyenda.html" with icon_color="#3b82f6" name="Mandato" %}
         <p class="mapa-leyenda-nota">
-          Lat: {{ registro.sitio.lat_man }}<br>
-          Lon: {{ registro.sitio.lon_man }}
+          Lat: {{ registro.sitio.lat_man|floatformat:6 }}<br>
+          Lon: {{ registro.sitio.lon_man|floatformat:6 }}
         </p>
       </td>
     </tr>
@@ -148,11 +148,11 @@
         <span style="color:#555; font-size:9.5pt;">{{ poste_ubic.lon|floatformat:6 }}°</span>
       </td>
     </tr>
-    {% if poste_comp.distancia_mandato_str %}
+    {% if desfase_metros %}
     <tr>
-      <th>{{ poste_comp.distancia_mandato_label }}:</th>
+      <th>Mandato → Poste:</th>
       <td>
-        <strong>{{ poste_comp.distancia_mandato_str }}</strong>&nbsp;
+        <strong>{{ desfase_metros }}</strong>&nbsp;
         <svg width="10" height="10" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
           <circle cx="6" cy="6" r="6" fill="{{ desfase_color }}"/>
         </svg>
