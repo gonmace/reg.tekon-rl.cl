@@ -567,8 +567,7 @@ img {
 
 .foto-img-wrap.foto-landscape img {
   width: 100%;
-  height: 215px;
-  object-fit: cover;
+  height: auto;
   display: block;
   border: none;
   border-radius: 0;
