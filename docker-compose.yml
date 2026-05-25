@@ -68,6 +68,7 @@ services:
     volumes:
       - ./staticfiles:/app/staticfiles
       - ./media:/app/media
+      - ./static:/app/static
 
   redis:
     image: redis:7-alpine
