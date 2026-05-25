@@ -1,0 +1,61 @@
+<div class="photo-card relative group rounded-lg overflow-hidden bg-base-200 border border-base-300 select-none transition-all duration-150"
+     data-photo-id="{{ photo.pk }}">
+
+  <button type="button"
+          class="photo-select-btn absolute top-1.5 right-1.5 z-20 w-6 h-6 rounded-full border-2 border-white/70 bg-black/30 flex items-center justify-center transition-all duration-150 hover:border-primary hover:bg-primary/20"
+          title="Seleccionar">
+    <input type="checkbox"
+           class="photo-checkbox sr-only"
+           value="{{ photo.pk }}" />
+    <i class="fa-solid fa-check text-[0.55rem] text-white opacity-0 photo-check-icon transition-opacity duration-150"></i>
+  </button>
+
+  <div class="photo-selected-ring absolute inset-0 ring-2 ring-primary ring-inset rounded-lg opacity-0 pointer-events-none z-10 transition-opacity duration-150"></div>
+
+  <img src="{{ photo.thumbnail_url }}"
+       alt="{{ photo.descripcion|default:'' }}"
+       loading="lazy"
+       class="photo-thumb w-full h-32 object-cover cursor-pointer hover:brightness-90 transition-brightness duration-150"
+       data-full-url="{{ photo.imagen.url }}"
+       data-descripcion="{{ photo.descripcion|default:'' }}"
+       data-etapa="{{ photo.etapa }}"
+       data-created="{{ photo.created_at|date:'d/m/Y H:i' }}"
+       data-exif-datetime="{{ photo.exif_datetime|date:'d/m/Y H:i'|default:'' }}" />
+
+  <div class="px-1.5 py-1 bg-base-200 border-t border-base-300 pointer-events-none space-y-0.5">
+    {% if photo.sitio_pti_cell_id %}
+    <div class="flex items-center gap-1">
+      <span class="text-[0.65rem] font-semibold text-base-content/80 truncate">{{ photo.sitio_pti_cell_id }}</span>
+      {% if photo.reg_alternativa and photo.reg_alternativa != 'A' %}
+      <span class="badge badge-xs badge-outline text-[0.55rem] shrink-0">Alt {{ photo.reg_alternativa }}</span>
+      {% endif %}
+    </div>
+    {% endif %}
+    <div class="flex items-center justify-between">
+      <span class="text-[0.65rem] text-base-content/50 truncate max-w-[60%]">{{ photo.etapa }}</span>
+      <span class="text-[0.65rem] font-medium text-base-content/70 whitespace-nowrap">
+        {% if photo.file_size %}{{ photo.file_size|filesizeformat }}{% else %}—{% endif %}
+      </span>
+    </div>
+    <div class="text-[0.6rem] text-base-content/40 leading-tight space-y-0.5">
+      {% if photo.exif_datetime %}
+      <div class="flex items-center gap-1">
+        <i class="fa-regular fa-clock w-2.5 shrink-0"></i>
+        <span>{{ photo.exif_datetime|date:"d/m/Y H:i" }}</span>
+      </div>
+      {% elif photo.created_at %}
+      <div class="flex items-center gap-1">
+        <i class="fa-regular fa-clock w-2.5 shrink-0"></i>
+        <span>{{ photo.created_at|date:"d/m/Y H:i" }}</span>
+      </div>
+      {% endif %}
+      {% if photo.exif_lat and photo.exif_lon %}
+      <div class="flex items-center gap-1">
+        <i class="fa-solid fa-location-dot w-2.5 shrink-0"></i>
+        <span>{{ photo.exif_lat|floatformat:4 }}, {{ photo.exif_lon|floatformat:4 }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>

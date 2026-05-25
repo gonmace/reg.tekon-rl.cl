@@ -723,7 +723,15 @@ class PhotoGalleryView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
         except (ValueError, TypeError):
             pass
 
-        return qs.order_by('-created_at')
+        sort = self.request.GET.get('sort', '')
+        order_map = {
+            'date_asc':   'created_at',
+            'size_asc':   'file_size',
+            'size_desc':  '-file_size',
+            'sitio_asc':  'sitio_pti_cell_id',
+            'sitio_desc': '-sitio_pti_cell_id',
+        }
+        return qs.order_by(order_map.get(sort, '-created_at'))
 
     def get_template_names(self):
         if self.request.headers.get('HX-Request'):
@@ -738,6 +746,7 @@ class PhotoGalleryView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
         context['etapa_filter'] = self.request.GET.get('etapa', '')
         context['size_min'] = self.request.GET.get('size_min', '')
         context['size_max'] = self.request.GET.get('size_max', '')
+        context['sort_filter'] = self.request.GET.get('sort', '')
         context['total_count'] = self.get_queryset().count()
         context['etapas'] = (
             Photos.objects.values_list('etapa', flat=True)

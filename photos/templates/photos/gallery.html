@@ -88,6 +88,22 @@
           KB
         </label>
 
+        {# Ordenar #}
+        <select name="sort" id="filter-sort"
+                hx-get="{% url 'photos:gallery' %}"
+                hx-trigger="change"
+                hx-target="#gallery-grid-wrapper"
+                hx-push-url="true"
+                hx-include="#gallery-filters select, #gallery-filters input"
+                class="select select-sm select-bordered w-auto">
+          <option value=""       {% if sort_filter == '' %}selected{% endif %}>Más reciente</option>
+          <option value="date_asc"  {% if sort_filter == 'date_asc' %}selected{% endif %}>Más antiguo</option>
+          <option value="size_desc" {% if sort_filter == 'size_desc' %}selected{% endif %}>Mayor tamaño</option>
+          <option value="size_asc"  {% if sort_filter == 'size_asc' %}selected{% endif %}>Menor tamaño</option>
+          <option value="sitio_asc" {% if sort_filter == 'sitio_asc' %}selected{% endif %}>Sitio A→Z</option>
+          <option value="sitio_desc"{% if sort_filter == 'sitio_desc' %}selected{% endif %}>Sitio Z→A</option>
+        </select>
+
         {# Spinner #}
         <span id="gallery-loader" class="htmx-indicator loading loading-spinner loading-sm text-primary"></span>
 
