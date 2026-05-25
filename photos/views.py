@@ -683,12 +683,23 @@ class PhotoGalleryView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
 
     def get_queryset(self):
         from core.models import Site
+        from reg_txtss.models import RegTxtss
+        from django.db.models import Subquery, OuterRef
         qs = Photos.objects.select_related('content_type')
         tipo = self.request.GET.get('tipo', '')
         sitio_id = self.request.GET.get('sitio', '')
         etapa = self.request.GET.get('etapa', '')
         size_min = self.request.GET.get('size_min', '')
         size_max = self.request.GET.get('size_max', '')
+
+        qs = qs.annotate(
+            sitio_pti_cell_id=Subquery(
+                RegTxtss.objects.filter(pk=OuterRef('object_id')).values('sitio__pti_cell_id')[:1]
+            ),
+            reg_alternativa=Subquery(
+                RegTxtss.objects.filter(pk=OuterRef('object_id')).values('alternativa')[:1]
+            ),
+        )
 
         # Site and/or tipo filter (combined into one Q query)
         if sitio_id or tipo in ('POSTE', 'TORRE'):

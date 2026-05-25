@@ -57,6 +57,14 @@
 
         {# Info strip #}
         <div class="px-1.5 py-1 bg-base-200 border-t border-base-300 pointer-events-none space-y-0.5">
+          {% if photo.sitio_pti_cell_id %}
+          <div class="flex items-center gap-1">
+            <span class="text-[0.65rem] font-semibold text-base-content/80 truncate">{{ photo.sitio_pti_cell_id }}</span>
+            {% if photo.reg_alternativa and photo.reg_alternativa != 'A' %}
+            <span class="badge badge-xs badge-outline text-[0.55rem] shrink-0">Alt {{ photo.reg_alternativa }}</span>
+            {% endif %}
+          </div>
+          {% endif %}
           <div class="flex items-center justify-between">
             <span class="text-[0.65rem] text-base-content/50 truncate max-w-[60%]">{{ photo.etapa }}</span>
             <span class="text-[0.65rem] font-medium text-base-content/70 whitespace-nowrap">
