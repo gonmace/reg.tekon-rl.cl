@@ -475,10 +475,10 @@ section.imagenes .foto-titulo {
    TABLA DE FOTOS (2 columnas, WeasyPrint-safe)
    ======================================== */
 .fotos-tabla {
-  width: 100%;
+  width: 90%;
   border-collapse: separate;
   border-spacing: 10px 12px;
-  margin: 0;
+  margin: 0 auto;
 }
 
 .foto-td {
