@@ -102,12 +102,13 @@
 
         {% if pdf_url %}
         <div class="flex flex-col items-center gap-1 self-start ml-auto shrink-0">
-          <a id="btn-pdf" href="{{ pdf_url }}" target="_blank"
-             class="btn btn-sm text-white {% if not concluido %}btn-disabled opacity-40 pointer-events-none{% endif %}"
-             style="background-color:#dc2626;border-color:#b91c1c;" title="Generar PDF">
+          <button id="btn-pdf"
+                  class="btn btn-sm text-white {% if not concluido %}btn-disabled opacity-40 pointer-events-none{% endif %}"
+                  style="background-color:#dc2626;border-color:#b91c1c;" title="Generar PDF"
+                  data-pdf-url="{{ pdf_url }}">
             <i class="fa-solid fa-file-pdf"></i>
             PDF
-          </a>
+          </button>
           {% if toggle_concluido_url %}
           {% for_role 'ITO' 'SEARCHER' %}
           <label class="flex flex-col items-center gap-0.5 cursor-pointer select-none">
@@ -129,6 +130,44 @@
 
     </div>
 </div>
+
+<!-- Modal opciones PDF -->
+{% if pdf_url %}
+<dialog id="modal-pdf-opciones" class="modal">
+  <div class="modal-box max-w-sm">
+    <h3 class="font-bold text-lg mb-4">Opciones de PDF</h3>
+    <p class="text-sm font-medium mb-2">Registro Fotográfico del Poste</p>
+    <div class="flex gap-4 mb-4">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="radio" name="pdf-poste-cols" value="1" class="radio radio-sm radio-primary">
+        <span class="text-sm">1 por fila</span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="radio" name="pdf-poste-cols" value="2" class="radio radio-sm radio-primary" checked>
+        <span class="text-sm">2 por fila</span>
+      </label>
+    </div>
+    <p class="text-sm font-medium mb-2">Imágenes de Cobertura</p>
+    <div class="flex gap-4 mb-6">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="radio" name="pdf-imagenes-cols" value="1" class="radio radio-sm radio-primary">
+        <span class="text-sm">1 por fila</span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="radio" name="pdf-imagenes-cols" value="2" class="radio radio-sm radio-primary" checked>
+        <span class="text-sm">2 por fila</span>
+      </label>
+    </div>
+    <div class="modal-action">
+      <button id="modal-pdf-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+      <button id="modal-pdf-generar" class="btn btn-error btn-sm text-white">
+        <i class="fa-solid fa-file-pdf mr-1"></i> Generar PDF
+      </button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}
 
 <!-- Modal formatear registro (solo superusuario) -->
 {% if formatear_url %}
@@ -314,6 +353,30 @@ if (toggleConcluido && modalConcluido) {
 
     document.getElementById('modal-concluido-cancel').addEventListener('click', function () {
         modalConcluido.close();
+    });
+}
+
+// ── Modal opciones PDF ────────────────────────────────────────────────────────
+const modalPdfOpciones = document.getElementById('modal-pdf-opciones');
+const btnPdfEl = document.getElementById('btn-pdf');
+if (modalPdfOpciones && btnPdfEl) {
+    btnPdfEl.addEventListener('click', function () {
+        // Resetear radios a valores por defecto (2 por fila)
+        modalPdfOpciones.querySelectorAll('input[name="pdf-poste-cols"]').forEach(r => { r.checked = r.value === '2'; });
+        modalPdfOpciones.querySelectorAll('input[name="pdf-imagenes-cols"]').forEach(r => { r.checked = r.value === '2'; });
+        modalPdfOpciones.showModal();
+    });
+
+    document.getElementById('modal-pdf-cancel').addEventListener('click', function () {
+        modalPdfOpciones.close();
+    });
+
+    document.getElementById('modal-pdf-generar').addEventListener('click', function () {
+        const basePdfUrl = btnPdfEl.dataset.pdfUrl;
+        const posteCols = modalPdfOpciones.querySelector('input[name="pdf-poste-cols"]:checked')?.value || '2';
+        const imagenesCols = modalPdfOpciones.querySelector('input[name="pdf-imagenes-cols"]:checked')?.value || '2';
+        window.open(`${basePdfUrl}?poste_cols=${posteCols}&imagenes_cols=${imagenesCols}`, '_blank');
+        modalPdfOpciones.close();
     });
 }
 

@@ -204,7 +204,7 @@
   <div class="foto-titulo">
     <p><strong>Registro Fotográfico del Poste</strong></p>
   </div>
-  {% include "reportes_txtss/partials/fotos_tabla.html" with fotos=poste_fotos %}
+  {% include "reportes_txtss/partials/fotos_tabla.html" with fotos=poste_fotos cols=poste_cols %}
 </section>
 {% endif %}
 
@@ -216,7 +216,7 @@
   <div class="foto-titulo">
     <p><strong>Imágenes de Cobertura</strong></p>
   </div>
-  {% include "reportes_txtss/partials/fotos_tabla.html" with fotos=imagenes_fotos %}
+  {% include "reportes_txtss/partials/fotos_tabla.html" with fotos=imagenes_fotos cols=imagenes_cols %}
 </section>
 {% endif %}
 

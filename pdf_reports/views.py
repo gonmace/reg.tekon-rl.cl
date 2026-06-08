@@ -273,6 +273,19 @@ class RegistroPDFView(WeasyTemplateView):
             'pasos_widgets': get_registro_report_data(registro),
             'reg_contexto': reg_contexto,
         })
+
+        # Opciones de layout de fotos (query params: poste_cols, imagenes_cols)
+        try:
+            poste_cols = int(self.request.GET.get('poste_cols', 2))
+        except (ValueError, TypeError):
+            poste_cols = 2
+        try:
+            imagenes_cols = int(self.request.GET.get('imagenes_cols', 2))
+        except (ValueError, TypeError):
+            imagenes_cols = 2
+        context['poste_cols'] = poste_cols if poste_cols in (1, 2) else 2
+        context['imagenes_cols'] = imagenes_cols if imagenes_cols in (1, 2) else 2
+
         return context
 
     def _get_sitio_photos(self, registro):

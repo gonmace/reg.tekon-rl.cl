@@ -2,10 +2,12 @@
 <div class="flex items-center justify-center gap-1">
   <span class="reg-txtss-row-id" data-id="{{ record.id }}" style="display:none;"></span>
   {% if record.concluido %}
-  <a href="{% url 'reg_txtss:pdf' registro_id=record.id %}" target="_blank"
-     class="btn btn-sm btn-ghost btn-circle text-error" title="Generar PDF">
+  <button type="button"
+          class="btn btn-sm btn-ghost btn-circle text-error reg-txtss-pdf-btn"
+          data-id="{{ record.id }}"
+          title="Generar PDF">
     <i class="fa-solid fa-file-pdf"></i>
-  </a>
+  </button>
   {% endif %}
   {% for_role 'ITO' 'SEARCHER' %}
   <button type="button"

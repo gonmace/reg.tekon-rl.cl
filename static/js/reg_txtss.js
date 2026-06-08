@@ -672,6 +672,40 @@ function flashRow(id) {
     flashRow(parseInt(id, 10));
 })();
 
+// ── Modal de opciones PDF ─────────────────────────────────────────────────────
+(function initPdfModal() {
+    const modal = document.getElementById('reg-txtss-pdf-modal');
+    if (!modal) return;
+
+    let currentRegistroId = null;
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.reg-txtss-pdf-btn');
+        if (!btn) return;
+
+        currentRegistroId = btn.dataset.id;
+
+        // Resetear radios a los valores por defecto (2 por fila)
+        modal.querySelectorAll('input[name="poste-cols"]').forEach(r => { r.checked = r.value === '2'; });
+        modal.querySelectorAll('input[name="imagenes-cols"]').forEach(r => { r.checked = r.value === '2'; });
+
+        modal.showModal();
+    });
+
+    document.getElementById('reg-txtss-pdf-cancel')?.addEventListener('click', function () {
+        modal.close();
+    });
+
+    document.getElementById('reg-txtss-pdf-generar')?.addEventListener('click', function () {
+        if (!currentRegistroId) return;
+        const posteCols = modal.querySelector('input[name="poste-cols"]:checked')?.value || '2';
+        const imagenesCols = modal.querySelector('input[name="imagenes-cols"]:checked')?.value || '2';
+        const url = `/reg_txtss/pdf/${currentRegistroId}/?poste_cols=${posteCols}&imagenes_cols=${imagenesCols}`;
+        window.open(url, '_blank');
+        modal.close();
+    });
+})();
+
 // Global: llamado desde onclick en popup del mapa
 window.verRegistroDesdeMapo = function (id) {
     const modal = document.getElementById('reg-txtss-mapa-modal');

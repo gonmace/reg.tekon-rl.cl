@@ -35,6 +35,42 @@
 {% block extra_modals %}
   {{ block.super }}
 
+  <!-- Modal opciones PDF -->
+  <dialog id="reg-txtss-pdf-modal" class="modal">
+    <div class="modal-box max-w-sm">
+      <h3 class="font-bold text-lg mb-4">Opciones de PDF</h3>
+      <p class="text-sm font-medium mb-2">Registro Fotográfico del Poste</p>
+      <div class="flex gap-4 mb-4">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="poste-cols" value="1" class="radio radio-sm radio-primary">
+          <span class="text-sm">1 por fila</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="poste-cols" value="2" class="radio radio-sm radio-primary" checked>
+          <span class="text-sm">2 por fila</span>
+        </label>
+      </div>
+      <p class="text-sm font-medium mb-2">Imágenes de Cobertura</p>
+      <div class="flex gap-4 mb-6">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="imagenes-cols" value="1" class="radio radio-sm radio-primary">
+          <span class="text-sm">1 por fila</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="imagenes-cols" value="2" class="radio radio-sm radio-primary" checked>
+          <span class="text-sm">2 por fila</span>
+        </label>
+      </div>
+      <div class="modal-action">
+        <button id="reg-txtss-pdf-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+        <button id="reg-txtss-pdf-generar" class="btn btn-error btn-sm text-white">
+          <i class="fa-solid fa-file-pdf mr-1"></i> Generar PDF
+        </button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
   <!-- Modal formatear registro (superusuario) -->
   <dialog id="reg-txtss-formatear-modal" class="modal">
     <div class="modal-box max-w-sm">

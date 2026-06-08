@@ -487,6 +487,12 @@ section.imagenes .foto-titulo {
   padding: 0;
 }
 
+.foto-td-full {
+  width: 100%;
+  vertical-align: top;
+  padding: 0;
+}
+
 .foto-row {
   break-inside: avoid;
 }
