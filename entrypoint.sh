@@ -28,7 +28,7 @@ exec gunicorn config.wsgi:application \
     --threads 2 \
     --max-requests 1000 \
     --max-requests-jitter 100 \
-    --timeout 30 \
+    --timeout 120 \
     --keep-alive 2 \
     --access-logfile - \
     --error-logfile - \

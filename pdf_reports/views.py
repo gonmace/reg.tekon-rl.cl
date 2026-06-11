@@ -20,6 +20,50 @@ def _foto_orientation(path_str):
         return 'landscape'
 
 
+# Lado máximo (px) al que se reduce cada foto antes de pasarla a WeasyPrint.
+# WeasyPrint decodifica las imágenes a su resolución NATIVA en RAM sin importar
+# el ancho CSS: una foto de 4032×3024 (~12 MP) ocupa ~48 MB decodificada. Con
+# 10-20 fotos por registro eso revienta el límite de memoria del contenedor y el
+# worker de gunicorn muere por OOM. 1600 px es de sobra para impresión A4 (~200 dpi).
+PDF_IMG_MAX_SIDE = 1600
+
+
+def _pdf_image_uri(path_str):
+    """Devuelve un file:// URI a una versión reducida y cacheada de la imagen.
+
+    Si la imagen ya es pequeña o falla el procesamiento, devuelve el original.
+    El cache vive en MEDIA_ROOT/pdf_cache/ para que el preview /media/ también lo sirva.
+    """
+    if not path_str:
+        return None
+    try:
+        src = Path(path_str)
+        st = src.stat()
+        with PilImage.open(src) as img:
+            w, h = img.size
+        if max(w, h) <= PDF_IMG_MAX_SIDE:
+            return src.as_uri()
+
+        import hashlib
+        cache_dir = Path(settings.MEDIA_ROOT) / 'pdf_cache'
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        key = hashlib.md5(
+            f'{src}|{st.st_mtime_ns}|{st.st_size}|{PDF_IMG_MAX_SIDE}'.encode()
+        ).hexdigest()
+        cached = cache_dir / f'{key}.jpg'
+        if not cached.exists():
+            with PilImage.open(src) as img:
+                img = img.convert('RGB')
+                img.thumbnail((PDF_IMG_MAX_SIDE, PDF_IMG_MAX_SIDE), PilImage.LANCZOS)
+                img.save(cached, 'JPEG', quality=85, optimize=True)
+        return cached.as_uri()
+    except Exception:
+        try:
+            return Path(path_str).as_uri()
+        except Exception:
+            return None
+
+
 def _get_fotos_pdf(registro, etapa, ct):
     """Fotos de una etapa con EXIF, orientación y file:// URI para WeasyPrint."""
     from photos.models import Photos
@@ -29,7 +73,7 @@ def _get_fotos_pdf(registro, etapa, ct):
     ).order_by('orden', '-created_at'):
         try:
             path_str = p.imagen.path
-            url = Path(path_str).as_uri()
+            url = _pdf_image_uri(path_str)
         except Exception:
             path_str = None
             url = p.imagen.url if p.imagen else ''
