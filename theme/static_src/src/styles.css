@@ -123,6 +123,16 @@ html {
   --color-view:   #3b82f6;
 }
 
+/* ── Móvil: altura del viewport dinámica ──────────────────────────────────
+   En móvil 100vh incluye el área detrás del chrome del navegador (barra de
+   direcciones), así que cualquier contenedor h-screen mide más que el viewport
+   visible y su parte inferior queda cortada — paginación de tablas, footer
+   "Capturar Coordenadas" de los modales de mapa, etc. Redefinir h-screen con la
+   unidad dinámica dvh lo corrige en TODAS las vistas a la vez. Regla SIN @layer
+   para ganarle a la utilidad de Tailwind (que vive en @layer utilities). En
+   desktop dvh == vh, sin cambios. */
+.h-screen { height: 100dvh; }
+
 /* ── Tabla Cupertino-pro ──────────────────────────────────────────────────
    Look profesional inspirado en macOS/Cupertino: headers UPPERCASE pequeños
    con tracking, filas limpias, hover sutil. Funciona idéntico en light/dark
