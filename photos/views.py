@@ -844,6 +844,7 @@ class BulkDownloadPhotosView(LoginRequiredMixin, View):
 class CompressPhotosView(LoginRequiredMixin, SuperuserRequiredMixin, View):
 
     def post(self, request):
+        import gc
         from PIL import Image
 
         data = json.loads(request.body)
@@ -854,10 +855,16 @@ class CompressPhotosView(LoginRequiredMixin, SuperuserRequiredMixin, View):
         if not ids:
             return JsonResponse({'success': False, 'message': 'No se seleccionaron fotos'}, status=400)
 
-        photos = Photos.objects.filter(pk__in=ids)
+        # .iterator() evita cargar todas las filas en memoria de una vez.
+        photos = Photos.objects.filter(pk__in=ids).iterator()
         compressed = 0
         saved_bytes = 0
 
+        # Comprime cada foto re-guardando con menor calidad JPEG, manteniendo la
+        # resolución original. El pico de RAM es el bitmap decodificado de UNA foto
+        # (lado × lado × 3 bytes); por eso liberamos explícitamente con gc.collect()
+        # tras cada una para que no coexistan dos bitmaps grandes en lotes grandes
+        # y el worker no muera por OOM en el servidor (poca RAM disponible).
         for photo in photos:
             try:
                 path = photo.imagen.path
@@ -875,6 +882,9 @@ class CompressPhotosView(LoginRequiredMixin, SuperuserRequiredMixin, View):
                 compressed += 1
             except Exception:
                 pass
+            finally:
+                # Libera de inmediato el bitmap decodificado antes de la próxima foto.
+                gc.collect()
 
         saved_kb = saved_bytes // 1024
         return JsonResponse({
