@@ -22,6 +22,7 @@ Estados:
   3 — Fotos suficientes o no hay mínimo definido
 {% endcomment %}
 {% load access_tags %}
+{% load static %}
 {% btn_access as access_val %}
 {% with wid=upload_url|default:"preview"|slugify %}
 <div class="camera-widget bg-base-100 rounded-lg p-4 sombra"
@@ -63,6 +64,7 @@ Estados:
 </div>
 {% endwith %}
 
+<script src="{% static 'js/photo-reorder.js' %}"></script>
 <script>
 (function () {
   'use strict';
@@ -89,7 +91,10 @@ Estados:
     var listUrl       = uploadUrl ? uploadUrl.replace('/upload/', '/') : '';
     var updateUrl     = uploadUrl ? uploadUrl.replace('/upload/', '/update/') : '';
     var deleteBaseUrl = uploadUrl ? uploadUrl.replace('/upload/', '/delete/') : '';
+    var reorderUrl    = uploadUrl ? uploadUrl.replace('/upload/', '/reorder/') : '';
 
+    var fileInput = widget.querySelector('.camera-file-input');
+    var canEdit   = !!uploadUrl && !(fileInput && fileInput.disabled);
     var countEl   = widget.querySelector('.camera-count');
     var previewEl = widget.querySelector('.camera-preview');
     var count = parseInt(widget.dataset.fotoCount || '0', 10);
@@ -129,7 +134,16 @@ Estados:
         }
       });
 
+      // Tirador para arrastrar y reordenar (oculto hasta finalizar la subida)
+      var handle = document.createElement('button');
+      handle.type = 'button';
+      handle.className = 'reorder-handle btn btn-neutral btn-circle btn-xs absolute top-1 left-1 shadow hidden';
+      handle.style.cursor = 'grab';
+      handle.style.touchAction = 'none';
+      handle.innerHTML = '<i class="fa-solid fa-up-down-left-right"></i>';
+
       imgWrap.appendChild(img);
+      if (canEdit) imgWrap.appendChild(handle);
       if (widget.dataset.superuser === 'true') imgWrap.appendChild(delBtn);
 
       var exifDateEl = document.createElement('p');
@@ -165,6 +179,8 @@ Estados:
       parts.descInput.classList.remove('hidden');
       var spinner = parts.imgWrap.querySelector('.camera-spinner');
       if (spinner) spinner.remove();
+      var handle = parts.imgWrap.querySelector('.reorder-handle');
+      if (handle && canEdit) handle.classList.remove('hidden');
       if (photo.exif_datetime) {
         parts.exifDate.textContent = photo.exif_datetime;
         parts.exifDate.classList.remove('hidden');
@@ -187,6 +203,30 @@ Estados:
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
         body: JSON.stringify({ photo_id: photoId, descripcion: descripcion }),
       }).catch(function () {});
+    }
+
+    function saveOrder(ids) {
+      if (!reorderUrl || !ids.length) return;
+      fetch(reorderUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+        body: JSON.stringify({ orden: ids }),
+      })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (result) {
+        if (result && result.success && window.Alert) {
+          window.Alert.success('Orden actualizado', { autoHide: 1500 });
+        }
+      })
+      .catch(function () {});
+    }
+
+    if (canEdit && window.PhotoReorder) {
+      window.PhotoReorder.enable(previewEl, {
+        item: '[data-photo-id]',
+        handle: '.reorder-handle',
+        onReorder: saveOrder,
+      });
     }
 
     function deletePhoto(photoId, cardEl) {
