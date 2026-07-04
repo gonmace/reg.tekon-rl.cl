@@ -238,6 +238,12 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1
 AXES_LOCKOUT_PARAMETERS = ['ip_address', 'username']
 
+# nginx (proxy_pass) reenvía X-Forwarded-For; sin esto axes usa REMOTE_ADDR,
+# que dentro del contenedor es siempre el gateway de Docker (misma IP para
+# todos los usuarios → un intento fallido bloquea a todos).
+AXES_IPWARE_PROXY_COUNT = 1
+AXES_IPWARE_META_PRECEDENCE_ORDER = ['HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR']
+
 if DEBUG:
     AXES_ENABLED = False
 else:
