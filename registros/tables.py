@@ -87,9 +87,6 @@ class GenericRegistrosTable(tables.Table):
     
     def render_estado(self, value, record):
         """Renderizar el estado del proyecto con funcionalidad de edición para superusuarios."""
-        # Debug: imprimir el valor que se está recibiendo
-        print(f"DEBUG - Valor de estado recibido: '{value}' (tipo: {type(value)}) para registro {record.id}")
-        
         # Mapeo de estados unificado - debe coincidir con changeStatus.js
         estado_map = {
             'Construcción': ('Construcción', 'badge badge-success'),
@@ -97,12 +94,10 @@ class GenericRegistrosTable(tables.Table):
             'Cancelado': ('Cancelado', 'badge badge-error'),
             'Concluido': ('Concluido', 'badge badge-info'),
         }
-        
+
         # Normalizar el valor para la búsqueda
         if value:
             value_str = str(value).lower().strip()
-            print(f"DEBUG - Valor normalizado: '{value_str}'")
-            
             # Buscar en el mapeo - primero por valor normalizado, luego por valor original
             if value_str in estado_map:
                 display_text, badge_class = estado_map[value_str]
@@ -110,12 +105,9 @@ class GenericRegistrosTable(tables.Table):
                 display_text, badge_class = estado_map[str(value)]
             else:
                 display_text, badge_class = (str(value), 'badge badge-neutral')
-            
-            print(f"DEBUG - Mapeo encontrado: '{value_str}' -> '{display_text}' con clase '{badge_class}'")
         else:
             display_text, badge_class = ('Sin estado', 'badge badge-neutral')
-            print(f"DEBUG - Valor vacío, usando: '{display_text}' con clase '{badge_class}'")
-        
+
         if self.user and self.user.is_superuser:
             return format_html(
                 '<div class="estado-cell-container">'

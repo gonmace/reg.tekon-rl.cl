@@ -19,7 +19,10 @@ from registros.views.activation_views import GenericActivarRegistroView
 from registros.config import RegistroConfig
 from .config import REGISTRO_CONFIG
 from .models import RegTxtss, ALTERNATIVA_CHOICES
-from core.permissions import not_visita, superuser_required, NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin
+from core.permissions import (
+    not_visita, superuser_required, NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin,
+    can_access_registro, registro_access_denied,
+)
 
 
 class ListRegistrosView(GenericRegistroTableListView):
@@ -34,32 +37,7 @@ class ListRegistrosView(GenericRegistroTableListView):
         return REGISTRO_CONFIG
 
     def get_queryset(self):
-        from django.db.models import Exists, OuterRef, Case, When, IntegerField, Value
-        from django.contrib.contenttypes.models import ContentType
-        from actividades.models import DatoPaso
-        from photos.models import Photos
-        from core.models.google_maps import GoogleMapsImage
-
-        ct = ContentType.objects.get_for_model(RegTxtss)
-        # DatoPaso con al menos un valor no vacío (filtra dicts como {'lat': '', 'lon': ''})
-        datopaso_con_datos = DatoPaso.objects.filter(
-            content_type=ct,
-            object_id=OuterRef('pk'),
-        ).extra(where=["EXISTS(SELECT 1 FROM jsonb_each_text(datos) j WHERE j.value != '')"])
-        has_widgets_qs = (
-            Exists(datopaso_con_datos)
-            | Exists(Photos.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
-            | Exists(GoogleMapsImage.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
-        )
-        return super().get_queryset().annotate(
-            has_widgets=has_widgets_qs,
-            orden_estado=Case(
-                When(concluido=False, has_widgets=True,  then=Value(1)),  # amarillo
-                When(concluido=True,                     then=Value(2)),  # verde
-                default=Value(3),                                          # rojo
-                output_field=IntegerField(),
-            )
-        ).order_by('orden_estado', '-fecha')
+        return super().get_queryset().with_estado().order_by('orden_estado', '-fecha')
 
     def get_table(self, **kwargs):
         table = super().get_table(**kwargs)
@@ -108,10 +86,17 @@ class ListRegistrosPostesView(ListRegistrosView):
         ctx = super().get_context_data(**kwargs)
         if self.request.user.is_supermanager:
             ctx['pasos_config_url'] = reverse('reg_txtss:pasos_postes')
-        qs = self.get_queryset()
-        ctx['count_verde']   = qs.filter(concluido=True).count()
-        ctx['count_amarillo'] = qs.filter(concluido=False, has_widgets=True).count()
-        ctx['count_rojo']    = qs.filter(concluido=False, has_widgets=False).count()
+        # Un solo aggregate en vez de 3 .count() que reejecutaban el queryset
+        # anotado (con sus subconsultas EXISTS) tres veces.
+        from django.db.models import Count, Q
+        counts = self.get_queryset().aggregate(
+            verde=Count('id', filter=Q(concluido=True)),
+            amarillo=Count('id', filter=Q(concluido=False, has_widgets=True)),
+            rojo=Count('id', filter=Q(concluido=False, has_widgets=False)),
+        )
+        ctx['count_verde'] = counts['verde']
+        ctx['count_amarillo'] = counts['amarillo']
+        ctx['count_rojo'] = counts['rojo']
         return ctx
 
 
@@ -158,8 +143,11 @@ class StepsRegistroView(GenericRegistroStepsView):
         return []
 
     def get_context_data(self, **kwargs):
+        from django.core.exceptions import PermissionDenied
         registro_id = self.kwargs.get('registro_id')
         self.registro = get_object_or_404(self.registro_config.registro_model, id=registro_id)
+        if not can_access_registro(self.request.user, self.registro):
+            raise PermissionDenied('No tienes acceso a este registro.')
         context = super().get_context_data(**kwargs)
 
         title = context.get('header_title')
@@ -327,30 +315,26 @@ def get_edit_form(request, registro_id):
 @require_POST
 def update_registro(request, registro_id):
     """Actualiza buscador y alternativa de un registro."""
-    registro = get_object_or_404(RegTxtss, pk=registro_id)
-    try:
-        from users.models import User
-        user_id = request.POST.get('user_id')
-        alternativa = request.POST.get('alternativa') or None
+    from .forms import RegTxtssAdminEditForm
+    get_object_or_404(RegTxtss, pk=registro_id)
 
-        update_fields = {}
+    form = RegTxtssAdminEditForm({
+        'user': request.POST.get('user_id') or '',
+        'alternativa': request.POST.get('alternativa') or '',
+    })
+    if not form.is_valid():
+        return JsonResponse(
+            {'success': False, 'message': 'Datos inválidos', 'errors': form.errors},
+            status=400,
+        )
 
-        if user_id:
-            user = get_object_or_404(User, pk=user_id)
-            update_fields['user'] = user
-        elif user_id == '':
-            update_fields['user'] = None
-
-        valid_alternativas = [c[0] for c in ALTERNATIVA_CHOICES]
-        if alternativa and alternativa in valid_alternativas:
-            update_fields['alternativa'] = alternativa
-        else:
-            update_fields['alternativa'] = None
-
-        RegTxtss.objects.filter(pk=registro_id).update(**update_fields)
-        return JsonResponse({'success': True, 'message': 'Registro actualizado'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    # Se persiste con .update() a propósito (evita full_clean y el registro de
+    # history en una edición administrativa). alternativa vacía → None.
+    update_fields = {'alternativa': form.cleaned_data['alternativa'] or None}
+    if 'user_id' in request.POST:
+        update_fields['user'] = form.cleaned_data['user']  # instancia User o None
+    RegTxtss.objects.filter(pk=registro_id).update(**update_fields)
+    return JsonResponse({'success': True, 'message': 'Registro actualizado'})
 
 
 @login_required
@@ -423,6 +407,9 @@ def update_fecha(request, registro_id):
         return JsonResponse({'success': False, 'message': 'Solo ITO y Buscador pueden cambiar la fecha'}, status=403)
     from datetime import date as date_type
     registro = get_object_or_404(RegTxtss, pk=registro_id)
+    denied = registro_access_denied(request, registro)
+    if denied:
+        return denied
     try:
         data = json.loads(request.body)
         fecha_iso = data.get('fecha', '')
@@ -458,7 +445,10 @@ class DynamicPasoView(LoginRequiredMixin, ItoLikeMixin, View):
 
     def _get_objects(self, registro_id, paso_nombre):
         from actividades.models import PasoDefinicion, TipoActividad
+        from django.core.exceptions import PermissionDenied
         registro = get_object_or_404(RegTxtss, pk=registro_id)
+        if not can_access_registro(self.request.user, registro):
+            raise PermissionDenied('No tienes acceso a este registro.')
         tipo_sitio = getattr(getattr(registro, 'sitio', None), 'tipo_sitio', None)
         namespace = 'reg_txtss_postes' if tipo_sitio == 'POSTE' else 'reg_txtss_torres'
         tipo = get_object_or_404(TipoActividad, app_namespace=namespace)
@@ -595,6 +585,9 @@ class MapaSaveView(LoginRequiredMixin, ItoLikeMixin, View):
         from core.utils.coordenadas import obtener_imagen_google_maps
 
         registro = get_object_or_404(RegTxtss, pk=registro_id)
+        denied = registro_access_denied(request, registro)
+        if denied:
+            return denied
 
         try:
             body = _json.loads(request.body) if request.body else {}
@@ -665,6 +658,9 @@ def toggle_concluido(request, registro_id):
     if not (request.user.is_supermanager or request.user.is_ito_like):
         return JsonResponse({'success': False, 'message': 'Solo ITO y Buscador pueden cambiar el estado concluido'}, status=403)
     registro = get_object_or_404(RegTxtss, id=registro_id)
+    denied = registro_access_denied(request, registro)
+    if denied:
+        return denied
     registro.concluido = not registro.concluido
     registro.save()
     return JsonResponse({'concluido': registro.concluido})
@@ -745,34 +741,15 @@ def resumen_formatear(request, registro_id):
 @require_GET
 def locate_registro(request, registro_id):
     """Devuelve el número de página donde aparece el registro en la lista."""
-    from django.db.models import Exists, OuterRef, Case, When, IntegerField, Value
-    from django.contrib.contenttypes.models import ContentType
-    from actividades.models import DatoPaso
-    from photos.models import Photos
-    from core.models.google_maps import GoogleMapsImage
-
     registro = get_object_or_404(RegTxtss, pk=registro_id, is_deleted=False)
     list_path = request.GET.get('list_path', '')
     tipo = 'TORRE' if 'torres' in list_path else 'POSTE'
 
-    ct = ContentType.objects.get_for_model(RegTxtss)
-    datopaso_con_datos = DatoPaso.objects.filter(
-        content_type=ct, object_id=OuterRef('pk'),
-    ).extra(where=["EXISTS(SELECT 1 FROM jsonb_each_text(datos) j WHERE j.value != '')"])
-    has_widgets_qs = (
-        Exists(datopaso_con_datos)
-        | Exists(Photos.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
-        | Exists(GoogleMapsImage.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
+    qs = (
+        RegTxtss.objects.filter(is_deleted=False, sitio__tipo_sitio=tipo)
+        .with_estado()
+        .order_by('orden_estado', '-fecha')
     )
-    qs = RegTxtss.objects.filter(is_deleted=False, sitio__tipo_sitio=tipo).annotate(
-        has_widgets=has_widgets_qs,
-        orden_estado=Case(
-            When(concluido=False, has_widgets=True,  then=Value(1)),
-            When(concluido=True,                     then=Value(2)),
-            default=Value(3),
-            output_field=IntegerField(),
-        )
-    ).order_by('orden_estado', '-fecha')
 
     if not request.user.is_supermanager and not request.user.is_visita:
         qs = qs.filter(user=request.user)
@@ -792,30 +769,11 @@ def locate_registro(request, registro_id):
 @require_GET
 def mapa_registros_geojson(request):
     """GeoJSON con todos los registros que tienen coordenadas, para el mapa Leaflet."""
-    from django.db.models import Exists, OuterRef, Case, When, IntegerField, Value
     from django.contrib.contenttypes.models import ContentType
-    from actividades.models import DatoPaso, ContextoRegistro
-    from photos.models import Photos
-    from core.models.google_maps import GoogleMapsImage
+    from actividades.models import ContextoRegistro
 
     ct = ContentType.objects.get_for_model(RegTxtss)
-    datopaso_con_datos = DatoPaso.objects.filter(
-        content_type=ct, object_id=OuterRef('pk'),
-    ).extra(where=["EXISTS(SELECT 1 FROM jsonb_each_text(datos) j WHERE j.value != '')"])
-    has_widgets_qs = (
-        Exists(datopaso_con_datos)
-        | Exists(Photos.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
-        | Exists(GoogleMapsImage.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
-    )
-    qs = RegTxtss.objects.filter(is_deleted=False).annotate(
-        has_widgets=has_widgets_qs,
-        orden_estado=Case(
-            When(concluido=False, has_widgets=True, then=Value(1)),
-            When(concluido=True,                    then=Value(2)),
-            default=Value(3),
-            output_field=IntegerField(),
-        )
-    ).select_related('sitio')
+    qs = RegTxtss.objects.filter(is_deleted=False).with_estado().select_related('sitio')
 
     contextos = {
         c.object_id: c.contexto

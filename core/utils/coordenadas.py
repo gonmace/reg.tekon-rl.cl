@@ -2,7 +2,10 @@ from geopy.distance import geodesic
 import requests
 import math
 import re as _re
+import logging
 from core.models.app_settings import AppSettings
+
+logger = logging.getLogger(__name__)
 
 
 def calcular_distancia_geopy(lat_1, lon_1, lat_2, lon_2):
@@ -45,12 +48,11 @@ def obtener_imagen_google_maps(coordenadas, zoom=None, maptype="hybrid", scale=2
     try:
         app_settings = AppSettings.get_actives()
         api_key = app_settings.google_maps_api_key if app_settings else None
-        api_key = "AIzaSyCha-3YT1hTLafIM1rl7dv0-3lqEc5Drys"
         if not api_key:
-            print("Error: No se encontró la Google Maps API key")
+            logger.error("No se encontró la Google Maps API key en AppSettings")
             return None
-    except Exception as e:
-        print(f"Error obteniendo la API key: {e}")
+    except Exception:
+        logger.exception("Error obteniendo la Google Maps API key")
         return None
 
     valid_coords = []
@@ -125,9 +127,9 @@ def obtener_imagen_google_maps(coordenadas, zoom=None, maptype="hybrid", scale=2
     try:
         response = requests.get(base_url, params=params, timeout=30)
         if response.status_code != 200:
-            print(f"Error Google Maps API: {response.status_code} - {response.text[:200]}")
+            logger.error("Error Google Maps API: %s - %s", response.status_code, response.text[:200])
             return None
         return response.content
-    except requests.exceptions.RequestException as e:
-        print(f"Error de conexión con Google Maps API: {e}")
+    except requests.exceptions.RequestException:
+        logger.exception("Error de conexión con Google Maps API")
         return None

@@ -219,3 +219,45 @@ class OwnedByUserMixin:
         if user.is_supermanager or user.is_visita:
             return qs
         return qs.filter(user=self.request.user)
+
+
+def can_access_registro(user, registro):
+    """Ownership a nivel de objeto para registros con FK `user`.
+
+    Supermanager y VISITA acceden a todos los registros (consistente con
+    `OwnedByUserMixin`); el resto solo a los registros propios. Los permisos de
+    escritura (rol, no-visita) se controlan aparte con los mixins/decoradores.
+    """
+    if not getattr(user, 'is_authenticated', False):
+        return False
+    if user.is_supermanager or user.is_visita:
+        return True
+    return getattr(registro, 'user_id', None) == user.id
+
+
+def registro_access_denied(request, registro):
+    """Para endpoints AJAX/API: devuelve un `JsonResponse` 403 si el usuario no
+    puede acceder al registro, o `None` si sí puede.
+
+    Uso: `resp = registro_access_denied(request, reg)` ; `if resp: return resp`.
+    """
+    if can_access_registro(request.user, registro):
+        return None
+    return JsonResponse({'success': False, 'message': 'Sin permisos para este registro'}, status=403)
+
+
+class RegistroOwnerMixin:
+    """CBV mixin: exige ownership sobre `self.registro` en cada request.
+
+    La vista debe exponer el registro vía `get_registro_for_permission()`
+    (o tener el atributo `self.registro` ya poblado). Lanza `PermissionDenied`
+    (HTTP 403) si el usuario no es dueño. Combinar con `LoginRequiredMixin`.
+    """
+    def get_registro_for_permission(self):
+        return getattr(self, 'registro', None)
+
+    def dispatch(self, request, *args, **kwargs):
+        registro = self.get_registro_for_permission()
+        if registro is not None and not can_access_registro(request.user, registro):
+            raise PermissionDenied('No tienes acceso a este registro.')
+        return super().dispatch(request, *args, **kwargs)

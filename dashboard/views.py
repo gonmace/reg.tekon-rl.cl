@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Count, Prefetch
 from django.utils import timezone
 from datetime import timedelta
 
@@ -14,7 +14,17 @@ from users.models import User
 
 @login_required
 def dashboard_sitios(request):
-    sitios = Site.objects.filter(is_deleted=False).prefetch_related('reg_txtss')
+    # Prefetch filtrado + Count anotado: una query para los sitios y otra para
+    # sus registros, en vez de 2 queries por sitio dentro del loop.
+    sitios = (
+        Site.objects.filter(is_deleted=False)
+        .prefetch_related(Prefetch(
+            'reg_txtss',
+            queryset=RegTxtss.objects.filter(is_deleted=False).order_by('-created_at'),
+            to_attr='registros_activos',
+        ))
+        .annotate(total_txtss=Count('reg_txtss', filter=Q(reg_txtss__is_deleted=False)))
+    )
 
     region_filter = request.GET.get('region', '')
     search_query = request.GET.get('search', '')
@@ -32,12 +42,11 @@ def dashboard_sitios(request):
 
     sitios_data = []
     for sitio in sitios:
-        ultimo_txtss = sitio.reg_txtss.filter(is_deleted=False).order_by('-created_at').first()
-        total_txtss = sitio.reg_txtss.filter(is_deleted=False).count()
+        activos = sitio.registros_activos
         sitios_data.append({
             'sitio': sitio,
-            'ultimo_registro_txtss': ultimo_txtss,
-            'total_txtss': total_txtss,
+            'ultimo_registro_txtss': activos[0] if activos else None,
+            'total_txtss': sitio.total_txtss,
         })
 
     paginator = Paginator(sitios_data, 25)

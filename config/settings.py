@@ -113,6 +113,9 @@ if config('POSTGRES_DB', default=''):
             'PASSWORD': config('POSTGRES_PASSWORD'),
             'HOST': config('POSTGRES_HOST', default='localhost'),
             'PORT': config('POSTGRES_PORT', default='5432'),
+            # Conexiones persistentes: evita abrir una conexión nueva por request.
+            'CONN_MAX_AGE': config('CONN_MAX_AGE', default=60, cast=int),
+            'CONN_HEALTH_CHECKS': True,
             'OPTIONS': {'connect_timeout': 10},
         }
     }
@@ -136,7 +139,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # ── I18n ──────────────────────────────────────────────────────────────────────
 
 LANGUAGE_CODE = 'es'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Santiago'
 USE_I18N = True
 USE_TZ = True
 
@@ -318,6 +321,8 @@ if DEBUG:
         'root': {'handlers': ['console'], 'level': 'INFO'},
     }
 else:
+    LOGS_DIR = BASE_DIR / 'logs'
+    os.makedirs(LOGS_DIR, exist_ok=True)
     LOGGING = {
         'version': 1,
         'disable_existing_loggers': False,
@@ -333,11 +338,24 @@ else:
                 'class': 'logging.StreamHandler',
                 'formatter': 'verbose',
             },
+            'file': {
+                'level': 'INFO',
+                'class': 'logging.handlers.RotatingFileHandler',
+                'filename': str(LOGS_DIR / 'app.log'),
+                'maxBytes': 5 * 1024 * 1024,  # 5 MB por archivo
+                'backupCount': 5,
+                'formatter': 'verbose',
+            },
+            'mail_admins': {
+                'level': 'ERROR',
+                'class': 'django.utils.log.AdminEmailHandler',
+                'include_html': True,
+            },
         },
-        'root': {'handlers': ['console'], 'level': 'INFO'},
+        'root': {'handlers': ['console', 'file'], 'level': 'INFO'},
         'loggers': {
             'django': {
-                'handlers': ['console'],
+                'handlers': ['console', 'file', 'mail_admins'],
                 'level': 'INFO',
                 'propagate': False,
             },

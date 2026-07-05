@@ -509,12 +509,7 @@ class GenericRegistroStepsView(RegistroBreadcrumbsMixin, LoginRequiredMixin, Bre
             has_photos = any(sub.tipo == 'fotos' for sub in elemento_config.sub_elementos)
             has_map = any(sub.tipo == 'mapa' for sub in elemento_config.sub_elementos)
             has_table = any(sub.tipo == 'table' for sub in elemento_config.sub_elementos)
-            
-            print(f"DEBUG: Paso {step_name} - has_photos: {has_photos}, has_map: {has_map}, has_table: {has_table}")
-            
-            if step_name == 'avance':
-                print(f"DEBUG: Procesando paso avance - subelementos: {[sub.tipo for sub in elemento_config.sub_elementos]}")
-            
+
             # Obtener configuración de fotos si existe
             photo_config = None
             min_count = 0
@@ -637,9 +632,7 @@ class GenericRegistroStepsView(RegistroBreadcrumbsMixin, LoginRequiredMixin, Bre
                 'datos_clave_template': datos_clave_template,
                 'sub_elementos_data': sub_elementos_data  # Agregar datos de subelementos
             }
-            
-            print(f"DEBUG: Configuración final de tabla para {step_name}: {table_config}")
-            
+
             # Return as tuple (step_name, step_data) to match template expectation
             steps_context.append((step_name, step_data))
         
@@ -764,9 +757,7 @@ class GenericElementoView(RegistroBreadcrumbsMixin, LoginRequiredMixin, Breadcru
                 'header_title': self.get_header_title(),
                 'sub_elementos_data': sub_elementos_data,
             }
-            
-            print(f"DEBUG: Template que se va a renderizar: {elemento_config.template_name}")
-            print(f"DEBUG: Context keys: {list(context.keys())}")
+
             return render(request, elemento_config.template_name, context)
             
         except Exception as e:

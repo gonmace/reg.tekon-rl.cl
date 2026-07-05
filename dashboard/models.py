@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import Q, Count, Exists, OuterRef
+from django.db.models import Q, Count, Prefetch, Max
 from django.utils import timezone
 from datetime import timedelta
 from core.models.sites import Site
@@ -57,24 +57,6 @@ class SitioDashboard(models.Model):
 
 class DashboardStats:
     @staticmethod
-    def _has_widgets_subquery():
-        from django.contrib.contenttypes.models import ContentType
-        from actividades.models import DatoPaso
-        from photos.models import Photos
-        from core.models.google_maps import GoogleMapsImage
-
-        ct = ContentType.objects.get_for_model(RegTxtss)
-        datopaso_con_datos = DatoPaso.objects.filter(
-            content_type=ct,
-            object_id=OuterRef('pk'),
-        ).extra(where=["EXISTS(SELECT 1 FROM jsonb_each_text(datos) j WHERE j.value != '')"])
-        return (
-            Exists(datopaso_con_datos)
-            | Exists(Photos.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
-            | Exists(GoogleMapsImage.objects.filter(content_type=ct, object_id=OuterRef('pk'), is_deleted=False))
-        )
-
-    @staticmethod
     def get_sitios_stats():
         total_sitios = Site.objects.filter(is_deleted=False).count()
         total_postes = Site.objects.filter(is_deleted=False, tipo_sitio='POSTE').count()
@@ -94,11 +76,10 @@ class DashboardStats:
 
     @staticmethod
     def _get_estado_counts(tipo_sitio):
-        has_widgets = DashboardStats._has_widgets_subquery()
         agg = (
             RegTxtss.objects
             .filter(is_deleted=False, sitio__tipo_sitio=tipo_sitio)
-            .annotate(has_widgets=has_widgets)
+            .with_estado()
             .aggregate(
                 total=Count('id'),
                 completados=Count('id', filter=Q(concluido=True)),
@@ -162,14 +143,24 @@ class DashboardStats:
 
     @staticmethod
     def get_sitios_detallados():
-        sitios = Site.objects.filter(is_deleted=False).prefetch_related('reg_txtss')
+        # Prefetch filtrado + Count anotado: evita el N+1 previo (2 queries por
+        # sitio) que se producía al re-filtrar `sitio.reg_txtss` dentro del loop.
+        sitios = (
+            Site.objects.filter(is_deleted=False)
+            .prefetch_related(Prefetch(
+                'reg_txtss',
+                queryset=RegTxtss.objects.filter(is_deleted=False).order_by('-created_at'),
+                to_attr='registros_activos',
+            ))
+            .annotate(total_txtss=Count('reg_txtss', filter=Q(reg_txtss__is_deleted=False)))
+        )
         sitios_data = []
         for sitio in sitios:
-            ultimo_txtss = sitio.reg_txtss.filter(is_deleted=False).order_by('-created_at').first()
-            total_txtss = sitio.reg_txtss.filter(is_deleted=False).count()
+            activos = sitio.registros_activos
+            ultimo_txtss = activos[0] if activos else None
             sitios_data.append({
                 'sitio': sitio,
                 'ultimo_registro_txtss': ultimo_txtss.created_at if ultimo_txtss else None,
-                'total_txtss': total_txtss,
+                'total_txtss': sitio.total_txtss,
             })
         return sitios_data
