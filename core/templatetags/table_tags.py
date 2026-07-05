@@ -51,8 +51,6 @@ def format_url(url_pattern, item):
 
 @register.filter(name='concat')
 def concat(value, arg):
-    print("value", value, type(value))
-    print("arg", arg, type(arg))
     return f"{value}{arg}"
 
 

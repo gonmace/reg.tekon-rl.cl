@@ -33,9 +33,12 @@ class Photos(BaseModel):
             return self.thumbnail.url
         return self.imagen.url if self.imagen else ''
 
-    def generate_thumbnail(self, size=(400, 400)):
+    def generate_thumbnail(self, size=(400, 400), img=None):
+        """Genera la miniatura JPEG. Si se pasa `img` (una imagen PIL ya abierta)
+        la reutiliza en vez de reabrir el archivo. Devuelve la ruta relativa o None.
+        Cuando se invoca de forma aislada (backfill) persiste el campo en la BD."""
         if not self.imagen:
-            return
+            return None
         try:
             from PIL import Image, ImageOps
             orig_path = self.imagen.path
@@ -44,50 +47,72 @@ class Photos(BaseModel):
             thumb_filename = os.path.splitext(os.path.basename(orig_path))[0] + '.jpg'
             thumb_abs = os.path.join(thumb_dir, thumb_filename)
 
-            with Image.open(orig_path) as img:
-                img = ImageOps.exif_transpose(img)  # corrige rotación EXIF
-                img.thumbnail(size, Image.LANCZOS)
+            owns = img is None
+            source = Image.open(orig_path) if owns else img
+            try:
+                thumb = ImageOps.exif_transpose(source)  # corrige rotación EXIF
+                thumb.thumbnail(size, Image.LANCZOS)
                 buf = BytesIO()
-                img.convert('RGB').save(buf, format='JPEG', quality=82, optimize=True)
+                thumb.convert('RGB').save(buf, format='JPEG', quality=82, optimize=True)
+            finally:
+                if owns:
+                    source.close()
 
             with open(thumb_abs, 'wb') as f:
                 f.write(buf.getvalue())
 
             relative = os.path.relpath(thumb_abs, settings.MEDIA_ROOT)
-            Photos.objects.filter(pk=self.pk).update(thumbnail=relative)
             self.thumbnail = relative
+            if owns:
+                Photos.objects.filter(pk=self.pk).update(thumbnail=relative)
+            return relative
         except Exception:
-            pass
+            return None
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         super().save(*args, **kwargs)
         if is_new and self.imagen:
-            self._populate_file_size()
-            if self.exif_lat is None and self.exif_datetime is None:
-                self._extract_exif()
-            self.generate_thumbnail()
+            self._process_new_image()
 
-    def _populate_file_size(self):
+    def _process_new_image(self):
+        """Procesa una foto recién subida abriendo la imagen UNA sola vez:
+        tamaño de archivo + EXIF + miniatura, consolidados en un único UPDATE
+        (antes eran 2 aperturas Pillow y 3 UPDATE separados)."""
+        updates = {}
         try:
-            import os
-            size = os.path.getsize(self.imagen.path)
-            Photos.objects.filter(pk=self.pk).update(file_size=size)
-            self.file_size = size
+            updates['file_size'] = os.path.getsize(self.imagen.path)
+            self.file_size = updates['file_size']
         except Exception:
             pass
 
-    def _extract_exif(self):
-        """Extrae GPS y fecha/hora del EXIF de la imagen y guarda en los campos."""
         try:
             from PIL import Image
+            with Image.open(self.imagen.path) as img:
+                if self.exif_lat is None and self.exif_datetime is None:
+                    for field, value in self._read_exif(img).items():
+                        setattr(self, field, value)
+                        updates[field] = value
+                thumb_rel = self.generate_thumbnail(img=img)
+                if thumb_rel:
+                    updates['thumbnail'] = thumb_rel
+        except Exception:
+            pass
+
+        if updates:
+            Photos.objects.filter(pk=self.pk).update(**updates)
+
+    def _read_exif(self, img):
+        """Lee GPS y fecha/hora del EXIF de una imagen PIL ya abierta. Devuelve
+        un dict con los campos a actualizar (vacío si no hay EXIF útil)."""
+        result = {}
+        try:
             from PIL.ExifTags import TAGS, GPSTAGS
             import datetime
 
-            with Image.open(self.imagen.path) as img:
-                exif_raw = img._getexif()
+            exif_raw = img._getexif()
             if not exif_raw:
-                return
+                return result
 
             exif = {TAGS.get(k, k): v for k, v in exif_raw.items()}
 
@@ -96,7 +121,7 @@ class Photos(BaseModel):
                 dt_str = exif.get(tag)
                 if dt_str:
                     try:
-                        self.exif_datetime = datetime.datetime.strptime(
+                        result['exif_datetime'] = datetime.datetime.strptime(
                             str(dt_str).strip(), '%Y:%m:%d %H:%M:%S'
                         )
                         break
@@ -119,17 +144,11 @@ class Photos(BaseModel):
                 lon_ref = gps.get('GPSLongitudeRef')
 
                 if lat_dms and lat_ref and lon_dms and lon_ref:
-                    self.exif_lat = _dms_to_decimal(lat_dms, lat_ref)
-                    self.exif_lon = _dms_to_decimal(lon_dms, lon_ref)
-
-            if self.exif_lat is not None or self.exif_datetime is not None:
-                Photos.objects.filter(pk=self.pk).update(
-                    exif_lat=self.exif_lat,
-                    exif_lon=self.exif_lon,
-                    exif_datetime=self.exif_datetime,
-                )
+                    result['exif_lat'] = _dms_to_decimal(lat_dms, lat_ref)
+                    result['exif_lon'] = _dms_to_decimal(lon_dms, lon_ref)
         except Exception:
             pass  # EXIF opcional: nunca bloquear el guardado de la foto
+        return result
 
     def __str__(self):
         return f"{self.registro} - {self.created_at.strftime('%d/%m/%Y %H:%M')}"
@@ -138,6 +157,11 @@ class Photos(BaseModel):
         verbose_name = 'Foto'
         verbose_name_plural = 'Fotos'
         ordering = ['orden', '-created_at']
+        indexes = [
+            # Lookup dominante: fotos de un registro/etapa (galería, PDF, conteos).
+            models.Index(fields=['content_type', 'object_id', 'etapa'],
+                         name='photos_ct_obj_etapa_idx'),
+        ]
 
     @staticmethod
     def count_photos(registro_id, etapa, app_name=None, content_type=None):

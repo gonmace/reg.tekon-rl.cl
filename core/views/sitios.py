@@ -2,6 +2,7 @@ from django.db.models import Q, Count
 from django.views.generic import TemplateView
 from django_tables2 import SingleTableView
 from rest_framework import viewsets
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 from core.models.sites import Site
 from core.serializers import SiteSerializer
 from core.tables import SiteTable
@@ -18,6 +19,9 @@ from django.utils.decorators import method_decorator
 from core.forms import SiteForm
 from django.template.loader import render_to_string
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SitiosView(LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
@@ -59,9 +63,29 @@ class SitiosView(LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
         context['site_counts'] = counts
         return context
 
+class IsSiteManagerOrReadOnly(BasePermission):
+    """Lectura para cualquier usuario autenticado; escritura (crear/editar/borrar)
+    solo para supermanager, coordinación o gerencia. Los sitios son datos
+    maestros compartidos, no pertenecen a un usuario."""
+    message = 'No tienes permisos para modificar sitios.'
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        return bool(
+            user.is_supermanager
+            or getattr(user, 'is_coord', False)
+            or getattr(user, 'is_gerencia', False)
+        )
+
+
 class SiteViewSet(viewsets.ModelViewSet):
     serializer_class = SiteSerializer
-    
+    permission_classes = [IsSiteManagerOrReadOnly]
+
     def get_queryset(self):
         return Site.objects.filter(is_deleted=False)
 
@@ -167,27 +191,22 @@ class SiteEditModalView(LoginRequiredMixin, UserPassesTestMixin, View):
                     'message': f'Sitio "{site.name}" actualizado correctamente.'
                 })
             else:
-                print(f"Form errors: {form.errors}")
                 return JsonResponse({
                     'success': False,
                     'message': 'Error en el formulario.',
                     'errors': form.errors
                 }, status=400)
-                
-        except json.JSONDecodeError as e:
+
+        except json.JSONDecodeError:
             return JsonResponse({
                 'success': False,
                 'message': 'Error al parsear los datos JSON.',
-                'error': str(e)
             }, status=400)
-        except Exception as e:
-            print(f"Exception: {str(e)}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
+            logger.exception("Error en SiteEditModalView")
             return JsonResponse({
                 'success': False,
                 'message': 'Error interno del servidor.',
-                'error': str(e)
             }, status=500)
 
 

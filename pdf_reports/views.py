@@ -3,7 +3,11 @@ from datetime import datetime
 from reg_txtss.models import RegTxtss
 from django.conf import settings
 from pathlib import Path
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from core.permissions import can_access_registro
 from core.models.google_maps import GoogleMapsImage
 from django.contrib.contenttypes.models import ContentType
 from widgets.report import get_registro_report_data
@@ -17,24 +21,6 @@ _EXIF_ORIENTATION_TAG = 0x0112
 _EXIF_SWAPPED_ORIENTATIONS = (5, 6, 7, 8)
 
 
-def _foto_orientation(path_str):
-    """Devuelve 'portrait' si alto > ancho, 'landscape' en cualquier otro caso.
-
-    Considera la orientación EXIF: una foto vertical suele guardarse con los
-    píxeles en horizontal + un tag de rotación, así que hay que intercambiar
-    ancho/alto antes de decidir.
-    """
-    try:
-        with PilImage.open(path_str) as img:
-            w, h = img.size
-            orientation = img.getexif().get(_EXIF_ORIENTATION_TAG, 1)
-            if orientation in _EXIF_SWAPPED_ORIENTATIONS:
-                w, h = h, w
-            return 'portrait' if h > w else 'landscape'
-    except Exception:
-        return 'landscape'
-
-
 # Lado máximo (px) al que se reduce cada foto antes de pasarla a WeasyPrint.
 # WeasyPrint decodifica las imágenes a su resolución NATIVA en RAM sin importar
 # el ancho CSS: una foto de 4032×3024 (~12 MP) ocupa ~48 MB decodificada. Con
@@ -43,26 +29,34 @@ def _foto_orientation(path_str):
 PDF_IMG_MAX_SIDE = 1600
 
 
-def _pdf_image_uri(path_str):
-    """Devuelve un file:// URI a una versión reducida y cacheada de la imagen.
+def _pdf_image_uri_and_orientation(path_str):
+    """Abre la imagen UNA sola vez y devuelve (file_uri, orientation).
 
-    Si la imagen ya es pequeña o falla el procesamiento, devuelve el original.
-    El cache vive en MEDIA_ROOT/pdf_cache/ para que el preview /media/ también lo sirva.
+    - file_uri: file:// a una versión reducida y cacheada (o el original si ya es
+      pequeña o falla el procesamiento). El cache vive en MEDIA_ROOT/pdf_cache/.
+    - orientation: 'portrait' si alto > ancho (considerando el tag EXIF), si no
+      'landscape'.
     """
     if not path_str:
-        return None
+        return None, 'landscape'
     try:
         src = Path(path_str)
         st = src.stat()
         with PilImage.open(src) as img:
             w, h = img.size
             orientation = img.getexif().get(_EXIF_ORIENTATION_TAG, 1)
+
+        # Orientación para el layout: una foto vertical suele guardarse con los
+        # píxeles en horizontal + tag de rotación → intercambiar ancho/alto.
+        ow, oh = (h, w) if orientation in _EXIF_SWAPPED_ORIENTATIONS else (w, h)
+        orient = 'portrait' if oh > ow else 'landscape'
+
         # WeasyPrint NO aplica la orientación EXIF: renderiza los píxeles tal cual.
         # Si la foto tiene un tag de rotación hay que reescribirla rotando los
         # píxeles, aunque sea pequeña; de lo contrario sale "hechada" en el PDF.
         needs_rotation = orientation not in (0, 1)
         if max(w, h) <= PDF_IMG_MAX_SIDE and not needs_rotation:
-            return src.as_uri()
+            return src.as_uri(), orient
 
         import hashlib
         cache_dir = Path(settings.MEDIA_ROOT) / 'pdf_cache'
@@ -79,12 +73,17 @@ def _pdf_image_uri(path_str):
                 img = img.convert('RGB')
                 img.thumbnail((PDF_IMG_MAX_SIDE, PDF_IMG_MAX_SIDE), PilImage.LANCZOS)
                 img.save(cached, 'JPEG', quality=85, optimize=True)
-        return cached.as_uri()
+        return cached.as_uri(), orient
     except Exception:
         try:
-            return Path(path_str).as_uri()
+            return Path(path_str).as_uri(), 'landscape'
         except Exception:
-            return None
+            return None, 'landscape'
+
+
+def _pdf_image_uri(path_str):
+    """Solo el file:// URI (para mapas u otros usos sin orientación)."""
+    return _pdf_image_uri_and_orientation(path_str)[0]
 
 
 def _get_fotos_pdf(registro, etapa, ct):
@@ -96,17 +95,17 @@ def _get_fotos_pdf(registro, etapa, ct):
     ).order_by('orden', '-created_at'):
         try:
             path_str = p.imagen.path
-            url = _pdf_image_uri(path_str)
+            url, orientation = _pdf_image_uri_and_orientation(path_str)
         except Exception:
-            path_str = None
             url = p.imagen.url if p.imagen else ''
+            orientation = 'landscape'
         fotos.append({
             'url': url,
             'descripcion': p.descripcion or '',
             'exif_datetime': p.exif_datetime.strftime('%d/%m/%Y %H:%M') if p.exif_datetime else None,
             'exif_lat': round(p.exif_lat, 6) if p.exif_lat is not None else None,
             'exif_lon': round(p.exif_lon, 6) if p.exif_lon is not None else None,
-            'orientation': _foto_orientation(path_str) if path_str else 'landscape',
+            'orientation': orientation,
         })
     return fotos
 
@@ -195,7 +194,7 @@ def convert_lon_to_dms(lon):
 
 
 
-class RegistroPDFView(WeasyTemplateView):
+class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
     template_name = 'reportes_txtss/txtss.html'
     pdf_attachment = False  # abre inline; el filename se usa al guardar
     pdf_options = {
@@ -204,6 +203,19 @@ class RegistroPDFView(WeasyTemplateView):
         'enable-local-file-access': True,
     }
     pdf_stylesheets = [str(Path(settings.BASE_DIR) / 'static/css/weasyprint.css')]
+
+    def dispatch(self, request, *args, **kwargs):
+        # Ownership a nivel de objeto: solo el dueño (o supermanager/visita)
+        # puede generar el PDF de un registro. Evita el IDOR anónimo previo.
+        # Para usuarios anónimos se delega en LoginRequiredMixin (redirect a login).
+        if request.user.is_authenticated:
+            registro_id = kwargs.get('registro_id')
+            registro = get_object_or_404(
+                RegTxtss.objects.select_related('sitio', 'user'), id=registro_id
+            )
+            if not can_access_registro(request.user, registro):
+                raise PermissionDenied('No tienes acceso a este registro.')
+        return super().dispatch(request, *args, **kwargs)
 
     def get_pdf_filename(self):
         import re
@@ -467,7 +479,14 @@ class RegistroPDFView(WeasyTemplateView):
         
         return fotos_list
 
+@login_required
 def preview_registro_individual(request, registro_id):
+    registro = get_object_or_404(
+        RegTxtss.objects.select_related('sitio', 'user'), id=registro_id
+    )
+    if not can_access_registro(request.user, registro):
+        raise PermissionDenied('No tienes acceso a este registro.')
+
     view = RegistroPDFView()
     view.kwargs = {'registro_id': registro_id}
     context = view.get_context_data()

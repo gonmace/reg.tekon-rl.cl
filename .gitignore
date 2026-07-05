@@ -11,10 +11,18 @@ staticfiles
 ArchivosBase
 .vscode/
 .env
+env.example
 db.sqlite3
 
 node_modules/
 media/
+logs/
 *.idea/
 venv/
 scripts/
+
+# Datos y artefactos que no deben versionarse (contienen PII / son pesados)
+backup_data.json
+repomix-output.xml
+*.xlsx
+source/*.xlsx

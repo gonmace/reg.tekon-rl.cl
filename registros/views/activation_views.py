@@ -10,6 +10,9 @@ from django.http import JsonResponse
 from registros.forms.activar import create_activar_registro_form
 from core.permissions import CoordOrAboveMixin
 from typing import Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class GenericActivarRegistroView(LoginRequiredMixin, CoordOrAboveMixin, FormView):
@@ -117,28 +120,21 @@ class GenericActivarRegistroView(LoginRequiredMixin, CoordOrAboveMixin, FormView
 
     def form_valid(self, form):
         try:
-            # Debug: imprimir los datos del formulario
-            print(f"Datos del formulario: {form.cleaned_data}")
-            
             # Verificar si ya existe un registro para este sitio, usuario y fecha
             sitio = form.cleaned_data['sitio']
             user = form.cleaned_data['user']
             fecha = form.cleaned_data['fecha']
-            
+
             # Validar que la fecha no esté vacía
             if not fecha:
                 from datetime import date
                 fecha = date.today()
-                print(f"Fecha vacía, usando fecha actual: {fecha}")
-            
+
             # Si no hay campo fecha en el formulario, usar fecha actual
             if 'fecha' not in form.cleaned_data:
                 from datetime import date
                 fecha = date.today()
-                print(f"No hay campo fecha en formulario, usando fecha actual: {fecha}")
-            
-            print(f"Sitio: {sitio}, User: {user}, Fecha: {fecha}")
-            
+
             existing_registro = self.registro_config.registro_model.objects.filter(
                 sitio=sitio, 
                 user=user,
@@ -192,11 +188,10 @@ class GenericActivarRegistroView(LoginRequiredMixin, CoordOrAboveMixin, FormView
                         registro_data['estructura'] = estructura
                     
                     registro = self.registro_config.registro_model.objects.create(**registro_data)
-                    print(f"Registro creado exitosamente: {registro}")
 
-                except Exception as save_error:
-                    print(f"Error al guardar: {save_error}")
-                    raise save_error
+                except Exception:
+                    logger.exception("Error al guardar el registro en la activación")
+                    raise
             
             messages.success(self.request, f'Registro activado exitosamente para {registro.sitio.name} - {registro.fecha.strftime("%d/%m/%Y")}')
             
@@ -209,19 +204,16 @@ class GenericActivarRegistroView(LoginRequiredMixin, CoordOrAboveMixin, FormView
                 })
             else:
                 return redirect(success_url)
-        except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            print(f"Error completo: {error_details}")
-            
+        except Exception:
+            logger.exception("Error activando el registro")
+
             if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({
                     'success': False,
-                    'message': f'Error al activar registro: {str(e)}',
-                    'details': error_details
+                    'message': 'Error al activar el registro. Intenta nuevamente.',
                 }, status=400)
             else:
-                messages.error(self.request, f'Error al activar registro: {str(e)}')
+                messages.error(self.request, 'Error al activar el registro. Intenta nuevamente.')
                 return self.form_invalid(form)
     
     def form_invalid(self, form):

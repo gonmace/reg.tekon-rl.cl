@@ -15,8 +15,11 @@ class RegistroBase(BaseModel):
     Modelo base para todos los registros.
     Cada aplicación específica debe heredar de esta clase.
     """
-    sitio = models.ForeignKey(Site, on_delete=models.CASCADE, verbose_name="Sitio")
-    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Usuario")
+    # PROTECT: impide borrar un sitio/usuario con registros asociados (evita la
+    # pérdida en cascada de datos de inspección). Las subclases con campos
+    # nullable pueden usar SET_NULL (p.ej. RegTxtss).
+    sitio = models.ForeignKey(Site, on_delete=models.PROTECT, verbose_name="Sitio")
+    user = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="Usuario")
     fecha = models.DateField(verbose_name="Fecha de registro", default=date.today)
     is_active = models.BooleanField(default=True, verbose_name="Activo")
     

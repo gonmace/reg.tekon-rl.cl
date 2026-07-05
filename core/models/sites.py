@@ -17,6 +17,7 @@ class Site(models.Model):
         choices=TIPO_SITIO_CHOICES,
         default=TORRE,
         verbose_name="Tipo de sitio",
+        db_index=True,
     )
     lat_man = models.FloatField(null=True, blank=True, verbose_name="Latitud Mandato")
     lon_man = models.FloatField(null=True, blank=True, verbose_name="Longitud Mandato")
@@ -25,8 +26,8 @@ class Site(models.Model):
     lat_con = models.FloatField(null=True, blank=True, verbose_name="Latitud Construcción")
     lon_con = models.FloatField(null=True, blank=True, verbose_name="Longitud Construcción")
     alt = models.IntegerField(null=True, blank=True, verbose_name="Altura (m)")
-    region = models.CharField(max_length=100, blank=True, null=True, verbose_name="Región")
-    comuna = models.CharField(max_length=100, blank=True, null=True, verbose_name="Comuna")
+    region = models.CharField(max_length=100, blank=True, null=True, verbose_name="Región", db_index=True)
+    comuna = models.CharField(max_length=100, blank=True, null=True, verbose_name="Comuna", db_index=True)
     is_deleted = models.BooleanField(default=False)
     history = HistoricalRecords()
 

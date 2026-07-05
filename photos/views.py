@@ -5,15 +5,43 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.core.exceptions import PermissionDenied
 from core.utils.breadcrumbs import BreadcrumbsMixin
-from core.permissions import NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin
+from core.permissions import NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin, registro_access_denied, can_access_registro
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 import json
 import os
+import logging
 from .models import Photos
 from django.apps import apps
 from django.http import Http404
+
+logger = logging.getLogger(__name__)
+
+# Validación de subida de imágenes
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tif', '.tiff'}
+MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB por archivo
+
+
+def validate_image_upload(file):
+    """Valida un archivo subido como imagen real (no confía en content_type,
+    que lo fija el cliente). Devuelve (ok: bool, mensaje_error: str)."""
+    ext = os.path.splitext(file.name or '')[1].lower()
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        return False, f'Extensión no permitida: {ext or "sin extensión"}'
+    if file.size and file.size > MAX_UPLOAD_SIZE:
+        return False, 'El archivo supera el tamaño máximo permitido (25 MB)'
+    try:
+        from PIL import Image
+        file.seek(0)
+        Image.open(file).verify()  # falla si el contenido no es una imagen válida
+    except Exception:
+        return False, 'El archivo no es una imagen válida'
+    finally:
+        file.seek(0)
+    return True, ''
+
 
 # Diccionario global para almacenar templates personalizados
 PHOTOS_TEMPLATES = {}
@@ -156,7 +184,7 @@ def get_params_from_request(request, **kwargs):
     }
 
 
-class ListPhotosView(BreadcrumbsMixin, ListView):
+class ListPhotosView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
     model = Photos
     context_object_name = 'photos'
     template_name = 'widgets/camera_widget_page.html'
@@ -242,6 +270,10 @@ class ListPhotosView(BreadcrumbsMixin, ListView):
         if not registro:
             raise Http404("Registro no encontrado")
 
+        # Ownership a nivel de objeto: no exponer fotos ni GPS de registros ajenos.
+        if not can_access_registro(self.request.user, registro):
+            raise PermissionDenied('No tienes acceso a este registro.')
+
         if step_name == 'sitio':
             model_class = type(registro)
             object_id = registro.id
@@ -288,15 +320,6 @@ class ListPhotosView(BreadcrumbsMixin, ListView):
                 etapa=etapa,
                 content_type=registro_content_type
             )
-        
-        # Debug: imprimir información para diagnóstico
-        print(f"DEBUG - ListPhotosView.get_queryset:")
-        print(f"  app: {registro._meta.app_label}")
-        print(f"  object_id: {object_id}")
-        print(f"  etapa: {etapa}")
-        print(f"  step_name: {step_name}")
-        print(f"  registro_id: {registro_id}")
-        print(f"  queryset count: {queryset.count()}")
         
         return queryset
 
@@ -400,6 +423,9 @@ class UploadPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
                     'success': False,
                     'message': f'Registro con ID {registro_id} no encontrado'
                 }, status=400)
+            denied = registro_access_denied(request, registro)
+            if denied:
+                return denied
             files = request.FILES.getlist('photos')
             if not files:
                 return JsonResponse({
@@ -439,7 +465,8 @@ class UploadPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
                 app_name = get_app_name_from_request(request, registro)
             photos_creadas = []
             for file in files:
-                if file.content_type.startswith('image/'):
+                ok, _error = validate_image_upload(file)
+                if ok:
                     photo = Photos.objects.create(
                         imagen=file,
                         descripcion=descripcion,
@@ -448,8 +475,7 @@ class UploadPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
                         object_id=object_id,
                         etapa=step_name
                     )
-                    # Recargar para obtener EXIF extraído en save()
-                    photo.refresh_from_db()
+                    # save() ya deja file_size/EXIF/thumbnail en la instancia
                     photos_creadas.append({
                         'id': photo.id,
                         'url': photo.imagen.url,
@@ -469,13 +495,11 @@ class UploadPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
                 'photos': photos_creadas,
                 'message': f'Se subieron {len(photos_creadas)} fotos correctamente'
             })
-        except Exception as e:
-            import traceback
-            print(f"Error en UploadPhotosView: {str(e)}")
-            print(traceback.format_exc())
+        except Exception:
+            logger.exception("Error en UploadPhotosView")
             return JsonResponse({
                 'success': False,
-                'message': f'Error al subir fotos: {str(e)}'
+                'message': 'Error al subir las fotos. Intenta nuevamente.'
             }, status=400)
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -495,6 +519,9 @@ class UpdatePhotoView(LoginRequiredMixin, ItoLikeMixin, View):
             registro = get_registro_from_id(registro_id)
             if not registro:
                 return JsonResponse({'success': False, 'message': 'Registro no encontrado'}, status=404)
+            denied = registro_access_denied(request, registro)
+            if denied:
+                return denied
             if not app_name:
                 app_name = get_app_name_from_request(request, registro)
             if step_name == 'sitio':
@@ -535,8 +562,7 @@ class UpdatePhotoView(LoginRequiredMixin, ItoLikeMixin, View):
         except Exception as e:
             return JsonResponse({'success': False, 'message': f'Error al actualizar: {str(e)}'}, status=400)
 
-@method_decorator(csrf_exempt, name='dispatch')
-class ReorderPhotosView(View):
+class ReorderPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
     def post(self, request, registro_id=None, paso_nombre=None, app_name=None, step_name=None):
         # Obtener parámetros desde la request
         params = get_params_from_request(request, registro_id=registro_id, paso_nombre=paso_nombre, app_name=app_name, step_name=step_name)
@@ -549,6 +575,9 @@ class ReorderPhotosView(View):
             registro = get_registro_from_id(registro_id)
             if not registro:
                 return JsonResponse({'success': False, 'message': 'Registro no encontrado'}, status=404)
+            denied = registro_access_denied(request, registro)
+            if denied:
+                return denied
             if not app_name:
                 app_name = get_app_name_from_request(request, registro)
             if step_name == 'sitio':
