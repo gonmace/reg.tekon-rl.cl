@@ -23,14 +23,25 @@ class UbicacionWidget(FormWidget):
     def completeness(self, data):
         lat = data.get("lat") or data.get("latitud")
         lon = data.get("lon") or data.get("longitud")
-        return 3 if (lat and lon) else 1
+        if not (lat and lon):
+            return 1
+        try:
+            float(lat)
+            float(lon)
+        except (TypeError, ValueError):
+            return 1
+        return 3
 
     def to_display(self, data, config):
         lat = data.get("lat") or data.get("latitud")
         lon = data.get("lon") or data.get("longitud")
         accuracy = data.get("accuracy")
-        coords_str = f"{float(lat):.6f}, {float(lon):.6f}" if (lat and lon) else "Sin capturar"
-        maps_url = f"https://maps.google.com/?q={lat},{lon}" if (lat and lon) else None
+        try:
+            lat_f, lon_f = (float(lat), float(lon)) if (lat and lon) else (None, None)
+        except (TypeError, ValueError):
+            lat_f = lon_f = None
+        coords_str = f"{lat_f:.6f}, {lon_f:.6f}" if lat_f is not None else "Sin capturar"
+        maps_url = f"https://maps.google.com/?q={lat_f},{lon_f}" if lat_f is not None else None
         return {
             "label": config.get("label", "Ubicación GPS"),
             "lat": lat,
