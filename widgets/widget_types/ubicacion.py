@@ -44,12 +44,24 @@ class UbicacionWidget(FormWidget):
     def compute_derived(self, paso_datos, registro):
         lat = paso_datos.get("lat") or paso_datos.get("latitud")
         lon = paso_datos.get("lon") or paso_datos.get("longitud")
-        sitio = getattr(registro, "sitio", None)
-        lat_man = getattr(sitio, "lat_man", None) if sitio else None
-        lon_man = getattr(sitio, "lon_man", None) if sitio else None
-        if not (lat and lon and lat_man and lon_man):
+        if not (lat and lon):
             return {}
-        d = calcular_distancia_geopy(lat_man, lon_man, lat, lon)
+
+        # Punto de referencia: por defecto el Mandato del sitio, salvo que el
+        # widget mapa_2_puntos de este mismo paso indique otro paso1 (ver
+        # _compute_paso_derived en actividades/views.py).
+        ref_lat = paso_datos.get("_referencia_lat")
+        ref_lon = paso_datos.get("_referencia_lon")
+        ref_label = paso_datos.get("_referencia_label")
+        if not (ref_lat and ref_lon):
+            sitio = getattr(registro, "sitio", None)
+            ref_lat = getattr(sitio, "lat_man", None) if sitio else None
+            ref_lon = getattr(sitio, "lon_man", None) if sitio else None
+            ref_label = "Mandato"
+
+        if not (ref_lat and ref_lon):
+            return {}
+        d = calcular_distancia_geopy(ref_lat, ref_lon, lat, lon)
         if d is None:
             return {}
         d_rounded = round(d, 1)
@@ -58,5 +70,5 @@ class UbicacionWidget(FormWidget):
         return {
             "distancia_mandato_metros": d_rounded,
             "distancia_mandato_str": dist_str,
-            "distancia_mandato_label": f"Mandato → {paso_titulo}",
+            "distancia_mandato_label": f"{ref_label} → {paso_titulo}",
         }

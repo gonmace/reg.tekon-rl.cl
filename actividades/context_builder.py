@@ -17,7 +17,7 @@ def rebuild_contexto(registro):
     from actividades.models import TipoActividad, DatoPaso, ContextoRegistro
     from widgets.registry import get_widget
 
-    tipo = _get_tipo_actividad(registro)
+    tipo = get_tipo_actividad(registro)
     if not tipo:
         return
 
@@ -71,7 +71,7 @@ def rebuild_contexto(registro):
     )
 
 
-def _get_tipo_actividad(registro):
+def get_tipo_actividad(registro):
     """
     Resuelve el TipoActividad para cualquier tipo de registro.
     Soporta registros con tipo_sitio (como RegTxtss) usando namespace específico.

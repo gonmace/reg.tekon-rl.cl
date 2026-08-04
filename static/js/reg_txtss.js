@@ -673,23 +673,53 @@ function flashRow(id) {
 })();
 
 // ── Modal de opciones PDF ─────────────────────────────────────────────────────
+// Genérico: por cada sección con fotos del registro (las hardcodeadas de
+// postes y cualquier paso con imgs_desc/camera_widget en torres) se pide al
+// backend su label y se arma un selector "1/2 por fila". Cada sección tiene
+// key == nombre de paso (o 'poste'/'imagenes'); el radio se manda como
+// cols_<key> en la URL del PDF.
 (function initPdfModal() {
     const modal = document.getElementById('reg-txtss-pdf-modal');
     if (!modal) return;
+    const seccionesEl = document.getElementById('reg-txtss-pdf-secciones');
 
     let currentRegistroId = null;
+
+    function seccionHtml(seccion) {
+        const key = seccion.key;
+        return `
+            <p class="text-sm font-medium mb-2">${seccion.label}</p>
+            <div class="flex gap-4 mb-4">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="cols-${key}" value="1" class="radio radio-sm radio-primary">
+                <span class="text-sm">1 por fila</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="cols-${key}" value="2" class="radio radio-sm radio-primary" checked>
+                <span class="text-sm">2 por fila</span>
+              </label>
+            </div>`;
+    }
 
     document.addEventListener('click', function (e) {
         const btn = e.target.closest('.reg-txtss-pdf-btn');
         if (!btn) return;
 
         currentRegistroId = btn.dataset.id;
-
-        // Resetear radios a los valores por defecto (2 por fila)
-        modal.querySelectorAll('input[name="poste-cols"]').forEach(r => { r.checked = r.value === '2'; });
-        modal.querySelectorAll('input[name="imagenes-cols"]').forEach(r => { r.checked = r.value === '2'; });
-
+        seccionesEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>';
         modal.showModal();
+
+        fetch(`/reg_txtss/api/registros/${currentRegistroId}/pdf-secciones-fotos/`)
+            .then(r => r.json())
+            .then(data => {
+                const secciones = data.secciones || [];
+                seccionesEl.innerHTML = secciones.length
+                    ? secciones.map(seccionHtml).join('')
+                    : '<p class="text-sm text-base-content/60 mb-2">Este registro no tiene fotos.</p>';
+            })
+            .catch(() => {
+                seccionesEl.innerHTML = '<p class="text-sm text-error mb-2">No se pudieron cargar las secciones de fotos.</p>';
+            });
     });
 
     document.getElementById('reg-txtss-pdf-cancel')?.addEventListener('click', function () {
@@ -698,9 +728,12 @@ function flashRow(id) {
 
     document.getElementById('reg-txtss-pdf-generar')?.addEventListener('click', function () {
         if (!currentRegistroId) return;
-        const posteCols = modal.querySelector('input[name="poste-cols"]:checked')?.value || '2';
-        const imagenesCols = modal.querySelector('input[name="imagenes-cols"]:checked')?.value || '2';
-        const url = `/reg_txtss/pdf/${currentRegistroId}/?poste_cols=${posteCols}&imagenes_cols=${imagenesCols}`;
+        const params = new URLSearchParams();
+        seccionesEl.querySelectorAll('input[type="radio"]:checked').forEach(function (input) {
+            const key = input.name.replace(/^cols-/, '');
+            params.set(`cols_${key}`, input.value);
+        });
+        const url = `/reg_txtss/pdf/${currentRegistroId}/?${params.toString()}`;
         window.open(url, '_blank');
         modal.close();
     });

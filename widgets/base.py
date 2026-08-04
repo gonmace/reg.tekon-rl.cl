@@ -27,6 +27,13 @@ class WidgetBase:
         """
         return 0 if not data else 3
 
+    def completeness_with_config(self, data: dict, config: dict) -> int:
+        """
+        Nivel 0-3 para widgets cuyos campos se definen en config (ej. form_dinamico_widget).
+        Default: delega en completeness(data), ignorando config.
+        """
+        return self.completeness(data)
+
     def to_display(self, data: dict, config: dict) -> dict:
         """
         Convierte datos guardados en DatoPaso a formato legible para PDF/informe.
@@ -53,5 +60,5 @@ class WidgetBase:
             "raw": datos,
             "display": self.to_display(datos, config),
             "computed": self.compute_derived(datos, registro),
-            "level": self.completeness(datos),
+            "level": self.completeness_with_config(datos, config),
         }

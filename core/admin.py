@@ -31,18 +31,14 @@ class RegistroAdmin(admin.ModelAdmin):
 admin.site.register(Registro, RegistroAdmin)
 
 class AppSettingsAdmin(admin.ModelAdmin):
-    list_display = ('app_name', 'google_maps_api_key', 'last_apk_version', 'created_at')
-    list_editable = ('google_maps_api_key', 'last_apk_version')
+    list_display = ('app_name', 'last_apk_version', 'created_at')
+    list_editable = ('last_apk_version',)
     search_fields = ('app_name',)
     readonly_fields = ('created_at', 'updated_at')
-    
+
     fieldsets = (
         ('Información General', {
             'fields': ('app_name', 'logo')
-        }),
-        ('Google Maps', {
-            'fields': ('google_maps_api_key',),
-            'description': 'Configura la API key de Google Maps para generar imágenes de mapas estáticos.'
         }),
         ('APK', {
             'fields': ('app_apk', 'last_apk_version'),

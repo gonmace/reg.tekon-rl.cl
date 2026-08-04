@@ -189,6 +189,8 @@ else:
 
 SITE_URL = config('SITE_URL', default='http://localhost:8000')
 
+GOOGLE_MAPS_API_KEY = config('GOOGLE_MAPS_API_KEY', default='')
+
 # ── Seguridad ─────────────────────────────────────────────────────────────────
 
 CSRF_COOKIE_SECURE = not DEBUG

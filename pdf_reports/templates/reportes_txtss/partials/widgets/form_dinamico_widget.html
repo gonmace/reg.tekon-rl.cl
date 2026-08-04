@@ -1,0 +1,8 @@
+{% if display.campos %}
+{% if display.label_explicito %}<h3>{{ display.label }}</h3>{% endif %}
+<table class="datos-2col">
+  {% for c in display.campos %}
+  <tr><th>{{ c.label }}:</th><td>{{ c.valor|linebreaksbr }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}

@@ -7,6 +7,8 @@ urlpatterns = [
     path('', views.catalog, name='catalog'),
     path('preview/<slug:slug>/', views.preview, name='preview'),
     path('icon/<slug:slug>/', views.icon_view, name='icon'),
+    path('api/imagenes/', views.ImagenEjemploApiView.as_view(), name='imagenes_api'),
+    path('api/imagenes/<slug:slug>/', views.ImagenEjemploDetailApiView.as_view(), name='imagenes_api_detail'),
 
     # Endpoints de fotos para pruebas del catálogo (solo dev)
     path('dev/photos/', views.DevPhotoListView.as_view(), name='dev_photo_list'),

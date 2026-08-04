@@ -105,7 +105,8 @@
           <button id="btn-pdf"
                   class="btn btn-sm text-white {% if not concluido %}btn-disabled opacity-40 pointer-events-none{% endif %}"
                   style="background-color:#dc2626;border-color:#b91c1c;" title="Generar PDF"
-                  data-pdf-url="{{ pdf_url }}">
+                  data-pdf-url="{{ pdf_url }}"
+                  data-registro-id="{{ registro.id }}">
             <i class="fa-solid fa-file-pdf"></i>
             PDF
           </button>
@@ -136,27 +137,10 @@
 <dialog id="modal-pdf-opciones" class="modal">
   <div class="modal-box max-w-sm">
     <h3 class="font-bold text-lg mb-4">Opciones de PDF</h3>
-    <p class="text-sm font-medium mb-2">Registro Fotográfico del Poste</p>
-    <div class="flex gap-4 mb-4">
-      <label class="flex items-center gap-2 cursor-pointer">
-        <input type="radio" name="pdf-poste-cols" value="1" class="radio radio-sm radio-primary">
-        <span class="text-sm">1 por fila</span>
-      </label>
-      <label class="flex items-center gap-2 cursor-pointer">
-        <input type="radio" name="pdf-poste-cols" value="2" class="radio radio-sm radio-primary" checked>
-        <span class="text-sm">2 por fila</span>
-      </label>
-    </div>
-    <p class="text-sm font-medium mb-2">Imágenes de Cobertura</p>
-    <div class="flex gap-4 mb-6">
-      <label class="flex items-center gap-2 cursor-pointer">
-        <input type="radio" name="pdf-imagenes-cols" value="1" class="radio radio-sm radio-primary">
-        <span class="text-sm">1 por fila</span>
-      </label>
-      <label class="flex items-center gap-2 cursor-pointer">
-        <input type="radio" name="pdf-imagenes-cols" value="2" class="radio radio-sm radio-primary" checked>
-        <span class="text-sm">2 por fila</span>
-      </label>
+    <!-- Poblado dinámicamente: un selector "1/2 por fila" por cada sección
+         con fotos del registro (ver más abajo, modal opciones PDF). -->
+    <div id="modal-pdf-secciones" class="mb-2">
+      <span class="loading loading-spinner loading-sm"></span>
     </div>
     <div class="modal-action">
       <button id="modal-pdf-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
@@ -357,14 +341,47 @@ if (toggleConcluido && modalConcluido) {
 }
 
 // ── Modal opciones PDF ────────────────────────────────────────────────────────
+// Genérico: pide al backend las secciones con fotos del registro (las
+// hardcodeadas de postes y cualquier paso con imgs_desc/camera_widget en
+// torres) y arma un selector "1/2 por fila" por cada una. Cada sección tiene
+// key == nombre de paso (o 'poste'/'imagenes'); el radio se manda como
+// cols_<key> en la URL del PDF.
 const modalPdfOpciones = document.getElementById('modal-pdf-opciones');
 const btnPdfEl = document.getElementById('btn-pdf');
+const modalPdfSeccionesEl = document.getElementById('modal-pdf-secciones');
 if (modalPdfOpciones && btnPdfEl) {
+    function pdfSeccionHtml(seccion) {
+        const key = seccion.key;
+        return `
+            <p class="text-sm font-medium mb-2">${seccion.label}</p>
+            <div class="flex gap-4 mb-4">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="cols-${key}" value="1" class="radio radio-sm radio-primary">
+                <span class="text-sm">1 por fila</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="cols-${key}" value="2" class="radio radio-sm radio-primary" checked>
+                <span class="text-sm">2 por fila</span>
+              </label>
+            </div>`;
+    }
+
     btnPdfEl.addEventListener('click', function () {
-        // Resetear radios a valores por defecto (2 por fila)
-        modalPdfOpciones.querySelectorAll('input[name="pdf-poste-cols"]').forEach(r => { r.checked = r.value === '2'; });
-        modalPdfOpciones.querySelectorAll('input[name="pdf-imagenes-cols"]').forEach(r => { r.checked = r.value === '2'; });
+        modalPdfSeccionesEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>';
         modalPdfOpciones.showModal();
+
+        const registroId = btnPdfEl.dataset.registroId;
+        fetch(`/reg_txtss/api/registros/${registroId}/pdf-secciones-fotos/`)
+            .then(r => r.json())
+            .then(data => {
+                const secciones = data.secciones || [];
+                modalPdfSeccionesEl.innerHTML = secciones.length
+                    ? secciones.map(pdfSeccionHtml).join('')
+                    : '<p class="text-sm text-base-content/60 mb-2">Este registro no tiene fotos.</p>';
+            })
+            .catch(() => {
+                modalPdfSeccionesEl.innerHTML = '<p class="text-sm text-error mb-2">No se pudieron cargar las secciones de fotos.</p>';
+            });
     });
 
     document.getElementById('modal-pdf-cancel').addEventListener('click', function () {
@@ -373,9 +390,12 @@ if (modalPdfOpciones && btnPdfEl) {
 
     document.getElementById('modal-pdf-generar').addEventListener('click', function () {
         const basePdfUrl = btnPdfEl.dataset.pdfUrl;
-        const posteCols = modalPdfOpciones.querySelector('input[name="pdf-poste-cols"]:checked')?.value || '2';
-        const imagenesCols = modalPdfOpciones.querySelector('input[name="pdf-imagenes-cols"]:checked')?.value || '2';
-        window.open(`${basePdfUrl}?poste_cols=${posteCols}&imagenes_cols=${imagenesCols}`, '_blank');
+        const params = new URLSearchParams();
+        modalPdfSeccionesEl.querySelectorAll('input[type="radio"]:checked').forEach(function (input) {
+            const key = input.name.replace(/^cols-/, '');
+            params.set(`cols_${key}`, input.value);
+        });
+        window.open(`${basePdfUrl}?${params.toString()}`, '_blank');
         modalPdfOpciones.close();
     });
 }

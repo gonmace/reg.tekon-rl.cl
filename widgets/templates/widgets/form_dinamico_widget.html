@@ -1,0 +1,200 @@
+{% comment %}
+widgets/form_dinamico_widget.html
+Formulario configurable: los campos (texto, textarea, toggle, número, fecha, select)
+se definen en la config del paso, sin escribir código. Cada campo puede tener su
+propia imagen de ejemplo, mostrada como ayuda justo debajo de ese campo.
+Sin submit propio — debe estar dentro de un form externo.
+
+Nombre:
+  Formulario Dinámico
+
+Tipo:
+  form
+
+Uso:
+  include 'widgets/form_dinamico_widget.html'
+
+Config:
+  campos — un campo por línea: nombre | tipo | etiqueta | opciones o placeholder | * | imagen | ayuda (ej: ancho | number | Ancho (m) | | * | ejemplo-ancho-poste | Medir con huincha)
+  label — título mostrado sobre el formulario, default "Formulario Dinámico"
+
+Estados:
+  0 — Sin campos configurados
+  1 — Sin datos
+  2 — Datos parciales
+  3 — Todos los campos completos
+{% endcomment %}
+{% load widget_tags %}
+{% campos_dinamicos campos datos as lista %}
+
+<div class="form-dinamico-widget flex flex-col gap-4">
+
+  <p class="text-sm font-semibold text-base-content/60 flex items-center gap-2">
+    <i class="fa-solid fa-list-check text-primary"></i>
+    {{ label|default:"Formulario Dinámico" }}
+  </p>
+
+  {% if not lista %}
+  <p class="text-sm text-base-content/40 italic">Este widget no tiene campos configurados.</p>
+  {% endif %}
+
+  {% for c in lista %}
+    {% if c.tipo == 'toggle' %}
+      <div>
+        <label class="label cursor-pointer justify-start gap-3 py-1" for="id_{{ c.nombre }}">
+          <input type="checkbox" name="{{ c.nombre }}" id="id_{{ c.nombre }}"
+                 class="toggle toggle-success toggle-sm" {% if c.checked %}checked{% endif %} />
+          <span class="label-text text-sm">{{ c.label }}</span>
+        </label>
+        {% if c.ayuda %}<p class="text-xs text-base-content/50 ml-1">{{ c.ayuda }}</p>{% endif %}
+        {% if c.img %}
+          <button type="button" class="fd-ejemplo-trigger flex items-center gap-2 mt-1 ml-1 text-left"
+                  data-img-url="{{ c.img.url }}">
+            <img src="{{ c.img.url }}" alt="{{ c.img.nombre }}"
+                 class="w-10 h-10 object-cover rounded cursor-zoom-in shrink-0 sombra" />
+            <span class="text-xs text-base-content/50">
+              <i class="fa-solid fa-magnifying-glass-plus text-primary"></i>
+              Ver ejemplo{% if c.img.descripcion %}: {{ c.img.descripcion }}{% endif %}
+            </span>
+          </button>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="form-control">
+        <label class="label pb-1" for="id_{{ c.nombre }}">
+          <span class="label-text text-sm">
+            {{ c.label }}
+            {% if c.required %}<span class="text-error">*</span>
+            {% else %}<span class="text-base-content/40 text-xs ml-1">(opcional)</span>{% endif %}
+          </span>
+        </label>
+
+        {% if c.tipo == 'textarea' %}
+          <textarea name="{{ c.nombre }}" id="id_{{ c.nombre }}" rows="3"
+                    {% if c.placeholder %}placeholder="{{ c.placeholder }}"{% endif %}
+                    class="textarea textarea-bordered w-full">{{ c.value }}</textarea>
+        {% elif c.tipo == 'select' %}
+          <select name="{{ c.nombre }}" id="id_{{ c.nombre }}" class="select select-bordered w-full">
+            <option value="">Seleccionar…</option>
+            {% for op in c.opciones %}
+              <option value="{{ op }}" {% if c.value == op %}selected{% endif %}>{{ op }}</option>
+            {% endfor %}
+          </select>
+        {% elif c.tipo == 'number' %}
+          <input type="number" step="any" name="{{ c.nombre }}" id="id_{{ c.nombre }}"
+                 value="{{ c.value }}" {% if c.placeholder %}placeholder="{{ c.placeholder }}"{% endif %}
+                 class="input input-bordered w-full" />
+        {% elif c.tipo == 'date' %}
+          <input type="date" name="{{ c.nombre }}" id="id_{{ c.nombre }}"
+                 value="{{ c.value }}" class="input input-bordered w-full" />
+        {% else %}
+          <input type="text" name="{{ c.nombre }}" id="id_{{ c.nombre }}"
+                 value="{{ c.value }}" {% if c.placeholder %}placeholder="{{ c.placeholder }}"{% endif %}
+                 class="input input-bordered w-full" />
+        {% endif %}
+
+        {% if c.ayuda %}<p class="text-xs text-base-content/50 mt-1">{{ c.ayuda }}</p>{% endif %}
+        {% if c.img %}
+          <button type="button" class="fd-ejemplo-trigger flex items-center gap-2 mt-1.5 text-left"
+                  data-img-url="{{ c.img.url }}">
+            <img src="{{ c.img.url }}" alt="{{ c.img.nombre }}"
+                 class="w-10 h-10 object-cover rounded cursor-zoom-in shrink-0 sombra" />
+            <span class="text-xs text-base-content/50">
+              <i class="fa-solid fa-magnifying-glass-plus text-primary"></i>
+              Ver ejemplo{% if c.img.descripcion %}: {{ c.img.descripcion }}{% endif %}
+            </span>
+          </button>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+
+  {{ lista|json_script:"fd-campos-data" }}
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var _lightbox = (function () {
+    var overlay = document.createElement('div');
+    overlay.className = 'hidden fixed inset-0 bg-black/85 z-[9999] cursor-zoom-out items-center justify-center';
+    var img = document.createElement('img');
+    img.className = 'max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl object-contain';
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function () {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      img.src = '';
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+      }
+    });
+    return {
+      open: function (src) {
+        img.src = src;
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+      }
+    };
+  })();
+
+  // Un toggle nunca tocado se ve igual (sin marcar) que uno guardado en False.
+  // 'touchedToggles' distingue ambos casos, espejando 'answered' del lado Python
+  // (widgets/widget_types/form_dinamico.py::completeness_with_config).
+  function computeLevel(widget, campos, touchedToggles) {
+    var total = campos.length;
+    if (total === 0) return 0;
+    var filled = 0;
+    campos.forEach(function (c) {
+      if (c.tipo === 'toggle') {
+        if (touchedToggles[c.nombre]) filled++;
+        return;
+      }
+      var el = widget.querySelector('[name="' + c.nombre + '"]');
+      if (el && el.value.trim() !== '') filled++;
+    });
+    if (filled === 0) return 1;
+    return filled === total ? 3 : 2;
+  }
+
+  function init(widget) {
+    widget.dataset.initialized = 'true';
+
+    var dataEl = widget.querySelector('script[type="application/json"]');
+    var campos = [];
+    try { campos = JSON.parse(dataEl ? dataEl.textContent : '[]'); } catch (e) {}
+
+    var touchedToggles = {};
+    campos.forEach(function (c) {
+      if (c.tipo === 'toggle' && c.answered) touchedToggles[c.nombre] = true;
+    });
+
+    function emit() {
+      window.parent.postMessage({ type: 'widget-state', level: computeLevel(widget, campos, touchedToggles) }, '*');
+    }
+
+    campos.forEach(function (c) {
+      var el = widget.querySelector('[name="' + c.nombre + '"]');
+      if (!el) return;
+      if (c.tipo === 'toggle') {
+        el.addEventListener('change', function () { touchedToggles[c.nombre] = true; emit(); });
+      } else {
+        el.addEventListener(c.tipo === 'select' ? 'change' : 'input', emit);
+      }
+    });
+
+    widget.querySelectorAll('.fd-ejemplo-trigger').forEach(function (trigger) {
+      trigger.addEventListener('click', function () { _lightbox.open(trigger.dataset.imgUrl); });
+    });
+
+    emit();
+  }
+
+  document.querySelectorAll('.form-dinamico-widget:not([data-initialized])').forEach(init);
+})();
+</script>

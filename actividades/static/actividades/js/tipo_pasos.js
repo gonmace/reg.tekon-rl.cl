@@ -150,12 +150,13 @@
 
     function makeOrderChip(slug) {
         var iconClass = (cfg.widgetIconMap || {})[slug] || 'fa-solid fa-puzzle-piece';
+        var label = (cfg.widgetNameMap || {})[slug] || slugLabel(slug);
         var chip = document.createElement('div');
         chip.className = 'order-chip badge badge-lg badge-primary gap-2 cursor-grab select-none px-3 py-3';
         chip.draggable = true;
         chip.dataset.slug = slug;
         chip.innerHTML = '<i class="' + iconClass + ' text-xs pointer-events-none"></i>'
-            + '<span class="text-sm pointer-events-none">' + slugLabel(slug) + '</span>';
+            + '<span class="text-sm pointer-events-none">' + label + '</span>';
 
         chip.addEventListener('dragstart', function (e) {
             draggingChip = chip;
@@ -208,17 +209,154 @@
         updateOrderEmpty();
     }
 
-    // ── Config fields toggle (también actualiza chips) ───────────────
+    // ── Config fields: colapsado por defecto, solo visible si el widget
+    //    está seleccionado Y el admin lo expandió explícitamente ─────────
+    function updateConfigVisibility(wrap) {
+        var cb = wrap.querySelector('.widget-checkbox');
+        var configDiv = wrap.querySelector('.widget-config-fields');
+        var toggleBtn = wrap.querySelector('.tp-config-toggle');
+        if (toggleBtn) toggleBtn.classList.toggle('hidden', !cb.checked);
+        if (!configDiv) return;
+        var expanded = wrap.dataset.expanded === 'true';
+        configDiv.classList.toggle('hidden', !(cb.checked && expanded));
+        if (toggleBtn) {
+            var icon = toggleBtn.querySelector('i');
+            icon.classList.toggle('fa-chevron-right', !expanded);
+            icon.classList.toggle('fa-chevron-down', expanded);
+        }
+    }
+
     function toggleConfigFields(cb) {
         var wrap = cb.closest('.widget-option-wrap');
         if (!wrap) return;
-        var configDiv = wrap.querySelector('.widget-config-fields');
-        if (configDiv) configDiv.classList.toggle('hidden', !cb.checked);
+        updateConfigVisibility(wrap);
         if (cb.checked) { addChip(cb.value); } else { removeChip(cb.value); }
     }
 
     widgetModal && widgetModal.querySelectorAll('.widget-checkbox').forEach(function (cb) {
         cb.addEventListener('change', function () { toggleConfigFields(cb); });
+    });
+
+    widgetModal && widgetModal.querySelectorAll('.tp-config-toggle').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var wrap = btn.closest('.widget-option-wrap');
+            if (!wrap) return;
+            wrap.dataset.expanded = wrap.dataset.expanded === 'true' ? 'false' : 'true';
+            updateConfigVisibility(wrap);
+        });
+    });
+
+    // ── Helper de imágenes de ejemplo (form_dinamico_widget) ─────────
+    function renderImagenesChips(list, imagenes, reload) {
+        list.innerHTML = '';
+        if (!imagenes.length) {
+            list.innerHTML = '<span class="text-xs text-base-content/30 italic">Sin imágenes todavía</span>';
+            return;
+        }
+        imagenes.forEach(function (img) {
+            var chip = document.createElement('div');
+            chip.className = 'flex items-center gap-1 border border-base-300 rounded-lg pl-1.5 pr-0.5 py-0.5 hover:border-primary transition-colors';
+            chip.title = img.descripcion || img.nombre;
+
+            var copyBtn = document.createElement('button');
+            copyBtn.type = 'button';
+            copyBtn.className = 'flex items-center gap-1.5';
+            copyBtn.innerHTML = '<img src="' + img.url + '" class="w-6 h-6 object-cover rounded">'
+                + '<span class="text-xs font-mono">' + img.slug + '</span>';
+            copyBtn.addEventListener('click', function () {
+                navigator.clipboard.writeText(img.slug).then(function () {
+                    window.Alert && window.Alert.success('Slug copiado: ' + img.slug, { autoHide: 1500 });
+                });
+            });
+
+            var delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'btn btn-ghost btn-xs btn-circle text-error';
+            delBtn.title = 'Eliminar imagen';
+            delBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+            delBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var msg = img.en_uso
+                    ? 'Esta imagen está en uso en ' + img.en_uso + ' campo(s) ya configurado(s) — dejarán de mostrarla. ¿Eliminarla igual?'
+                    : '¿Eliminar la imagen "' + img.nombre + '"?';
+                window.Alert && window.Alert.confirm(msg, function () {
+                    fetch(cfg.imagenesApiUrl + img.slug + '/', {
+                        method: 'DELETE',
+                        headers: { 'X-CSRFToken': cfg.csrfToken },
+                    })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data.success) {
+                            reload();
+                            window.Alert && window.Alert.success('Imagen eliminada', { autoHide: 2000 });
+                        } else {
+                            window.Alert && window.Alert.error(data.message || 'Error al eliminar.', { autoHide: 0, dismissible: true });
+                        }
+                    })
+                    .catch(function () {
+                        window.Alert && window.Alert.error('Error de conexión.', { autoHide: 0, dismissible: true });
+                    });
+                });
+            });
+
+            chip.appendChild(copyBtn);
+            chip.appendChild(delBtn);
+            list.appendChild(chip);
+        });
+    }
+
+    document.querySelectorAll('[data-imagenes-helper]').forEach(function (helper) {
+        if (!cfg.imagenesApiUrl) return;
+        var list       = helper.querySelector('.fd-imagenes-list');
+        var nombreInp  = helper.querySelector('.fd-img-nombre');
+        var fileInp    = helper.querySelector('.fd-img-file');
+        var uploadBtn  = helper.querySelector('.fd-img-upload-btn');
+
+        function reload() {
+            fetch(cfg.imagenesApiUrl)
+                .then(function (r) { return r.json(); })
+                .then(function (data) { renderImagenesChips(list, data.imagenes || [], reload); })
+                .catch(function () {});
+        }
+        reload();
+
+        uploadBtn.addEventListener('click', function () {
+            var nombre = nombreInp.value.trim();
+            var file = fileInp.files[0];
+            if (!nombre || !file) {
+                window.Alert && window.Alert.error('Nombre e imagen son requeridos', { autoHide: 2500 });
+                return;
+            }
+            var fd = new FormData();
+            fd.append('nombre', nombre);
+            fd.append('imagen', file);
+
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+            fetch(cfg.imagenesApiUrl, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': cfg.csrfToken },
+                body: fd,
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Subir';
+                if (data.success) {
+                    nombreInp.value = '';
+                    fileInp.value = '';
+                    reload();
+                    window.Alert && window.Alert.success('Imagen subida: ' + data.imagen.slug, { autoHide: 3000 });
+                } else {
+                    window.Alert && window.Alert.error(data.message || 'Error al subir.', { autoHide: 0, dismissible: true });
+                }
+            })
+            .catch(function () {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Subir';
+                window.Alert && window.Alert.error('Error de conexión.', { autoHide: 0, dismissible: true });
+            });
+        });
     });
 
     // ── Abrir modal con estado pre-cargado ───────────────────────────
@@ -247,8 +385,12 @@
             var isChecked = currentSlugs.indexOf(cb.value) !== -1;
             cb.checked = isChecked;
             var wrap = cb.closest('.widget-option-wrap');
-            var configDiv = wrap && wrap.querySelector('.widget-config-fields');
-            if (configDiv) configDiv.classList.toggle('hidden', !isChecked);
+
+            // Configuración colapsada por defecto al abrir el modal
+            if (wrap) {
+                wrap.dataset.expanded = 'false';
+                updateConfigVisibility(wrap);
+            }
 
             // Pre-llenar o limpiar config inputs
             if (wrap) {

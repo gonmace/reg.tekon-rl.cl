@@ -4,14 +4,15 @@ from reg_txtss.models import RegTxtss
 from django.conf import settings
 from pathlib import Path
 from django.shortcuts import render, get_object_or_404
+from django.http import JsonResponse
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from core.permissions import can_access_registro
 from core.models.google_maps import GoogleMapsImage
 from django.contrib.contenttypes.models import ContentType
-from widgets.report import get_registro_report_data
-from core.utils.coordenadas import calcular_distancia_geopy
+from .pasos_pdf import build_pasos_pdf
+from core.utils.coordenadas import calcular_distancia_geopy, convert_lat_to_dms, convert_lon_to_dms
 from PIL import Image as PilImage, ImageOps
 
 # Tag EXIF "Orientation" (0x0112). Valores 5-8 implican rotación de 90°/270°,
@@ -27,6 +28,21 @@ _EXIF_SWAPPED_ORIENTATIONS = (5, 6, 7, 8)
 # 10-20 fotos por registro eso revienta el límite de memoria del contenedor y el
 # worker de gunicorn muere por OOM. 1600 px es de sobra para impresión A4 (~200 dpi).
 PDF_IMG_MAX_SIDE = 1600
+
+# Pasos con sección propia hardcodeada en txtss.html (2. Punto de Mandato,
+# 5. Datos del Poste, 6. Registro Fotográfico del Poste, 7. Imágenes de
+# Cobertura) — se excluyen del bloque genérico de pasos para no duplicar
+# contenido en el PDF de postes. Cubre el flujo POSTE completo.
+PASOS_CON_SECCION_PROPIA = frozenset({'mandato', 'poste', 'desfase', 'imagenes'})
+
+
+def _cols_from_request(request, key, default=2):
+    """Lee cols_<key> de la query string (1 o 2 columnas por fila de fotos)."""
+    try:
+        v = int(request.GET.get(f'cols_{key}', default))
+    except (ValueError, TypeError):
+        v = default
+    return v if v in (1, 2) else default
 
 
 def _pdf_image_uri_and_orientation(path_str):
@@ -149,49 +165,32 @@ def _pdf_url_from_media_url(url):
     return _pdf_image_uri(path_str) or url
 
 
-def _walk_pasos_widgets_urls(pasos_widgets, fn):
-    """Aplica fn a cada URL de foto de los widgets camera/imgs_desc (in place).
-
-    Son los dos widgets que muestran p.imagen.url directo (sin pasar por
-    fotos_tabla), así que necesitan la misma normalización para el PDF.
+def _resolve_pasos_media(pasos_widgets, registro, ct):
+    """Completa fotos (file:// reducidas+EXIF) e imágenes de mapa (file://) de
+    cada paso genérico. pasos_widgets viene de pasos_pdf.build_pasos_pdf(),
+    que es puro (sin filesystem) — esto es lo que sí toca disco.
     """
     for paso in pasos_widgets or []:
+        if paso.get('tiene_fotos'):
+            paso['fotos'] = _get_fotos_pdf(registro, paso['nombre'], ct)
         for widget in paso.get('widgets', []):
-            slug = widget.get('slug')
-            display = widget.get('display') or {}
-            if slug == 'camera_widget':
-                for foto in display.get('photos') or []:
-                    if foto.get('url'):
-                        foto['url'] = fn(foto['url'])
-            elif slug == 'imgs_desc_widget':
-                for item in display.get('items') or []:
-                    photo = item.get('photo')
-                    if photo and photo.get('url'):
-                        photo['url'] = fn(photo['url'])
+            data = widget.get('data') or {}
+            url = data.get('imagen_url')
+            if url:
+                # _pdf_url_from_media_url resuelve por MEDIA_ROOT actual — NO usar
+                # imagen_abs_path, que en varios registros quedó con rutas viejas
+                # (/app/media/... de Docker, u otro directorio de proyecto).
+                data['img_src'] = _pdf_url_from_media_url(url)
 
 
-def convert_lat_to_dms(lat):
-    if lat is None:
-        return 'N/A'
-    direction = 'N' if lat >= 0 else 'S'
-    deg_abs = abs(lat)
-    degrees = int(deg_abs)
-    minutes_full = (deg_abs - degrees) * 60
-    minutes = int(minutes_full)
-    seconds = round((minutes_full - minutes) * 60, 2)
-    return f"{direction} {degrees}° {minutes}' {seconds}''"
-
-def convert_lon_to_dms(lon):
-    if lon is None:
-        return 'N/A'
-    direction = 'E' if lon >= 0 else 'W'
-    deg_abs = abs(lon)
-    degrees = int(deg_abs)
-    minutes_full = (deg_abs - degrees) * 60
-    minutes = int(minutes_full)
-    seconds = round((minutes_full - minutes) * 60, 2)
-    return f"{direction} {degrees}° {minutes}' {seconds}''"
-
+def _pasos_to_media_urls(pasos_widgets):
+    """Inverso de _resolve_pasos_media: file:// -> /media/ para el preview en navegador."""
+    for paso in pasos_widgets or []:
+        paso['fotos'] = _fotos_to_media_urls(paso.get('fotos', []))
+        for widget in paso.get('widgets', []):
+            data = widget.get('data') or {}
+            if data.get('img_src'):
+                data['img_src'] = _file_uri_to_media_url(data['img_src'])
 
 
 class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
@@ -294,10 +293,14 @@ class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
         pasos_ctx = reg_contexto.get('pasos', {})
         flat_ctx  = reg_contexto.get('flat', {})
 
-        # Coordenadas de inspección desde widget ubicacion
+        # Coordenadas de inspección desde el widget ubicacion del paso que
+        # juega ese rol: 'poste' en el flujo POSTE, 'sitio' en el flujo TORRE
+        # (no existe paso 'poste' para torres — ver actividades/models.py
+        # TipoActividad.config_pasos de reg_txtss_torres).
+        _paso_inspeccion = 'poste' if flat_ctx.get('poste.lat') else 'sitio'
         try:
-            inspeccion_lat = float(flat_ctx['poste.lat']) if flat_ctx.get('poste.lat') else None
-            inspeccion_lon = float(flat_ctx['poste.lon']) if flat_ctx.get('poste.lon') else None
+            inspeccion_lat = float(flat_ctx[f'{_paso_inspeccion}.lat']) if flat_ctx.get(f'{_paso_inspeccion}.lat') else None
+            inspeccion_lon = float(flat_ctx[f'{_paso_inspeccion}.lon']) if flat_ctx.get(f'{_paso_inspeccion}.lon') else None
         except (TypeError, ValueError):
             inspeccion_lat = None
             inspeccion_lon = None
@@ -317,8 +320,13 @@ class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
                     return None
             return None
 
-        mapa_mandato_src = _file_uri(mapa_mandato_obj) or _file_uri(mapa_sitio)
-        mapa_desfase_src = _file_uri(mapa_desfase_obj) or _file_uri(mapa_empalme)
+        # El fallback legacy (etapa 'sitio'/'empalme') solo aplica si ese paso
+        # no existe en el sistema de widgets — si existe, es el mapa propio del
+        # paso 'sitio'/'empalme' (p.ej. mapa_2_puntos de una TORRE) y ya se
+        # muestra en su propia sección genérica más abajo; mostrarlo también
+        # acá lo duplicaría rotulado como "Punto de Mandato"/"Desfase".
+        mapa_mandato_src = _file_uri(mapa_mandato_obj) or (_file_uri(mapa_sitio) if 'sitio' not in pasos_ctx else None)
+        mapa_desfase_src = _file_uri(mapa_desfase_obj) or (_file_uri(mapa_empalme) if 'empalme' not in pasos_ctx else None)
         tekon_logo_src = Path(settings.BASE_DIR, 'templates', 'svgs', 'tekon_logo.png').as_uri()
 
         # Datos del paso poste (widgets)
@@ -394,26 +402,25 @@ class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
             'poste_fotos': poste_fotos,
             'imagenes_fotos': imagenes_fotos,
 
-            'pasos_widgets': get_registro_report_data(registro),
+            'pasos_widgets': build_pasos_pdf(registro, reg_contexto, excluir=PASOS_CON_SECCION_PROPIA),
             'reg_contexto': reg_contexto,
         })
 
-        # camera_widget e imgs_desc_widget muestran p.imagen.url directo: pasarlas
-        # por _pdf_image_uri (reducción a 1600px + orientación EXIF) igual que
-        # fotos_tabla, para evitar OOM y fotos "hechadas" en el PDF.
-        _walk_pasos_widgets_urls(context['pasos_widgets'], _pdf_url_from_media_url)
+        # Fotos (reducción a 1600px + orientación EXIF, igual que fotos_tabla)
+        # e imágenes de mapa de cada paso genérico — build_pasos_pdf() es puro
+        # y no toca disco, esto sí.
+        _resolve_pasos_media(context['pasos_widgets'], registro, registro_content_type)
 
-        # Opciones de layout de fotos (query params: poste_cols, imagenes_cols)
-        try:
-            poste_cols = int(self.request.GET.get('poste_cols', 2))
-        except (ValueError, TypeError):
-            poste_cols = 2
-        try:
-            imagenes_cols = int(self.request.GET.get('imagenes_cols', 2))
-        except (ValueError, TypeError):
-            imagenes_cols = 2
-        context['poste_cols'] = poste_cols if poste_cols in (1, 2) else 2
-        context['imagenes_cols'] = imagenes_cols if imagenes_cols in (1, 2) else 2
+        # Opciones de layout de fotos por sección — query param genérico
+        # cols_<key> (1 o 2, default 2), una por cada sección con fotos: las
+        # dos hardcodeadas de postes (cols_poste, cols_imagenes) y una por
+        # cada paso genérico con fotos (cols_sitio, cols_acceso, ...). El
+        # modal de opciones arma estos params dinámicamente (ver
+        # pdf_secciones_fotos más abajo).
+        context['poste_cols'] = _cols_from_request(self.request, 'poste')
+        context['imagenes_cols'] = _cols_from_request(self.request, 'imagenes')
+        for paso in context['pasos_widgets']:
+            paso['cols'] = _cols_from_request(self.request, paso['nombre'])
 
         return context
 
@@ -513,6 +520,44 @@ def preview_registro_individual(request, registro_id):
     # Reemplazar file:// por /media/ en las fotos
     context['poste_fotos'] = _fotos_to_media_urls(context.get('poste_fotos', []))
     context['imagenes_fotos'] = _fotos_to_media_urls(context.get('imagenes_fotos', []))
-    _walk_pasos_widgets_urls(context.get('pasos_widgets'), _file_uri_to_media_url)
+    _pasos_to_media_urls(context.get('pasos_widgets'))
 
     return render(request, 'reportes_txtss/txtss.html', context)
+
+
+@login_required
+def pdf_secciones_fotos(request, registro_id):
+    """
+    Lista las secciones con fotos de un registro, para que el modal de
+    opciones de PDF arme dinámicamente un selector "1/2 por fila" por
+    sección — en vez de los dos checkboxes hardcodeados (poste/imágenes)
+    que no cubrían los pasos genéricos (torres). Cada 'key' es el sufijo
+    de su query param cols_<key> (ver _cols_from_request).
+    """
+    from photos.models import Photos
+    from actividades.models import ContextoRegistro
+
+    registro = get_object_or_404(
+        RegTxtss.objects.select_related('sitio', 'user'), id=registro_id
+    )
+    if not can_access_registro(request.user, registro):
+        raise PermissionDenied('No tienes acceso a este registro.')
+
+    ct = ContentType.objects.get_for_model(registro)
+    fotos_qs = Photos.objects.filter(content_type=ct, object_id=registro.id)
+
+    secciones = []
+    # Secciones hardcodeadas del flujo POSTE (txtss.html, secciones 6 y 7).
+    if fotos_qs.filter(etapa='poste').exists():
+        secciones.append({'key': 'poste', 'label': 'Registro Fotográfico del Poste'})
+    if fotos_qs.filter(etapa='imagenes').exists():
+        secciones.append({'key': 'imagenes', 'label': 'Imágenes de Cobertura'})
+
+    # Pasos genéricos con fotos (torres, y cualquier paso con imgs_desc/camera).
+    ctx_obj = ContextoRegistro.objects.filter(content_type=ct, object_id=registro.id).first()
+    reg_contexto = ctx_obj.contexto if ctx_obj else {}
+    for paso in build_pasos_pdf(registro, reg_contexto, excluir=PASOS_CON_SECCION_PROPIA):
+        if paso['tiene_fotos']:
+            secciones.append({'key': paso['nombre'], 'label': paso['fotos_label']})
+
+    return JsonResponse({'secciones': secciones})

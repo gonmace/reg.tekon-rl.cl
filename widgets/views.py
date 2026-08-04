@@ -8,7 +8,7 @@ from django.conf import settings
 from django.template.loader import get_template
 from django.views import View
 from django.views.decorators.clickjacking import xframe_options_sameorigin
-from core.permissions import superuser_required
+from core.permissions import superuser_required, SuperuserRequiredMixin
 
 WIDGETS_DIR = os.path.join(settings.BASE_DIR, 'widgets', 'templates', 'widgets')
 
@@ -17,6 +17,10 @@ _TEST_VALUES = {
     'camera_widget':    {'upload_url': '/widgets/dev/photos/upload/', 'foto_min': '3'},
     'comentario_widget':{'rows': '4'},
     'distancia_widget': {'save_url': '', 'lat1': '-33.4569400', 'lon1': '-70.6482700', 'lat2': '-33.4610000', 'lon2': '-70.6550000'},
+    'form_dinamico_widget': {
+        'label': 'Datos de ejemplo',
+        'campos': 'ancho|number|Ancho (m)||*; tipo_material|select|Material|hormigón, madera, metal|*; tiene_extintor|toggle|Tiene extintor; obs|textarea|Observaciones',
+    },
     'mapa_1p':          {'lat': '-33.4569400', 'lon': '-70.6482700', 'height': '300', 'color': '#3b82f6', 'label': 'M', 'save_url': '/widgets/dev/map/save/'},
     'mapa_2_puntos':    {'lat1': '-33.4569400', 'lon1': '-70.6482700', 'lat2': '-33.4610000', 'lon2': '-70.6550000', 'label1': 'P', 'color1': '#e74c3c', 'label2': 'M', 'color2': '#0054ff', 'save_url': '/widgets/dev/map/save/'},
     'ubicacion_widget': {},
@@ -308,3 +312,64 @@ def preview(request, slug):
     if is_page:
         return render(request, template_name, context)
     return render(request, 'widget_preview_frame.html', {'widget_template': template_name, **context})
+
+
+class ImagenEjemploApiView(LoginRequiredMixin, SuperuserRequiredMixin, View):
+    """Listar/crear ImagenEjemplo desde el modal de configuración de widgets
+    (actividades/tipo_pasos.html), para no depender de /admin/ para subir la
+    imagen de ejemplo de un campo de form_dinamico_widget."""
+
+    def get(self, request):
+        from .models import ImagenEjemplo
+        from actividades.models import PasoWidget
+
+        configs = list(
+            PasoWidget.objects.filter(widget_slug='form_dinamico_widget').values_list('config', flat=True)
+        )
+        imagenes = []
+        for i in ImagenEjemplo.objects.all():
+            en_uso = sum(1 for cfg in configs if i.slug in (cfg or {}).get('campos', ''))
+            imagenes.append({
+                'slug': i.slug, 'nombre': i.nombre, 'descripcion': i.descripcion,
+                'url': i.imagen.url, 'en_uso': en_uso,
+            })
+        return JsonResponse({'imagenes': imagenes})
+
+    def post(self, request):
+        from django.utils.text import slugify
+        from .models import ImagenEjemplo
+
+        nombre = request.POST.get('nombre', '').strip()
+        descripcion = request.POST.get('descripcion', '').strip()
+        archivo = request.FILES.get('imagen')
+        if not nombre:
+            return JsonResponse({'success': False, 'message': 'El nombre es requerido'}, status=400)
+        if not archivo:
+            return JsonResponse({'success': False, 'message': 'La imagen es requerida'}, status=400)
+
+        base_slug = slugify(nombre) or 'imagen'
+        slug = base_slug
+        n = 1
+        while ImagenEjemplo.objects.filter(slug=slug).exists():
+            n += 1
+            slug = f'{base_slug}-{n}'
+
+        obj = ImagenEjemplo.objects.create(slug=slug, nombre=nombre, descripcion=descripcion, imagen=archivo)
+        return JsonResponse({'success': True, 'imagen': {
+            'slug': obj.slug, 'nombre': obj.nombre, 'descripcion': obj.descripcion, 'url': obj.imagen.url,
+        }})
+
+
+class ImagenEjemploDetailApiView(LoginRequiredMixin, SuperuserRequiredMixin, View):
+    """Borra una ImagenEjemplo (archivo + registro). No bloquea si está en uso
+    por algún form_dinamico_widget: el campo simplemente deja de mostrar el
+    botón 'Ver ejemplo' — el frontend ya advierte esto antes de confirmar."""
+
+    def delete(self, request, slug):
+        from .models import ImagenEjemplo
+        obj = ImagenEjemplo.objects.filter(slug=slug).first()
+        if not obj:
+            return JsonResponse({'success': False, 'message': 'No existe esa imagen'}, status=404)
+        obj.imagen.delete(save=False)
+        obj.delete()
+        return JsonResponse({'success': True})

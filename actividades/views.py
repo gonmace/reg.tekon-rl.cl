@@ -151,7 +151,7 @@ def _compute_form_widgets(paso, registro, ct, paso_url):
             level, filled, total = _compute_imgs_desc_info(pw, registro, ct)
             extra = {'count': filled, 'count_total': total}
         else:
-            level = widget.completeness(datos) if widget else (3 if _widget_has_data(pw.widget_slug, datos, pw.config) else 1)
+            level = widget.completeness_with_config(datos, pw.config) if widget else (3 if _widget_has_data(pw.widget_slug, datos, pw.config) else 1)
         result.append({
             'url': f'{paso_url}?widget={pw.widget_slug}',
             'color': _LEVEL_COLOR.get(level, 'paso-rojo'),
@@ -186,6 +186,21 @@ def _compute_camera_info(paso, registro, ct, photos_url, paso_url=None):
     }
 
 
+def _resolve_paso_coord(registro, ct, paso_nombre_raw):
+    """Busca lat/lon en DatoPaso para paso_nombre_raw; si no hay, cae en coordenadas del sitio."""
+    nombre = (paso_nombre_raw or '').strip().lower()
+    if not nombre:
+        return None, None
+    d = DatoPaso.objects.filter(content_type=ct, object_id=registro.id, paso_nombre=nombre).first()
+    datos_d = d.datos if d else {}
+    lat_v = datos_d.get('lat') or datos_d.get('latitud')
+    lon_v = datos_d.get('lon') or datos_d.get('longitud')
+    if not (lat_v and lon_v):
+        sitio = getattr(registro, 'sitio', None)
+        lat_v, lon_v = _get_sitio_lat_lon(sitio, nombre)
+    return lat_v, lon_v
+
+
 def _compute_map_info(paso, registro, ct, paso_url=None):
     """Returns the map element dict for a dynamic paso step."""
     map_pws = list(paso.paso_widgets.filter(widget_slug__in=_MAP_SLUGS).order_by('orden'))
@@ -198,23 +213,10 @@ def _compute_map_info(paso, registro, ct, paso_url=None):
     slug = map_pws[0].widget_slug
     sitio = getattr(registro, 'sitio', None)
 
-    def _resolve_coord(paso_nombre_raw):
-        """Busca lat/lon en DatoPaso; si no hay, cae en coordenadas del sitio."""
-        nombre = (paso_nombre_raw or '').strip().lower()
-        if not nombre:
-            return None, None
-        d = DatoPaso.objects.filter(content_type=ct, object_id=registro.id, paso_nombre=nombre).first()
-        datos_d = d.datos if d else {}
-        lat_v = datos_d.get('lat') or datos_d.get('latitud')
-        lon_v = datos_d.get('lon') or datos_d.get('longitud')
-        if not (lat_v and lon_v):
-            lat_v, lon_v = _get_sitio_lat_lon(sitio, nombre)
-        return lat_v, lon_v
-
     if slug == 'mapa_2_puntos':
         cfg = map_pws[0].config
-        lat, lon = _resolve_coord(cfg.get('paso1'))
-        lat2, lon2 = _resolve_coord(cfg.get('paso2'))
+        lat, lon = _resolve_paso_coord(registro, ct, cfg.get('paso1'))
+        lat2, lon2 = _resolve_paso_coord(registro, ct, cfg.get('paso2'))
     else:
         dato = DatoPaso.objects.filter(content_type=ct, object_id=registro.id, paso_nombre=paso.nombre).first()
         datos = dato.datos if dato else {}
@@ -312,8 +314,23 @@ def _compute_paso_derived(paso, registro, ct):
     ).first()
     paso_datos = dict(dato.datos) if dato else {}
     paso_datos['_paso_titulo'] = paso.titulo
+
+    paso_widgets = list(paso.paso_widgets.all())
+    map_pw = next((pw for pw in paso_widgets if pw.widget_slug == 'mapa_2_puntos'), None)
+    if map_pw:
+        ref_slug = (map_pw.config.get('paso1') or '').strip().lower()
+        if ref_slug and ref_slug != 'mandato':
+            ref_lat, ref_lon = _resolve_paso_coord(registro, ct, ref_slug)
+            if ref_lat and ref_lon:
+                paso_datos['_referencia_lat'] = ref_lat
+                paso_datos['_referencia_lon'] = ref_lon
+                paso_datos['_referencia_label'] = (
+                    PasoDefinicion.objects.filter(nombre=ref_slug).values_list('titulo', flat=True).first()
+                    or ref_slug.capitalize()
+                )
+
     computed = {}
-    for pw in paso.paso_widgets.all():
+    for pw in paso_widgets:
         widget = get_widget(pw.widget_slug)
         if widget:
             computed.update(widget.compute_derived(paso_datos, registro))

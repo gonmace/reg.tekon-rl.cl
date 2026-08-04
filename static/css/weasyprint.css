@@ -514,6 +514,8 @@ img {
   width: 100%;
   border-collapse: separate;
   margin-bottom: 1em;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .mapa-img-cell {
@@ -619,6 +621,37 @@ section.imagenes .foto-titulo p {
   padding-bottom: 0.4em;
   border-bottom: 1px solid #e60000;
   margin-bottom: 0.8em;
+}
+
+/* Dentro de un paso genérico (Sitio/Acceso/Eléctrico/...): el título del
+   paso usa el estilo con línea inferior que normalmente llevan los títulos
+   de fotos, y el título de fotos pasa a usar el estilo plano de h2 — así se
+   distinguen entre sí dentro de la misma sección. Solo dentro de
+   .paso-widget-section: no afecta el resto de los h2 ni las secciones de
+   fotos hardcodeadas de postes (Registro Fotográfico, Imágenes de Cobertura). */
+.paso-widget-section > h2 {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding-bottom: 0.4em;
+  border-bottom: 1px solid #e60000;
+  margin-bottom: 0.8em;
+}
+
+/* Selector con más especificidad que "section.imagenes .foto-titulo p" de
+   arriba (3 clases vs 2) — si no, esas reglas (negrita + línea inferior)
+   ganan la cascada y el swap de estilos no se aplica. */
+.paso-widget-section section.imagenes .foto-titulo p {
+  font-weight: 400;
+  letter-spacing: normal;
+  padding-bottom: 0.2em;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+/* El <strong> dentro del <p> tiene su propia negrita por default (UA
+   stylesheet) que no hereda el font-weight del párrafo — hay que apagarla acá. */
+.paso-widget-section section.imagenes .foto-titulo p strong {
+  font-weight: 400;
 }
 
 /* ========================================
