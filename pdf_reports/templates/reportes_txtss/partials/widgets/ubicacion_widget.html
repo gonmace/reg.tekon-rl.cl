@@ -2,7 +2,10 @@
 <table class="datos-2col">
   <tr>
     <th>{{ display.label }}:</th>
-    <td>{{ display.coords_str }}{% if display.accuracy %} (±{{ display.accuracy|floatformat:0 }} m){% endif %}</td>
+    <td>
+      {{ display.coords_str }}{% if display.accuracy %} (±{{ display.accuracy|floatformat:0 }} m){% endif %}<br>
+      <span style="color:#555; font-size:9.5pt;">{{ display.lat_dms }}, {{ display.lon_dms }}</span>
+    </td>
   </tr>
 </table>
 {% endif %}

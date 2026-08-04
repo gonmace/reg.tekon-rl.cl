@@ -76,6 +76,11 @@ def _widget_icon_map():
     return {w['slug']: w['icon_class'] for w in _available_widgets()}
 
 
+def _widget_name_map():
+    """Devuelve {slug: nombre} para lookups en templates."""
+    return {w['slug']: w['nombre'] for w in _available_widgets()}
+
+
 def _widget_meta_map():
     """Devuelve {slug: {tipo, config_fields}} para lookups en templates."""
     return {w['slug']: {'tipo': w['tipo'], 'config_fields': w['config_fields']} for w in _available_widgets()}
@@ -194,6 +199,7 @@ class TipoPasosView(SuperuserRequiredMixin, View):
         available_widgets = _available_widgets()
         widget_meta_map = {w['slug']: get_widget_meta(w['slug']) for w in available_widgets}
         widget_icon_map = _widget_icon_map()
+        widget_name_map = _widget_name_map()
 
         # Per-paso widget data for JS: {pasodef_pk: [{slug, config}, ...]} ordered by orden
         paso_widgets_data = {}
@@ -216,6 +222,7 @@ class TipoPasosView(SuperuserRequiredMixin, View):
             'widget_meta_map': widget_meta_map,
             'paso_widgets_json': _json.dumps(paso_widgets_data),
             'widget_icon_map_json': _json.dumps(widget_icon_map),
+            'widget_name_map_json': _json.dumps(widget_name_map),
         })
 
 
@@ -273,6 +280,17 @@ class PasoWidgetsSetView(SuperuserRequiredMixin, View):
                             configs.setdefault(slug_k, {})[field_k] = int(val)
                         except ValueError:
                             configs.setdefault(slug_k, {})[field_k] = val
+
+        from widgets.registry import get_widget
+        config_errors = []
+        for slug in slugs:
+            widget = get_widget(slug)
+            if not widget:
+                continue
+            errors = widget.validate_config(configs.get(slug, {}))
+            config_errors.extend(f'{widget.nombre}: {e}' for e in errors)
+        if config_errors:
+            return JsonResponse({'success': False, 'message': ' / '.join(config_errors)}, status=400)
 
         paso.paso_widgets.all().delete()
         for orden, slug in enumerate(slugs):

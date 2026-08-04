@@ -1,8 +1,14 @@
-{% if not display.is_empty %}
-<table class="datos-2col">
+{% if display.img_src %}
+<table class="mapa-table">
   <tr>
-    <th>{{ display.label }}:</th>
-    <td>{{ display.coords_str }}</td>
+    <td class="mapa-img-cell">
+      <img src="{{ display.img_src }}" alt="Mapa">
+    </td>
+    <td class="mapa-leyenda-cell">
+      {% for l in display.leyenda %}
+        {% include "reportes_txtss/partials/leyenda.html" with icon_color=l.icon_color name=l.name %}
+      {% endfor %}
+    </td>
   </tr>
 </table>
 {% endif %}

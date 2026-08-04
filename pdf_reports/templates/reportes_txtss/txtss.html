@@ -267,15 +267,16 @@
 <article class="paso-widget-section">
   <h2>{{ paso.titulo }}</h2>
   {% for widget in paso.widgets %}
-    {% if widget.slug != "camera_widget" and widget.slug != "imgs_desc_widget" %}
-      {% include "reportes_txtss/partials/widget_render.html" %}
-    {% endif %}
+    {% include widget.template with display=widget.data %}
   {% endfor %}
-  {% for widget in paso.widgets %}
-    {% if widget.slug == "camera_widget" or widget.slug == "imgs_desc_widget" %}
-      {% include "reportes_txtss/partials/widget_render.html" %}
-    {% endif %}
-  {% endfor %}
+  {% if paso.fotos %}
+  <section class="imagenes">
+    <div class="foto-titulo">
+      <p><strong>{{ paso.fotos_label }}</strong></p>
+    </div>
+    {% include "reportes_txtss/partials/fotos_tabla.html" with fotos=paso.fotos cols=paso.cols %}
+  </section>
+  {% endif %}
 </article>
 {% endfor %}
 {% endif %}

@@ -3,7 +3,7 @@ import requests
 import math
 import re as _re
 import logging
-from core.models.app_settings import AppSettings
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,32 @@ def calcular_distancia_entre_puntos(lat_1, lon_1, lat_2, lon_2):
     return calcular_distancia_geopy(lat_1, lon_1, lat_2, lon_2)
 
 
+def convert_lat_to_dms(lat):
+    if lat is None:
+        return 'N/A'
+    lat = float(lat)
+    direction = 'N' if lat >= 0 else 'S'
+    deg_abs = abs(lat)
+    degrees = int(deg_abs)
+    minutes_full = (deg_abs - degrees) * 60
+    minutes = int(minutes_full)
+    seconds = round((minutes_full - minutes) * 60, 2)
+    return f"{direction} {degrees}° {minutes}' {seconds}''"
+
+
+def convert_lon_to_dms(lon):
+    if lon is None:
+        return 'N/A'
+    lon = float(lon)
+    direction = 'E' if lon >= 0 else 'W'
+    deg_abs = abs(lon)
+    degrees = int(deg_abs)
+    minutes_full = (deg_abs - degrees) * 60
+    minutes = int(minutes_full)
+    seconds = round((minutes_full - minutes) * 60, 2)
+    return f"{direction} {degrees}° {minutes}' {seconds}''"
+
+
 def _to_api_color(color_str):
     """Convierte '#RRGGBB' a '0xRRGGBB' para el parámetro markers de la Static Maps API."""
     s = str(color_str or '').strip()
@@ -45,14 +71,9 @@ def obtener_imagen_google_maps(coordenadas, zoom=None, maptype="hybrid", scale=2
     """
     base_url = "https://maps.googleapis.com/maps/api/staticmap"
 
-    try:
-        app_settings = AppSettings.get_actives()
-        api_key = app_settings.google_maps_api_key if app_settings else None
-        if not api_key:
-            logger.error("No se encontró la Google Maps API key en AppSettings")
-            return None
-    except Exception:
-        logger.exception("Error obteniendo la Google Maps API key")
+    api_key = settings.GOOGLE_MAPS_API_KEY
+    if not api_key:
+        logger.error("GOOGLE_MAPS_API_KEY no está configurada en .env")
         return None
 
     valid_coords = []

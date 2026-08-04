@@ -205,21 +205,28 @@
     <div class="flex flex-col gap-2" id="tp-widget-list">
       {% for w in available_widgets %}
       {% with meta=widget_meta_map|dict_get:w.slug %}
-      <div class="widget-option-wrap border border-base-300 hover:border-primary rounded-lg transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-        <label class="flex items-center gap-3 p-3 cursor-pointer">
-          <input type="checkbox" name="widget_choice" value="{{ w.slug }}"
-                 class="checkbox checkbox-primary checkbox-sm shrink-0 widget-checkbox">
-          {% with icon_tpl="widgets/"|add:w.slug|add:"_boton.html" %}
-          {% include icon_tpl with widget=w.boton_ctx %}
-          {% endwith %}
-          <div class="flex-1 min-w-0">
-            <span class="font-semibold text-sm">{{ w.nombre }}</span>
-            <span class="block text-xs text-base-content/40 font-mono">{{ w.slug }}</span>
-          </div>
-          {% if meta and meta.tipo %}
-          <span class="badge badge-xs {% if meta.tipo == 'form' %}badge-info{% else %}badge-warning{% endif %} shrink-0 ml-auto">{{ meta.tipo }}</span>
+      <div class="widget-option-wrap border border-base-300 hover:border-primary rounded-lg transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5" data-expanded="false">
+        <div class="flex items-center">
+          <label class="flex items-center gap-3 p-3 cursor-pointer flex-1 min-w-0">
+            <input type="checkbox" name="widget_choice" value="{{ w.slug }}"
+                   class="checkbox checkbox-primary checkbox-sm shrink-0 widget-checkbox">
+            {% with icon_tpl="widgets/"|add:w.slug|add:"_boton.html" %}
+            {% include icon_tpl with widget=w.boton_ctx %}
+            {% endwith %}
+            <div class="flex-1 min-w-0">
+              <span class="font-semibold text-sm">{{ w.nombre }}</span>
+              <span class="block text-xs text-base-content/40 font-mono">{{ w.slug }}</span>
+            </div>
+            {% if meta and meta.tipo %}
+            <span class="badge badge-xs {% if meta.tipo == 'form' %}badge-info{% else %}badge-warning{% endif %} shrink-0 ml-auto">{{ meta.tipo }}</span>
+            {% endif %}
+          </label>
+          {% if meta and meta.params %}
+          <button type="button" class="tp-config-toggle btn btn-ghost btn-xs btn-circle mr-2 hidden" title="Mostrar/ocultar configuración">
+            <i class="fa-solid fa-chevron-right text-xs"></i>
+          </button>
           {% endif %}
-        </label>
+        </div>
         {% if meta and meta.params %}
         <div class="widget-config-fields hidden px-3 pb-3 flex flex-col gap-3">
           {% for cf in meta.params %}
@@ -230,6 +237,22 @@
                       rows="2"
                       class="textarea textarea-xs textarea-bordered font-mono w-full resize-y"
                       placeholder="{{ cf.placeholder }}"></textarea>
+            {% if w.slug == 'form_dinamico_widget' and cf.name == 'campos' %}
+            <div class="fd-imagenes-helper border border-base-300 rounded-lg p-2" data-imagenes-helper>
+              <p class="text-xs font-semibold text-base-content/60 mb-1.5">
+                <i class="fa-solid fa-image"></i> Imágenes de ejemplo
+                <span class="font-normal text-base-content/40">— clic en una para copiar su slug, y pégalo en la columna "imagen" del campo</span>
+              </p>
+              <div class="fd-imagenes-list flex flex-wrap gap-1.5 mb-2"></div>
+              <div class="flex gap-1 items-center flex-wrap">
+                <input type="text" class="fd-img-nombre input input-xs input-bordered flex-1 min-w-32" placeholder="Nombre (ej: Ejemplo deslindes)">
+                <input type="file" class="fd-img-file file-input file-input-xs w-40" accept="image/*">
+                <button type="button" class="fd-img-upload-btn btn btn-xs btn-primary gap-1">
+                  <i class="fa-solid fa-upload"></i> Subir
+                </button>
+              </div>
+            </div>
+            {% endif %}
           </div>
           {% endfor %}
         </div>
@@ -294,11 +317,13 @@ window.tipoPasosConfig = {
   editBase:       '/actividades/pasos/',
   widgetsSetBase: '/actividades/pasos/',
   importUrl:      '{% url "actividades:tipo_pasos_importar" tipo.pk %}',
+  imagenesApiUrl: '{% url "widgets:imagenes_api" %}',
   csrfToken:      '{{ csrf_token }}',
   nextOrden:      {{ next_orden }},
   widgetIconMap:  {{ widget_icon_map_json|safe }},
+  widgetNameMap:  {{ widget_name_map_json|safe }},
 };
 window.pasoWidgetsData = {{ paso_widgets_json|safe }};
 </script>
-<script src="{% static 'actividades/js/tipo_pasos.js' %}?v=5.1"></script>
+<script src="{% static 'actividades/js/tipo_pasos.js' %}?v=5.4"></script>
 {% endblock %}

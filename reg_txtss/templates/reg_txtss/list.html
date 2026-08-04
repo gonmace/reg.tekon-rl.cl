@@ -39,27 +39,10 @@
   <dialog id="reg-txtss-pdf-modal" class="modal">
     <div class="modal-box max-w-sm">
       <h3 class="font-bold text-lg mb-4">Opciones de PDF</h3>
-      <p class="text-sm font-medium mb-2">Registro Fotográfico del Poste</p>
-      <div class="flex gap-4 mb-4">
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input type="radio" name="poste-cols" value="1" class="radio radio-sm radio-primary">
-          <span class="text-sm">1 por fila</span>
-        </label>
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input type="radio" name="poste-cols" value="2" class="radio radio-sm radio-primary" checked>
-          <span class="text-sm">2 por fila</span>
-        </label>
-      </div>
-      <p class="text-sm font-medium mb-2">Imágenes de Cobertura</p>
-      <div class="flex gap-4 mb-6">
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input type="radio" name="imagenes-cols" value="1" class="radio radio-sm radio-primary">
-          <span class="text-sm">1 por fila</span>
-        </label>
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input type="radio" name="imagenes-cols" value="2" class="radio radio-sm radio-primary" checked>
-          <span class="text-sm">2 por fila</span>
-        </label>
+      <!-- Poblado dinámicamente: un selector "1/2 por fila" por cada sección
+           con fotos del registro (ver initPdfModal en reg_txtss.js). -->
+      <div id="reg-txtss-pdf-secciones" class="mb-2">
+        <span class="loading loading-spinner loading-sm"></span>
       </div>
       <div class="modal-action">
         <button id="reg-txtss-pdf-cancel" class="btn btn-ghost btn-sm">Cancelar</button>

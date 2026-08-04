@@ -7,9 +7,6 @@ class AppSettings(BaseModel):
     app_name = models.CharField(
         max_length=255, verbose_name="Nombre de la Aplicación", null=True, blank=True
     )
-    google_maps_api_key = models.CharField(
-        max_length=255, verbose_name="Google Maps API Key", null=True, blank=True
-    )
     logo = models.FileField(
         "logo",
         null=True,

@@ -47,6 +47,10 @@ def build_dynamic_form(paso, data=None, initial=None, widget_slug=None):
                 widget=forms.Textarea(attrs={'rows': 3}),
                 label='Comentario',
             )
+        elif slug == 'form_dinamico_widget':
+            from widgets.widget_types.form_dinamico import parse_campos, django_field
+            for campo in parse_campos(pw.config.get('campos', '')):
+                fields[campo['nombre']] = django_field(campo)
     merged_initial.update(initial or {})
     DynamicForm = type('DynamicForm', (forms.BaseForm,), {'base_fields': fields})
     return DynamicForm(data=data, initial=merged_initial)

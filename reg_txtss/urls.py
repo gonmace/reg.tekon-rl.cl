@@ -37,6 +37,11 @@ def _preview_view(request, *args, **kwargs):
     return preview_reg_txtss_individual(request, *args, **kwargs)
 
 
+def _pdf_secciones_fotos_view(request, *args, **kwargs):
+    from pdf_reports.views import pdf_secciones_fotos
+    return pdf_secciones_fotos(request, *args, **kwargs)
+
+
 app_name = 'reg_txtss'
 
 urlpatterns = [
@@ -77,5 +82,6 @@ urlpatterns = [
     # PDF
     path('pdf/<int:registro_id>/', _pdf_view, name='pdf'),
     path('preview/<int:registro_id>/', _preview_view, name='preview'),
+    path('api/registros/<int:registro_id>/pdf-secciones-fotos/', _pdf_secciones_fotos_view, name='api_pdf_secciones_fotos'),
 
 ]
