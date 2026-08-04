@@ -1,0 +1,141 @@
+{
+  "tipo_actividad": {
+    "app_namespace": "reg_txtss_torres",
+    "nombre": "TX/TSS Torres",
+    "descripcion": "",
+    "tipo_sitio": "TORRE",
+    "activo": true
+  },
+  "pasos": [
+    {
+      "nombre": "mandato",
+      "titulo": "Mandato",
+      "descripcion": "",
+      "orden": 0,
+      "widgets": [
+        {
+          "widget_slug": "mapa_1p",
+          "orden": 0,
+          "config": {}
+        }
+      ]
+    },
+    {
+      "nombre": "sitio",
+      "titulo": "Sitio",
+      "descripcion": "",
+      "orden": 10,
+      "widgets": [
+        {
+          "widget_slug": "ubicacion_widget",
+          "orden": 0,
+          "config": {}
+        },
+        {
+          "widget_slug": "form_dinamico_widget",
+          "orden": 1,
+          "config": {
+            "campos": "dimensiones|text|Dimensiones|Ej: 10x20 m.\r\ndeslindes|text|Deslindes|Ej: 18 / 18 / +50 / +100 m||ejemplo-deslindes|Distancia a los bordes de la propiedad, las distancias cortas deben ser precisas.\r\nobservaciones|textarea|Comentario\r\nedificaciones_obstaculos|textarea|Edificaciones cercanas/obstaculos:|Sin obstaculos|||Verificar si existen obstaculos, tanto para el montaje como para la construcción\r\ntipo_suelo|textarea|Tipo de Suelo del sitio y huella:||||Tipo de suelo, sembradillos, zona anegada, suelo consolidado, se debe hacer desbroce, etc."
+          }
+        },
+        {
+          "widget_slug": "mapa_2_puntos",
+          "orden": 2,
+          "config": {
+            "paso1": "mandato",
+            "paso2": "sitio",
+            "label1": "M",
+            "label2": "I"
+          }
+        },
+        {
+          "widget_slug": "imgs_desc_widget",
+          "orden": 3,
+          "config": {
+            "label": "Fotografías",
+            "foto_min": 5,
+            "descripciones": "Sitio, Este, Norte, Sur, Oeste"
+          }
+        }
+      ]
+    },
+    {
+      "nombre": "acceso",
+      "titulo": "Acceso",
+      "descripcion": "",
+      "orden": 20,
+      "widgets": [
+        {
+          "widget_slug": "form_dinamico_widget",
+          "orden": 0,
+          "config": {
+            "campos": "acceso_huella|textarea|Acceso al Sitio (Huella)||||Describir el acceso, si se requiere mejora, movimiento de tierras, rellenos, alcantarillado, otros.\r\nacceso_construccion|textarea|Acceso al Sitio para Construcción||||Verificar acceso para construcción. Ingreso grúa, camion hormigonero.\r\nlongitud_acceso_sitio|number|Longitud acceso al Sitio (m)|Ej: 100|||Longitud de la huellas en el sitio.\r\nlongitud_acceso_construccion|number|Longitud acceso para construccion (m)|Ej: 100|||Longitud de acceso a construcción (generalmente idem a la huella).\r\ntipo_suelo|textarea|Tipo de Suelo del sitio y huella||||Tipo de suelo, sembradillos, zona anegada, suelo consolidado, se debe hacer desbroce, etc."
+          }
+        },
+        {
+          "widget_slug": "imgs_desc_widget",
+          "orden": 1,
+          "config": {
+            "label": "Acceso",
+            "foto_min": 1,
+            "descripciones": "Acceso al Sitio,"
+          }
+        }
+      ]
+    },
+    {
+      "nombre": "electrico",
+      "titulo": "Eléctrico",
+      "descripcion": "",
+      "orden": 30,
+      "widgets": [
+        {
+          "widget_slug": "ubicacion_widget",
+          "orden": 0,
+          "config": {}
+        },
+        {
+          "widget_slug": "imgs_desc_widget",
+          "orden": 1,
+          "config": {
+            "label": "Empalme",
+            "foto_min": 2,
+            "descripciones": "Poste, No. poste"
+          }
+        },
+        {
+          "widget_slug": "form_dinamico_widget",
+          "orden": 2,
+          "config": {
+            "campos": "proveedor_energia|text|Proveedor de Energía\r\ncapacidad_energia|text|Capacidad de Energía|Ej: 25 A\r\ncomentario_electrico|textarea|Comentario|Sin comentarios\r\nno_poste|text|No. Poste\r\ntransformador|text|Transformador"
+          }
+        },
+        {
+          "widget_slug": "mapa_2_puntos",
+          "orden": 3,
+          "config": {
+            "paso1": "sitio",
+            "paso2": "electrico",
+            "label1": "S",
+            "label2": "E"
+          }
+        }
+      ]
+    },
+    {
+      "nombre": "adicionales",
+      "titulo": "Adicionales",
+      "descripcion": "",
+      "orden": 40,
+      "widgets": [
+        {
+          "widget_slug": "form_dinamico_widget",
+          "orden": 0,
+          "config": {
+            "campos": "trabajos_adicionales|textarea|Trabajos adicionales a considerar"
+          }
+        }
+      ]
+    }
+  ]
+}
