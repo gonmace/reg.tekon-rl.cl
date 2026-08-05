@@ -317,17 +317,21 @@ def _compute_paso_derived(paso, registro, ct):
 
     paso_widgets = list(paso.paso_widgets.all())
     map_pw = next((pw for pw in paso_widgets if pw.widget_slug == 'mapa_2_puntos'), None)
+    ref_slug = 'mandato'
     if map_pw:
-        ref_slug = (map_pw.config.get('paso1') or '').strip().lower()
-        if ref_slug and ref_slug != 'mandato':
-            ref_lat, ref_lon = _resolve_paso_coord(registro, ct, ref_slug)
-            if ref_lat and ref_lon:
-                paso_datos['_referencia_lat'] = ref_lat
-                paso_datos['_referencia_lon'] = ref_lon
-                paso_datos['_referencia_label'] = (
-                    PasoDefinicion.objects.filter(nombre=ref_slug).values_list('titulo', flat=True).first()
-                    or ref_slug.capitalize()
-                )
+        cfg_ref = (map_pw.config.get('paso1') or '').strip().lower()
+        if cfg_ref:
+            ref_slug = cfg_ref
+    # Siempre resuelve vía DatoPaso primero (GPS capturado en el paso 'mandato'
+    # u otro paso de referencia); cae a Site solo si ese paso no tiene datos.
+    ref_lat, ref_lon = _resolve_paso_coord(registro, ct, ref_slug)
+    if ref_lat and ref_lon:
+        paso_datos['_referencia_lat'] = ref_lat
+        paso_datos['_referencia_lon'] = ref_lon
+        paso_datos['_referencia_label'] = (
+            PasoDefinicion.objects.filter(nombre=ref_slug).values_list('titulo', flat=True).first()
+            or ref_slug.capitalize()
+        )
 
     computed = {}
     for pw in paso_widgets:
