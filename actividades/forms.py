@@ -2,6 +2,17 @@ from django import forms
 from .models import PasoDefinicion
 
 
+def _validate_decimal_coord(value):
+    if not value:
+        return
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        raise forms.ValidationError(
+            'Ingresa la coordenada en grados decimales (ej: -33.456789), no en formato DMS.'
+        )
+
+
 def build_dynamic_form(paso, data=None, initial=None, widget_slug=None):
     """Builds a form for a paso's widgets. If widget_slug is given, only that widget's fields."""
     fields = {}
@@ -12,8 +23,8 @@ def build_dynamic_form(paso, data=None, initial=None, widget_slug=None):
     for pw in pws:
         slug = pw.widget_slug
         if slug == 'ubicacion_widget':
-            fields['lat'] = forms.CharField(required=False, label='Latitud')
-            fields['lon'] = forms.CharField(required=False, label='Longitud')
+            fields['lat'] = forms.CharField(required=False, label='Latitud', validators=[_validate_decimal_coord])
+            fields['lon'] = forms.CharField(required=False, label='Longitud', validators=[_validate_decimal_coord])
         elif slug == 'comentario_widget':
             fields['comentario'] = forms.CharField(
                 required=False,
