@@ -381,19 +381,28 @@ class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
         # Actualizar fila de inspección con coordenadas correctas
         geo_rows.append(['Inspección', _fmt6(inspeccion_lat), convert_lat_to_dms(inspeccion_lat), _fmt6(inspeccion_lon), convert_lon_to_dms(inspeccion_lon)])
 
+        datos_generales = {
+            f'Código {registro.sitio._meta.get_field("pti_cell_id").verbose_name}:': registro.sitio.pti_cell_id,
+            f'Código {registro.sitio._meta.get_field("operator_id").verbose_name}:': registro.sitio.operator_id,
+            f'{registro.sitio._meta.get_field("name").verbose_name}:': registro.sitio.name,
+            f'{registro.sitio._meta.get_field("tipo_sitio").verbose_name}:': registro.sitio.get_tipo_sitio_display(),
+            f'Alternativa:': registro.alternativa,
+            f'{registro.sitio._meta.get_field("region").verbose_name}:': registro.sitio.region,
+            f'{registro.sitio._meta.get_field("comuna").verbose_name}:': registro.sitio.comuna,
+        }
+        if registro.sitio.tipo_sitio == registro.sitio.TORRE:
+            # Torres no tienen paso 'poste' (ver comentario más abajo sobre
+            # _paso_inspeccion): la altura se toma directo del Sitio, y no se
+            # muestra Empresa de Energía porque ese dato es propio del
+            # formulario de postes.
+            datos_generales['Altura:'] = f'{registro.sitio.alt} m.' if registro.sitio.alt is not None else 'N/A'
+        else:
+            datos_generales['Altura:'] = poste_form.get('altura') or 'N/A'
+            datos_generales['Empresa de Energía:'] = poste_form.get('empresa_energia') or 'N/A'
+
         context.update({
             'registro': registro,
-            'datos_generales': {
-                f'Código {registro.sitio._meta.get_field("pti_cell_id").verbose_name}:': registro.sitio.pti_cell_id,
-                f'Código {registro.sitio._meta.get_field("operator_id").verbose_name}:': registro.sitio.operator_id,
-                f'{registro.sitio._meta.get_field("name").verbose_name}:': registro.sitio.name,
-                f'{registro.sitio._meta.get_field("tipo_sitio").verbose_name}:': registro.sitio.get_tipo_sitio_display(),
-                f'Alternativa:': registro.alternativa,
-                f'{registro.sitio._meta.get_field("region").verbose_name}:': registro.sitio.region,
-                f'{registro.sitio._meta.get_field("comuna").verbose_name}:': registro.sitio.comuna,
-                'Altura:': poste_form.get('altura') or 'N/A',
-                'Empresa de Energía:': poste_form.get('empresa_energia') or 'N/A',
-            },
+            'datos_generales': datos_generales,
             'inspeccion_sitio': {
                 'Responsable Técnico:': (registro.user.first_name + ' ' + registro.user.last_name).strip() if registro.user else 'N/A',
                 'Fecha de Inspección:': registro.fecha.strftime('%d/%m/%Y'),
