@@ -217,7 +217,7 @@ def regenerar_mapas_2_puntos_afectados(registro, ct, paso_nombre_cambiado):
     import json as _json
     from django.core.files.base import ContentFile
     from core.models.google_maps import GoogleMapsImage
-    from core.utils.coordenadas import obtener_imagen_google_maps
+    from core.utils.coordenadas import obtener_imagen_google_maps, calcular_zoom_optimo
     from actividades.models import PasoWidget
     from actividades.context_builder import rebuild_contexto, get_tipo_actividad
 
@@ -265,8 +265,12 @@ def regenerar_mapas_2_puntos_afectados(registro, ct, paso_nombre_cambiado):
         if existing and existing.coordenadas == coordenadas:
             continue  # sin cambios reales: no gastar una llamada a la API
 
+        # Zoom máximo que garantiza que todos los puntos queden visibles.
+        # No se reusa existing.zoom: si las coords corregidas quedaron más
+        # lejos que antes, el zoom viejo cortaría un punto en la imagen.
+        zoom = calcular_zoom_optimo(coordenadas, tamano='640x640')
         imagen_bytes = obtener_imagen_google_maps(
-            coordenadas=coordenadas, zoom=(existing.zoom if existing else 17),
+            coordenadas=coordenadas, zoom=zoom,
             maptype='hybrid', scale=2, tamano='640x640',
         )
         if not imagen_bytes:

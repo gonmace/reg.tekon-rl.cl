@@ -45,17 +45,19 @@ Estados:
       <!-- Mapa -->
       <div class="relative flex-1 overflow-hidden">
         <div id="map-{{ wid }}" class="w-full h-full min-h-[300px]"></div>
-        <div class="absolute top-2 left-2 bg-base-100/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-base-content/60 shadow pointer-events-none sm:hidden">
+        <!-- Toggle de capas flotante (arriba a la izquierda, encima del mapa).
+             z-[1000]: el contenedor de controles de Leaflet usa z-index 1000. -->
+        <div class="absolute top-2 left-2 z-[1000] join shadow bg-base-100/90 backdrop-blur-sm rounded-lg p-0.5">
+          <button type="button" id="btn-sat-{{ wid }}" class="btn btn-xs join-item btn-neutral">Satélite</button>
+          <button type="button" id="btn-str-{{ wid }}" class="btn btn-xs join-item">Calles</button>
+        </div>
+        <div class="absolute top-2 right-2 bg-base-100/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-base-content/60 shadow pointer-events-none sm:hidden">
           Toca el mapa para colocar el marcador manualmente
         </div>
       </div>
 
       <!-- Footer -->
       <div class="px-4 py-2 border-t border-base-300 shrink-0 flex items-center justify-between gap-3">
-        <div class="join shrink-0">
-          <button type="button" id="btn-sat-{{ wid }}" class="btn btn-xs join-item btn-neutral">Satélite</button>
-          <button type="button" id="btn-str-{{ wid }}" class="btn btn-xs join-item">Calles</button>
-        </div>
         <span id="gps-status-{{ wid }}" class="text-xs text-error flex-1 text-center"></span>
         <button type="button" id="btn-capturar-{{ wid }}" class="btn btn-success btn-sm gap-2 shrink-0"
                 data-access="{{ access_val }}">

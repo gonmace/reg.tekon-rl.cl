@@ -54,12 +54,6 @@ Estados:
      data-color2="{{ color2|default:'#0054ff' }}"
      {% endif %}
      {% if save_url %}data-save-url="{{ save_url }}"{% endif %}>
-  <div class="p-2 bg-base-100 border-b border-base-300 flex justify-start">
-    <div class="join">
-      <button type="button" class="btn btn-xs join-item mapa-2p-btn-sat btn-neutral">Satélite</button>
-      <button type="button" class="btn btn-xs join-item mapa-2p-btn-str">Calles</button>
-    </div>
-  </div>
   <div class="mapa-2-puntos-container w-full" style="aspect-ratio:1/1;"></div>
   {% if save_url %}
   <div class="p-2 bg-base-100 border-t border-base-300 flex justify-end">
@@ -106,6 +100,29 @@ Estados:
         attribution: '© OpenStreetMap contributors', maxZoom: 21, maxNativeZoom: 19
       });
       satLayer.addTo(map);
+
+      // Control de capas flotante (esquina superior izquierda, encima del
+      // mapa) en vez de una barra aparte: no compite por espacio vertical
+      // ni con los controles propios de Leaflet (zoom/atribución van abajo
+      // a la derecha).
+      var TileToggle = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function () {
+          // La clase leaflet-control es necesaria: sin ella el div hereda
+          // pointer-events:none del contenedor .leaflet-top (botones no
+          // clicables) y pierde el margen estándar de 10px de Leaflet.
+          var div = L.DomUtil.create('div', 'leaflet-control mapa-2p-tile-toggle');
+          div.innerHTML =
+            '<div class="join shadow bg-base-100/90 backdrop-blur-sm rounded-lg p-0.5">' +
+              '<button type="button" class="btn btn-xs join-item mapa-2p-btn-sat btn-neutral">Satélite</button>' +
+              '<button type="button" class="btn btn-xs join-item mapa-2p-btn-str">Calles</button>' +
+            '</div>';
+          L.DomEvent.disableClickPropagation(div);
+          L.DomEvent.disableScrollPropagation(div);
+          return div;
+        },
+      });
+      map.addControl(new TileToggle());
 
       var btnSat = w.querySelector('.mapa-2p-btn-sat');
       var btnStr = w.querySelector('.mapa-2p-btn-str');

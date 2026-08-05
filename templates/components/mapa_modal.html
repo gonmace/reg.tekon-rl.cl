@@ -249,19 +249,68 @@
       }
       
       // Crear el mapa
+      // maxZoom 21: tope real que acepta la API de Google Static Maps (ver
+      // core/utils/coordenadas.py calcular_zoom_optimo) — si el mapa se queda
+      // en el default de Leaflet (18), la vista nunca puede acercarse tanto
+      // como el zoom que en realidad se va a capturar al confirmar.
       window.MapManager.currentMap = L.map('map-container', {
           zoomControl: false,
+          maxZoom: 21,
       }).setView([centerLat, centerLon], initialZoom);
-      
-      // Agregar capa de OpenStreetMap
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-      }).addTo(window.MapManager.currentMap);
-  
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-          attribution: '© Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-      }).addTo(window.MapManager.currentMap);
-      
+
+      // Capas de tiles (nombradas, no apiladas) para poder alternar entre
+      // satélite y calles con el toggle flotante de abajo.
+      const streetsLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors', maxZoom: 21, maxNativeZoom: 19
+      });
+      const satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution: '© Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+          maxZoom: 21, maxNativeZoom: 19
+      });
+      satLayer.addTo(window.MapManager.currentMap);
+
+      // Control de capas flotante (esquina superior izquierda, encima del
+      // mapa), igual que en widgets/mapa_2_puntos.html.
+      const TileToggle = L.Control.extend({
+          options: { position: 'topleft' },
+          onAdd: function () {
+              // La clase leaflet-control es necesaria: sin ella el div hereda
+              // pointer-events:none del contenedor .leaflet-top (botones no
+              // clicables) y pierde el margen estándar de 10px de Leaflet.
+              const div = L.DomUtil.create('div', 'leaflet-control map-modal-tile-toggle');
+              div.innerHTML =
+                  '<div class="join shadow bg-base-100/90 backdrop-blur-sm rounded-lg p-0.5">' +
+                      '<button type="button" class="btn btn-xs join-item map-modal-btn-sat btn-neutral">Satélite</button>' +
+                      '<button type="button" class="btn btn-xs join-item map-modal-btn-str">Calles</button>' +
+                  '</div>';
+              L.DomEvent.disableClickPropagation(div);
+              L.DomEvent.disableScrollPropagation(div);
+              return div;
+          },
+      });
+      window.MapManager.currentMap.addControl(new TileToggle());
+
+      const btnSat = window.MapManager.currentMap.getContainer().querySelector('.map-modal-btn-sat');
+      const btnStr = window.MapManager.currentMap.getContainer().querySelector('.map-modal-btn-str');
+      let currentTile = 'satellite';
+      function switchTile(type) {
+          if (type === currentTile) return;
+          if (type === 'streets') {
+              window.MapManager.currentMap.removeLayer(satLayer);
+              streetsLayer.addTo(window.MapManager.currentMap);
+              btnSat.classList.remove('btn-neutral');
+              btnStr.classList.add('btn-neutral');
+          } else {
+              window.MapManager.currentMap.removeLayer(streetsLayer);
+              satLayer.addTo(window.MapManager.currentMap);
+              btnStr.classList.remove('btn-neutral');
+              btnSat.classList.add('btn-neutral');
+          }
+          currentTile = type;
+      }
+      if (btnSat) btnSat.addEventListener('click', function () { switchTile('satellite'); });
+      if (btnStr) btnStr.addEventListener('click', function () { switchTile('streets'); });
+
       // Función para obtener dimensiones según el tamaño (+30% vs. valores originales)
       function getMarkerDimensions(size) {
           const sizes = {
@@ -338,51 +387,12 @@
       saveBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Generando imagen...';
       saveBtn.disabled = true;
       
-      // Calcular zoom óptimo según el número de puntos
-      let optimalZoom;
-      
-      if (window.MapManager.coordinates.length === 1) {
-          // Solo un punto - zoom fijo para mejor visualización
-          optimalZoom = 20;
-          console.log('Solo un punto - Zoom fijo:', optimalZoom);
-      } else {
-          // Múltiples puntos - calcular la distancia máxima entre puntos
-          let maxDiff = 0;
-          const coords = window.MapManager.coordinates;
-          
-          for (let i = 0; i < coords.length; i++) {
-              for (let j = i + 1; j < coords.length; j++) {
-                  const latDiff = Math.abs(coords[i].lat - coords[j].lat);
-                  const lonDiff = Math.abs(coords[i].lon - coords[j].lon);
-                  const diff = Math.max(latDiff, lonDiff);
-                  maxDiff = Math.max(maxDiff, diff);
-              }
-          }
-          
-          // Calcular zoom óptimo basado en la distancia máxima
-          if (maxDiff < 0.00001) {  // Extremadamente cerca (menos de ~1 metro)
-              optimalZoom = 20;  // Zoom máximo
-          } else if (maxDiff < 0.0001) {  // Muy cerca (menos de ~10 metros)
-              optimalZoom = 20;  // Zoom máximo
-          } else if (maxDiff < 0.0005) {  // Cerca (menos de ~50 metros)
-              optimalZoom = 19;  // Zoom muy alto
-          } else if (maxDiff < 0.001) {   // Cerca (menos de ~100 metros)
-              optimalZoom = 18;  // Zoom alto
-          } else if (maxDiff < 0.005) {   // Moderado (menos de ~500 metros)
-              optimalZoom = 17;  // Zoom alto-medio
-          } else if (maxDiff < 0.01) {    // Moderado (menos de ~1 km)
-              optimalZoom = 16;  // Zoom medio-alto
-          } else if (maxDiff < 0.05) {    // Lejos (menos de ~5 km)
-              optimalZoom = 15;  // Zoom medio
-          } else if (maxDiff < 0.1) {     // Lejos (menos de ~10 km)
-              optimalZoom = 14;  // Zoom medio-bajo
-          } else {                        // Muy lejos (más de 10 km)
-              optimalZoom = 13;  // Zoom bajo pero visible
-          }
-          
-          console.log('Distancia máxima entre puntos:', maxDiff, 'Zoom calculado:', optimalZoom);
-      }
-    
+      // El zoom óptimo (máximo que mantiene todos los puntos visibles en la
+      // imagen estática) lo calcula el backend con calcular_zoom_optimo()
+      // (proyección Mercator sobre el tamaño real de imagen) — no se manda
+      // desde acá porque el zoom de la vista Leaflet del modal no coincide
+      // necesariamente con el de la imagen estática 640x640.
+
       // Obtener el botón actual del mapa
       const currentMapBtn = document.querySelector(`[id^="map-btn-"][data-step-title="${window.MapManager.currentStepTitle}"]`);
   
@@ -412,7 +422,7 @@
       }
       
       // Agregar configuración del mapa
-      requestData.zoom = optimalZoom;  // Zoom calculado según el número de puntos
+      // (zoom no se envía: lo calcula el backend con calcular_zoom_optimo)
       requestData.maptype = 'hybrid';
       requestData.scale = 2;
       requestData.tamano = '640x640';  // Formato rectangular panorámico para mejor visualización

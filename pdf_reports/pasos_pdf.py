@@ -101,7 +101,7 @@ def _postprocesar_mapa(data: dict, pw, titulos_por_paso: dict) -> dict:
     data['leyenda'] = leyenda
 
     metros = data.get('distancia_total_metros')
-    if metros:
+    if metros is not None:
         data['distancia_str'] = f'{metros / 1000:.2f} km' if metros >= 1000 else f'{metros:.0f} m'
     else:
         data['distancia_str'] = None

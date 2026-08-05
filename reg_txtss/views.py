@@ -584,7 +584,7 @@ class MapaSaveView(LoginRequiredMixin, ItoLikeMixin, View):
         from django.core.files.base import ContentFile
         from django.contrib.contenttypes.models import ContentType
         from core.models.google_maps import GoogleMapsImage
-        from core.utils.coordenadas import obtener_imagen_google_maps
+        from core.utils.coordenadas import obtener_imagen_google_maps, calcular_zoom_optimo
 
         registro = get_object_or_404(RegTxtss, pk=registro_id)
         denied = registro_access_denied(request, registro)
@@ -606,7 +606,11 @@ class MapaSaveView(LoginRequiredMixin, ItoLikeMixin, View):
             ]
             if not coordenadas:
                 return JsonResponse({'success': False, 'error': 'Sin coordenadas válidas'}, status=400)
-            zoom = int(body.get('zoom', 17))
+            # Zoom máximo que garantiza que TODOS los puntos queden visibles:
+            # se ignora el zoom del body (vista Leaflet) porque si el usuario
+            # zoomea de más, la imagen estática (centrada en el punto medio)
+            # cortaría puntos en los bordes.
+            zoom = calcular_zoom_optimo(coordenadas, tamano='640x640')
         else:
             lat = body.get('lat')
             lon = body.get('lon')

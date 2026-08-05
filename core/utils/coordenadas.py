@@ -64,6 +64,56 @@ def _to_api_color(color_str):
     return s  # color nombrado ('red', 'blue', etc.)
 
 
+def _lat_rad_mercator(lat):
+    """Latitud en radianes proyectada (Mercator), acotada a +/-pi/2."""
+    s = math.sin(lat * math.pi / 180)
+    r = math.log((1 + s) / (1 - s)) / 2
+    return max(min(r, math.pi), -math.pi) / 2
+
+
+def calcular_zoom_optimo(coordenadas, tamano="640x640", margen_px=60):
+    """
+    Zoom máximo (1..21) tal que TODOS los puntos quedan visibles en una
+    imagen de `tamano`, dejando `margen_px` de aire por lado para que los
+    marcadores no queden cortados en los bordes.
+
+    - 1 punto (o ninguno): 20 (convención del proyecto).
+    - >= 2 puntos: fit por proyección Mercator; puntos idénticos -> 21.
+    """
+    pts = []
+    for coord in coordenadas:
+        try:
+            pts.append((float(coord['lat']), float(coord['lon'])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if len(pts) < 2:
+        return 20
+
+    try:
+        iw, ih = [int(x) for x in str(tamano).lower().split('x')]
+    except (ValueError, AttributeError):
+        iw, ih = 640, 640
+    # Margen por lado: el área útil para los puntos es la imagen menos 2*margen
+    pw = max(1, iw - 2 * int(margen_px))
+    ph = max(1, ih - 2 * int(margen_px))
+
+    lats = [p[0] for p in pts]
+    lons = [p[1] for p in pts]
+    lat_frac = (_lat_rad_mercator(max(lats)) - _lat_rad_mercator(min(lats))) / math.pi
+    lon_frac = (max(lons) - min(lons)) / 360.0
+
+    def _zoom_fit(map_px, world_px, fraction):
+        if fraction == 0:
+            return 21
+        return math.floor(math.log(map_px / world_px / fraction) / math.log(2))
+
+    return max(1, min(
+        _zoom_fit(ph, 256, lat_frac),
+        _zoom_fit(pw, 256, lon_frac),
+        21,
+    ))
+
+
 def obtener_imagen_google_maps(coordenadas, zoom=None, maptype="hybrid", scale=2, tamano="400x400"):
     """
     Solicita una imagen estática de Google Maps usando los marcadores nativos de la API.
@@ -100,36 +150,13 @@ def obtener_imagen_google_maps(coordenadas, zoom=None, maptype="hybrid", scale=2
         return None
 
     # ── Calcular centro y zoom ────────────────────────────────────────────────
-    def _lat_rad(lat):
-        s = math.sin(lat * math.pi / 180)
-        r = math.log((1 + s) / (1 - s)) / 2
-        return max(min(r, math.pi), -math.pi) / 2
-
-    def _zoom_fit(map_px, world_px, fraction):
-        if fraction == 0:
-            return 21
-        return math.floor(math.log(map_px / world_px / fraction) / math.log(2))
-
     lats = [c['lat'] for c in valid_coords]
     lons = [c['lon'] for c in valid_coords]
     centro_lat = (min(lats) + max(lats)) / 2
     centro_lon = (min(lons) + max(lons)) / 2
 
     if zoom is None:
-        if len(valid_coords) == 1:
-            zoom = 20
-        else:
-            try:
-                iw, ih = [int(x) for x in tamano.lower().split('x')]
-            except Exception:
-                iw, ih = 640, 640
-            lat_frac = (_lat_rad(max(lats)) - _lat_rad(min(lats))) / math.pi
-            lon_frac = (max(lons) - min(lons)) / 360.0
-            zoom = max(1, min(
-                _zoom_fit(ih, 256, lat_frac) if lat_frac else 21,
-                _zoom_fit(iw, 256, lon_frac) if lon_frac else 21,
-                21,
-            ))
+        zoom = calcular_zoom_optimo(valid_coords, tamano=tamano)
 
     # ── Construir params con múltiples markers ────────────────────────────────
     params = [

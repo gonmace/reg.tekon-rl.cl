@@ -11,7 +11,7 @@ from django.core.files.base import ContentFile
 from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
 from core.models.google_maps import GoogleMapsImage
-from core.utils.coordenadas import obtener_imagen_google_maps
+from core.utils.coordenadas import obtener_imagen_google_maps, calcular_zoom_optimo
 from reg_txtss.models import RegTxtss
 import logging
 
@@ -47,12 +47,15 @@ class GoogleMapsAPIView(LoginRequiredMixin, View):
                 "color": "#EF4444",
                 "size": "mid"
             },
-            "zoom": 15,
             "maptype": "hybrid",
             "scale": 2,
             "tamano": "640x640"
         }
-        
+
+        El zoom no se recibe del cliente: se calcula en el servidor con
+        calcular_zoom_optimo() para que sea el máximo posible que aún deja
+        todos los puntos dentro de la imagen estática.
+
         Response JSON:
         {
             "success": true,
@@ -115,10 +118,16 @@ class GoogleMapsAPIView(LoginRequiredMixin, View):
                 }, status=400)
             
             # Parámetros del mapa
-            zoom = data.get('zoom', 15)
             maptype = data.get('maptype', 'hybrid')
             scale = data.get('scale', 2)
             tamano = data.get('tamano', '640x640')
+            # Zoom máximo que garantiza que TODOS los puntos queden visibles:
+            # se ignora cualquier zoom enviado por el cliente (vista Leaflet)
+            # porque si el usuario zoomea de más, la imagen estática (centrada
+            # en el punto medio) cortaría puntos en los bordes. Mismo criterio
+            # que reg_txtss.views.MapaSaveView y
+            # actividades.views.regenerar_mapas_2_puntos_afectados.
+            zoom = calcular_zoom_optimo(coordenadas, tamano=tamano)
             
             # Generar imagen usando Google Maps API
             imagen_bytes = obtener_imagen_google_maps(
@@ -157,7 +166,13 @@ class GoogleMapsAPIView(LoginRequiredMixin, View):
                 ContentFile(imagen_bytes),
                 save=True
             )
-            
+
+            # Sin esto, ContextoRegistro.contexto (usado por el PDF) queda con
+            # el imagen_url/imagen_abs_path de la imagen anterior — mismo bug
+            # ya resuelto en reg_txtss.views.MapaSaveView.
+            from actividades.context_builder import rebuild_contexto
+            rebuild_contexto(registro)
+
             # Preparar respuesta
             response_data = {
                 'success': True,
