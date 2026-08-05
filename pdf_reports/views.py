@@ -275,14 +275,6 @@ class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
         def _fmt6(v):
             return f'{float(v):.6f}' if v is not None else ''
 
-        geo_rows = [
-            ['Mandato', _fmt6(registro.sitio.lat_man), convert_lat_to_dms(registro.sitio.lat_man), _fmt6(registro.sitio.lon_man), convert_lon_to_dms(registro.sitio.lon_man)],
-        ]
-        if registro.sitio.lat_ing is not None and registro.sitio.lon_ing is not None:
-            geo_rows.append(['Ingeniería', _fmt6(registro.sitio.lat_ing), convert_lat_to_dms(registro.sitio.lat_ing), _fmt6(registro.sitio.lon_ing), convert_lon_to_dms(registro.sitio.lon_ing)])
-        if registro.sitio.lat_con is not None and registro.sitio.lon_con is not None:
-            geo_rows.append(['Construcción', _fmt6(registro.sitio.lat_con), convert_lat_to_dms(registro.sitio.lat_con), _fmt6(registro.sitio.lon_con), convert_lon_to_dms(registro.sitio.lon_con)])
-
         from actividades.models import ContextoRegistro
         ctx_obj = ContextoRegistro.objects.filter(
             content_type=registro_content_type, object_id=registro.id
@@ -292,6 +284,31 @@ class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
         # Extraer datos desde el contexto de widgets (fuente principal para registros sin legacy steps)
         pasos_ctx = reg_contexto.get('pasos', {})
         flat_ctx  = reg_contexto.get('flat', {})
+
+        def _coord_para_paso(paso_nombre, lat_sitio, lon_sitio):
+            """Prioriza las coordenadas guardadas en el widget (flat_ctx) sobre
+            las del modelo Site, que solo se actualizan por import o CRUD aparte
+            y quedan obsoletas si el usuario corrige la ubicación en el paso."""
+            lat = flat_ctx.get(f'{paso_nombre}.lat')
+            lon = flat_ctx.get(f'{paso_nombre}.lon')
+            if lat is None or lon is None:
+                lat, lon = lat_sitio, lon_sitio
+            try:
+                return float(lat), float(lon)
+            except (TypeError, ValueError):
+                return None, None
+
+        man_lat, man_lon = _coord_para_paso('mandato', registro.sitio.lat_man, registro.sitio.lon_man)
+        ing_lat, ing_lon = _coord_para_paso('ingenieria', registro.sitio.lat_ing, registro.sitio.lon_ing)
+        con_lat, con_lon = _coord_para_paso('construccion', registro.sitio.lat_con, registro.sitio.lon_con)
+
+        geo_rows = [
+            ['Mandato', _fmt6(man_lat), convert_lat_to_dms(man_lat), _fmt6(man_lon), convert_lon_to_dms(man_lon)],
+        ]
+        if ing_lat is not None and ing_lon is not None:
+            geo_rows.append(['Ingeniería', _fmt6(ing_lat), convert_lat_to_dms(ing_lat), _fmt6(ing_lon), convert_lon_to_dms(ing_lon)])
+        if con_lat is not None and con_lon is not None:
+            geo_rows.append(['Construcción', _fmt6(con_lat), convert_lat_to_dms(con_lat), _fmt6(con_lon), convert_lon_to_dms(con_lon)])
 
         # Coordenadas de inspección desde el widget ubicacion del paso que
         # juega ese rol: 'poste' en el flujo POSTE, 'sitio' en el flujo TORRE
@@ -306,7 +323,7 @@ class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
             inspeccion_lon = None
 
         # Desfase calculado con geopy (misma fórmula que ubicacion_widget).
-        # Fuente primaria: GPS de inspección vs lat_man/lon_man del sitio en BD.
+        # Fuente primaria: GPS de inspección vs mandato (widget si fue editado, si no lat_man/lon_man del sitio en BD).
         # Fallback: distancia_total_metros del mapa de desfase (puntos colocados manualmente).
         desfase_metros_val = None
 
@@ -338,10 +355,10 @@ class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
         imagenes_fotos = _get_fotos_pdf(registro, 'imagenes', registro_content_type)
 
         # Calcular desfase usando geopy (misma fórmula que ubicacion_widget).
-        # Prioridad: GPS capturado vs mandato en BD → mapa_desfase_obj → mapa_sitio legacy.
-        if inspeccion_lat and inspeccion_lon and registro.sitio.lat_man and registro.sitio.lon_man:
+        # Prioridad: GPS capturado vs mandato (widget si fue editado, si no BD) → mapa_desfase_obj → mapa_sitio legacy.
+        if inspeccion_lat and inspeccion_lon and man_lat and man_lon:
             desfase_metros_val = calcular_distancia_geopy(
-                registro.sitio.lat_man, registro.sitio.lon_man,
+                man_lat, man_lon,
                 inspeccion_lat, inspeccion_lon,
             )
         if not desfase_metros_val:
