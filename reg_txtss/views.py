@@ -570,6 +570,8 @@ class DynamicPasoView(LoginRequiredMixin, ItoLikeMixin, View):
             dato.save()
             from actividades.context_builder import rebuild_contexto
             rebuild_contexto(registro)
+            from actividades.views import regenerar_mapas_2_puntos_afectados
+            regenerar_mapas_2_puntos_afectados(registro, ct, paso_nombre)
             return redirect('reg_txtss:steps', registro_id=registro_id)
         return self._render(request, registro, paso, form)
 

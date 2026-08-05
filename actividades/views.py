@@ -201,6 +201,99 @@ def _resolve_paso_coord(registro, ct, paso_nombre_raw):
     return lat_v, lon_v
 
 
+def regenerar_mapas_2_puntos_afectados(registro, ct, paso_nombre_cambiado):
+    """Regenera la imagen/distancia de todo widget mapa_2_puntos (de cualquier
+    paso) cuya referencia (paso1 o paso2) sea paso_nombre_cambiado, siempre que
+    las coordenadas resueltas hayan cambiado respecto a lo guardado.
+
+    La imagen es una foto estática (GoogleMapsImage) que antes solo se
+    actualizaba con el botón manual "Guardar imagen" del widget — si el
+    usuario corregía la ubicación en otro paso, la imagen y la distancia
+    mostradas en el PDF quedaban con el valor viejo indefinidamente (ver
+    memoria del bug: coordenadas editadas pero PDF con datos obsoletos).
+    Compara contra lo ya guardado antes de llamar a la API de Google Maps
+    para no gastar cuota en cada guardado de campos que no son de ubicación.
+    """
+    import json as _json
+    from django.core.files.base import ContentFile
+    from core.models.google_maps import GoogleMapsImage
+    from core.utils.coordenadas import obtener_imagen_google_maps
+    from actividades.models import PasoWidget
+    from actividades.context_builder import rebuild_contexto, get_tipo_actividad
+
+    nombre_cambiado = (paso_nombre_cambiado or '').strip().lower()
+    if not nombre_cambiado:
+        return
+
+    tipo = get_tipo_actividad(registro)
+    if not tipo:
+        return
+
+    hubo_cambio = False
+    widgets_afectados = PasoWidget.objects.filter(
+        widget_slug='mapa_2_puntos', pasodef__asignaciones__tipo=tipo
+    ).select_related('pasodef').distinct()
+
+    for pw in widgets_afectados:
+        cfg = pw.config or {}
+        paso1 = (cfg.get('paso1') or '').strip().lower()
+        paso2 = (cfg.get('paso2') or '').strip().lower()
+        if nombre_cambiado not in (paso1, paso2):
+            continue
+
+        lat1, lon1 = _resolve_paso_coord(registro, ct, paso1)
+        if not (lat1 and lon1):
+            continue
+        lat2, lon2 = _resolve_paso_coord(registro, ct, paso2)
+
+        coordenadas = [{
+            'lat': float(lat1), 'lon': float(lon1),
+            'label': (cfg.get('label1') or 'A')[:1].upper(),
+            'color': cfg.get('color1') or '#e74c3c', 'size': 'mid',
+        }]
+        if lat2 and lon2:
+            coordenadas.append({
+                'lat': float(lat2), 'lon': float(lon2),
+                'label': (cfg.get('label2') or 'B')[:1].upper(),
+                'color': cfg.get('color2') or '#0054ff', 'size': 'mid',
+            })
+
+        etapa = pw.pasodef.nombre
+        existing = GoogleMapsImage.objects.filter(
+            content_type=ct, object_id=registro.id, etapa=etapa
+        ).first()
+        if existing and existing.coordenadas == coordenadas:
+            continue  # sin cambios reales: no gastar una llamada a la API
+
+        imagen_bytes = obtener_imagen_google_maps(
+            coordenadas=coordenadas, zoom=(existing.zoom if existing else 17),
+            maptype='hybrid', scale=2, tamano='640x640',
+        )
+        if not imagen_bytes:
+            continue
+
+        sitio = getattr(registro, 'sitio', None)
+        sitio_codigo = getattr(sitio, 'pti_cell_id', 'SIN_CODIGO') if sitio else 'SIN_CODIGO'
+        operador = getattr(sitio, 'operator_id', 'SIN_OPERADOR') if sitio else 'SIN_OPERADOR'
+        filename = f'{sitio_codigo}_{operador}_{etapa}.png'
+
+        obj, _created = GoogleMapsImage.objects.update_or_create(
+            content_type=ct, object_id=registro.id, etapa=etapa,
+            defaults={
+                'zoom': existing.zoom if existing else 17,
+                'maptype': 'hybrid', 'scale': 2, 'tamano': '640x640',
+                'coordenadas_json': _json.dumps(coordenadas), 'was_created': True,
+            },
+        )
+        if obj.imagen:
+            obj.imagen.delete(save=False)
+        obj.imagen.save(filename, ContentFile(imagen_bytes), save=True)
+        hubo_cambio = True
+
+    if hubo_cambio:
+        rebuild_contexto(registro)
+
+
 def _compute_map_info(paso, registro, ct, paso_url=None):
     """Returns the map element dict for a dynamic paso step."""
     map_pws = list(paso.paso_widgets.filter(widget_slug__in=_MAP_SLUGS).order_by('orden'))
