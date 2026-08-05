@@ -54,6 +54,12 @@ Estados:
      data-color2="{{ color2|default:'#0054ff' }}"
      {% endif %}
      {% if save_url %}data-save-url="{{ save_url }}"{% endif %}>
+  <div class="p-2 bg-base-100 border-b border-base-300 flex justify-start">
+    <div class="join">
+      <button type="button" class="btn btn-xs join-item mapa-2p-btn-sat btn-neutral">Satélite</button>
+      <button type="button" class="btn btn-xs join-item mapa-2p-btn-str">Calles</button>
+    </div>
+  </div>
   <div class="mapa-2-puntos-container w-full" style="aspect-ratio:1/1;"></div>
   {% if save_url %}
   <div class="p-2 bg-base-100 border-t border-base-300 flex justify-end">
@@ -86,11 +92,41 @@ Estados:
       var hasPunto2 = !isNaN(lat2) && !isNaN(lon2);
 
       var container = w.querySelector('.mapa-2-puntos-container');
-      var map = L.map(container, { zoomControl: false });
+      // maxZoom 21: tope real que acepta la API de Google Static Maps (ver
+      // core/utils/coordenadas.py obtener_imagen_google_maps) — el zoom que
+      // se manda a MapaSaveView es el que tenga el mapa Leaflet al guardar,
+      // así que si el layer se queda en el default de Leaflet (18) nunca se
+      // puede pedir una imagen tan acercada como Google permite.
+      var map = L.map(container, { zoomControl: false, maxZoom: 21 });
 
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: '© Esri'
-      }).addTo(map);
+      var satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri', maxZoom: 21, maxNativeZoom: 19
+      });
+      var streetsLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors', maxZoom: 21, maxNativeZoom: 19
+      });
+      satLayer.addTo(map);
+
+      var btnSat = w.querySelector('.mapa-2p-btn-sat');
+      var btnStr = w.querySelector('.mapa-2p-btn-str');
+      var currentTile = 'satellite';
+      function switchTile(type) {
+        if (type === currentTile) return;
+        if (type === 'streets') {
+          map.removeLayer(satLayer);
+          streetsLayer.addTo(map);
+          btnSat.classList.remove('btn-neutral');
+          btnStr.classList.add('btn-neutral');
+        } else {
+          map.removeLayer(streetsLayer);
+          satLayer.addTo(map);
+          btnStr.classList.remove('btn-neutral');
+          btnSat.classList.add('btn-neutral');
+        }
+        currentTile = type;
+      }
+      if (btnSat) btnSat.addEventListener('click', function () { switchTile('satellite'); });
+      if (btnStr) btnStr.addEventListener('click', function () { switchTile('streets'); });
 
       function makeIcon(color, label) {
         return L.divIcon({
