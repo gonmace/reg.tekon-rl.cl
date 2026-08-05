@@ -128,12 +128,17 @@ class GoogleMapsImage(BaseModel):
             distancia_total += distancia
         
         self.distancia_total_metros = distancia_total
-        
+
         # Si solo hay 2 puntos, también calcular el desfase
         if len(coords) == 2:
             self.desfase_metros = distancia_total
-        
-        self.save()
+
+        # Update() directo (no self.save()) para no re-disparar save() y
+        # evitar recursión con la llamada de más abajo.
+        GoogleMapsImage.objects.filter(pk=self.pk).update(
+            distancia_total_metros=self.distancia_total_metros,
+            desfase_metros=self.desfase_metros,
+        )
     
     def save(self, *args, **kwargs):
         """Sobrescribir save para calcular distancias automáticamente."""
@@ -149,9 +154,11 @@ class GoogleMapsImage(BaseModel):
 
         super().save(*args, **kwargs)
 
-        # Calcular distancias si no están calculadas
-        if self.distancia_total_metros is None:
-            self.calcular_distancias()
+        # Recalcular siempre: coordenadas_json puede haber cambiado en un
+        # update_or_create (el widget reemplaza el mapa con coordenadas
+        # nuevas) y la distancia debe reflejar el par de puntos vigente, no
+        # quedar congelada desde el primer cálculo.
+        self.calcular_distancias()
 
     def delete(self, *args, **kwargs):
         """Borrar archivo de imagen al eliminar el registro."""
