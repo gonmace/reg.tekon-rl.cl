@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5435:5432"
+      - "127.0.0.1:5435:5432"
     volumes:
       - db_data:/var/lib/postgresql/data/
     networks:
@@ -60,7 +60,7 @@ services:
         reservations:
           memory: 512M
     healthcheck:
-      test: ["CMD", "curl", "-f", "-H", "Host: reg.tekon-rl.cl", "http://localhost:8000/"]
+      test: ["CMD", "curl", "-f", "-H", "Host: registros.tekon-rl.cl", "http://localhost:8000/"]
       interval: 30s
       timeout: 10s
       retries: 3
