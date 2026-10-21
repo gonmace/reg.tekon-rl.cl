@@ -88,6 +88,7 @@ document.addEventListener("DOMContentLoaded", function () {
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     {
       attribution: "© OpenStreetMap contributors",
+      referrerPolicy: "origin",
     }
   );
 

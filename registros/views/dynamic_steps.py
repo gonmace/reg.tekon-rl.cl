@@ -85,6 +85,10 @@ class DynamicPasoViewBase(LoginRequiredMixin, View):
         """Quién puede hacer POST. Por defecto ITO, Buscador y supermanager."""
         return user.is_supermanager or user.is_ito_like
 
+    def puede_escribir_widget(self, user, widget_slug):
+        """Si los controles de guardado del widget van habilitados para `user` (por defecto, `puede_escribir`)."""
+        return self.puede_escribir(user)
+
     def puede_acceder(self, user, registro):
         """Quién puede ver/editar este registro. Por defecto: dueño, supermanager o visita."""
         return can_access_registro(user, registro)
@@ -101,7 +105,7 @@ class DynamicPasoViewBase(LoginRequiredMixin, View):
     def _get_objects(self, registro_id, paso_nombre):
         from actividades.models import PasoDefinicion, TipoActividad
         from django.core.exceptions import PermissionDenied
-        registro = get_object_or_404(self.registro_model, pk=registro_id)
+        registro = get_object_or_404(self.registro_model, pk=registro_id, is_deleted=False)
         if not self.puede_acceder(self.request.user, registro):
             raise PermissionDenied('No tienes acceso a este registro.')
         tipo = get_object_or_404(TipoActividad, app_namespace=self.get_tipo_namespace(registro))
@@ -202,6 +206,7 @@ class DynamicPasoViewBase(LoginRequiredMixin, View):
             'app_namespace': ns,
             'registro_contexto_flat': registro_contexto_flat,
             'bloqueado': registro_bloqueado(registro),
+            'puede_escribir': self.puede_escribir_widget(request.user, request.GET.get('widget')),
         })
 
     def get(self, request, registro_id, paso_nombre):
@@ -258,7 +263,7 @@ class MapaSaveViewBase(LoginRequiredMixin, ItoLikeMixin, View):
         from core.models.google_maps import GoogleMapsImage
         from core.utils.coordenadas import obtener_imagen_google_maps, calcular_zoom_optimo
 
-        registro = get_object_or_404(self.registro_model, pk=registro_id)
+        registro = get_object_or_404(self.registro_model, pk=registro_id, is_deleted=False)
         denied = registro_access_denied(request, registro) or registro_bloqueado_response(registro)
         if denied:
             return denied
@@ -337,7 +342,7 @@ def make_toggle_concluido(model):
     @require_POST
     def toggle_concluido(request, registro_id):
         """Concluir (ITO/Buscador/superusuario) o reabrir (solo superusuario y ADMINISTRADOR)."""
-        registro = get_object_or_404(model, id=registro_id)
+        registro = get_object_or_404(model, id=registro_id, is_deleted=False)
         denied = registro_access_denied(request, registro)
         if denied:
             return denied

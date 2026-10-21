@@ -7,7 +7,7 @@
     <i class="fa-solid fa-file-pdf"></i>
   </a>
   {% if not request.user.is_visita %}
-  {% if record.es_ultima %}
+  {% if record.es_ultima and not request.user.is_administrador %}
   <button type="button" class="btn btn-sm btn-ghost btn-circle text-accent obra-nueva-btn"
           data-id="{{ record.id }}" data-nombre="{{ record.sitio.name }}" title="Nuevo reporte (otra fecha)">
     <i class="fa-solid fa-calendar-plus"></i>

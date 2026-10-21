@@ -16,7 +16,9 @@ from django.views.decorators.http import require_GET, require_POST
 
 from core.models.sites import Site
 from core.permissions import not_visita, registro_bloqueado_response, superuser_required
-from .permissions import puede_cambiar_ito, puede_gestionar, puede_ver
+from .permissions import (
+    MENSAJE_POSTERIOR_CONCLUIDA, hay_posterior_concluida, puede_cambiar_ito, puede_gestionar, puede_ver,
+)
 from registros.views.activation_views import GenericActivarRegistroView
 from registros.views.dynamic_steps import (
     DynamicPasoViewBase, MapaSaveViewBase, get_dynamic_steps,
@@ -264,9 +266,18 @@ class DynamicPasoView(DynamicPasoViewBase):
         # Coordinación completa la visita; el ADMINISTRADOR solo define la estructura de ítems (ver `post`).
         return user.is_supermanager or user.is_ito_like or user.is_coord or user.is_administrador
 
+    def puede_escribir_widget(self, user, widget_slug):
+        if user.is_administrador:
+            return widget_slug == 'tabla_avance_widget'
+        return self.puede_escribir(user)
+
     def post(self, request, *args, **kwargs):
         if request.user.is_administrador and request.GET.get('widget') != 'tabla_avance_widget':
             return _json_error('El administrador solo puede definir los ítems del avance', 403)
+        if request.GET.get('widget') == 'tabla_avance_widget':
+            registro = RegConstruccion.objects.filter(pk=kwargs.get('registro_id'), is_deleted=False).first()
+            if registro and hay_posterior_concluida(registro):
+                return _json_error(MENSAJE_POSTERIOR_CONCLUIDA, 403)
         return super().post(request, *args, **kwargs)
 
     def puede_acceder(self, user, registro):
@@ -321,6 +332,9 @@ def nueva_visita(request, registro_id):
     except (ValueError, TypeError):
         return _json_error('Fecha inválida')
 
+    if hay_posterior_concluida(base, fecha):
+        return _json_error(MENSAJE_POSTERIOR_CONCLUIDA, 403)
+
     ultima = RegConstruccion.objects.filter(sitio_id=base.sitio_id, is_deleted=False).order_by('-fecha', '-id').first()
     user = request.user if request.user.is_ito_like else base.user
     try:
@@ -367,10 +381,16 @@ def update_registro(request, registro_id):
     bloqueado = registro_bloqueado_response(registro)
     if bloqueado:
         return bloqueado
+    fecha_original = registro.fecha
     form = _form_edicion(request.user, registro, request.POST)
     if not form.is_valid():
         errores = ' '.join(m for msgs in form.errors.values() for m in msgs)
         return _json_error(errores or 'Datos inválidos')
+    fecha_nueva = form.cleaned_data.get('fecha')
+    if fecha_nueva and fecha_nueva != fecha_original and (
+        hay_posterior_concluida(registro, fecha_original) or hay_posterior_concluida(registro, fecha_nueva)
+    ):
+        return _json_error(MENSAJE_POSTERIOR_CONCLUIDA, 403)
     try:
         form.save()
     except ValidationError as e:
@@ -385,5 +405,7 @@ def delete_registro(request, registro_id):
     registro = get_object_or_404(RegConstruccion, pk=registro_id)
     if registro.concluido:
         return _json_error('Un reporte concluido no se puede eliminar; reábrelo primero', 403)
+    if hay_posterior_concluida(registro):
+        return _json_error(MENSAJE_POSTERIOR_CONCLUIDA, 403)
     registro.soft_delete()
     return JsonResponse({'success': True, 'message': 'Reporte eliminado'})

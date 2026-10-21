@@ -1,3 +1,7 @@
+from functools import wraps
+
+from django.core.exceptions import PermissionDenied
+
 from core.permissions import can_access_registro
 
 
@@ -27,3 +31,33 @@ def puede_cambiar_ito(user):
     """Reasignar la visita a otro ITO/Buscador: superusuario y ADMINISTRADOR."""
     return user.is_supermanager or user.is_administrador
 
+
+
+MENSAJE_POSTERIOR_CONCLUIDA = (
+    'Hay una visita posterior de este sitio ya concluida: reábrela para modificar el avance, '
+    'la fecha o eliminar esta visita (el avance acumulado de la posterior cambiaría).'
+)
+
+
+def hay_posterior_concluida(registro, fecha=None):
+    """¿El sitio tiene una visita concluida con fecha posterior a `fecha` (por defecto, la del registro)?
+
+    El % anterior/acumulado de una visita depende de las anteriores, así que tocar una visita
+    antigua alteraría los datos de una posterior ya cerrada.
+    """
+    from .models import RegConstruccion
+    return RegConstruccion.objects.filter(
+        sitio_id=registro.sitio_id, is_deleted=False, concluido=True,
+        fecha__gt=fecha or registro.fecha,
+    ).exists()
+
+
+def requiere_acceso_reporte(view):
+    """Envuelve una vista: los usuarios con `report_access` sin «construccion» reciben 403 (no solo se oculta el menú)."""
+    @wraps(view)
+    def envuelta(request, *args, **kwargs):
+        user = request.user
+        if user.is_authenticated and not user.has_report_access('construccion'):
+            raise PermissionDenied
+        return view(request, *args, **kwargs)
+    return envuelta

@@ -65,7 +65,8 @@ def btn_access(context):
     Uso: {% btn_access as access %} o data-access="{% btn_access %}"
     - VISITA           → hidden   (botón oculto)
     - Registro concluido (`bloqueado` en el contexto) → disabled para todos
-    - COORD / ADMINISTRADOR → disabled (visible pero inactivo)
+    - COORD / ADMINISTRADOR → disabled (visible pero inactivo), salvo que la vista indique
+      `puede_escribir` en el contexto (Construcción: la vista decide quién guarda)
     - ITO / SEARCHER / Supermanager → allowed
     Ver ROLES.md."""
     u = _get_user(context)
@@ -75,6 +76,9 @@ def btn_access(context):
         return 'hidden'
     if context.get('bloqueado'):
         return 'disabled'
+    puede_escribir = context.get('puede_escribir')
+    if puede_escribir is not None:
+        return 'allowed' if puede_escribir else 'disabled'
     if u.is_coord or u.is_administrador:
         return 'disabled'
     return 'allowed'

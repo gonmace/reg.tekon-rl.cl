@@ -1,7 +1,5 @@
 from django.views.generic import ListView
 from django.http import JsonResponse, StreamingHttpResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from django.views import View
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -73,6 +71,23 @@ def set_photos_template_for_step(step_name, template_name):
     # Usar un patrón que funcione para cualquier app_name
     PHOTOS_TEMPLATES[f"*_{step_name}"] = template_name
 
+def fotos_denied(request, registro):
+    """403 si el usuario no puede escribir fotos en el registro, o None.
+
+    Construcción: superusuario, coordinación del contratista y el ITO/Buscador dueño
+    (`puede_gestionar`). TX/TSS: ITO/Buscador dueño y superusuario (como antes).
+    """
+    user = request.user
+    if registro._meta.app_label == 'reg_construccion':
+        from reg_construccion.permissions import puede_gestionar
+        permitido = puede_gestionar(user, registro)
+    else:
+        permitido = (user.is_supermanager or user.is_ito_like) and can_access_registro(user, registro)
+    if permitido:
+        return None
+    return JsonResponse({'success': False, 'message': 'Sin permisos para este registro'}, status=403)
+
+
 def get_registro_from_id(registro_id, request=None):
     """
     Obtiene el registro por ID. El modelo se resuelve por el namespace de la URL
@@ -80,7 +95,7 @@ def get_registro_from_id(registro_id, request=None):
     """
     try:
         from registros.registry import model_from_request
-        return model_from_request(request).objects.get(id=registro_id)
+        return model_from_request(request).objects.get(id=registro_id, is_deleted=False)
     except Exception:
         pass
 
@@ -415,8 +430,7 @@ class ListPhotosView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
             return step_name.capitalize()
         return super().get_header_title()
 
-@method_decorator(csrf_exempt, name='dispatch')
-class UploadPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
+class UploadPhotosView(LoginRequiredMixin, NotVisitaMixin, View):
     def post(self, request, registro_id=None, paso_nombre=None, app_name=None, step_name=None):
         if not registro_id:
             resolved_url = request.resolver_match
@@ -432,7 +446,7 @@ class UploadPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
                     'success': False,
                     'message': f'Registro con ID {registro_id} no encontrado'
                 }, status=400)
-            denied = registro_access_denied(request, registro) or registro_bloqueado_response(registro)
+            denied = fotos_denied(request, registro) or registro_bloqueado_response(registro)
             if denied:
                 return denied
             files = request.FILES.getlist('photos')
@@ -511,8 +525,7 @@ class UploadPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
                 'message': 'Error al subir las fotos. Intenta nuevamente.'
             }, status=400)
 
-@method_decorator(csrf_exempt, name='dispatch')
-class UpdatePhotoView(LoginRequiredMixin, ItoLikeMixin, View):
+class UpdatePhotoView(LoginRequiredMixin, NotVisitaMixin, View):
     def post(self, request, registro_id=None, paso_nombre=None, app_name=None, step_name=None):
         if not registro_id:
             resolved_url = request.resolver_match
@@ -528,7 +541,7 @@ class UpdatePhotoView(LoginRequiredMixin, ItoLikeMixin, View):
             registro = get_registro_from_id(registro_id, request)
             if not registro:
                 return JsonResponse({'success': False, 'message': 'Registro no encontrado'}, status=404)
-            denied = registro_access_denied(request, registro) or registro_bloqueado_response(registro)
+            denied = fotos_denied(request, registro) or registro_bloqueado_response(registro)
             if denied:
                 return denied
             if not app_name:
@@ -571,7 +584,7 @@ class UpdatePhotoView(LoginRequiredMixin, ItoLikeMixin, View):
         except Exception as e:
             return JsonResponse({'success': False, 'message': f'Error al actualizar: {str(e)}'}, status=400)
 
-class ReorderPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
+class ReorderPhotosView(LoginRequiredMixin, NotVisitaMixin, View):
     def post(self, request, registro_id=None, paso_nombre=None, app_name=None, step_name=None):
         # Obtener parámetros desde la request
         params = get_params_from_request(request, registro_id=registro_id, paso_nombre=paso_nombre, app_name=app_name, step_name=step_name)
@@ -584,7 +597,7 @@ class ReorderPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
             registro = get_registro_from_id(registro_id, request)
             if not registro:
                 return JsonResponse({'success': False, 'message': 'Registro no encontrado'}, status=404)
-            denied = registro_access_denied(request, registro) or registro_bloqueado_response(registro)
+            denied = fotos_denied(request, registro) or registro_bloqueado_response(registro)
             if denied:
                 return denied
             if not app_name:
@@ -627,7 +640,6 @@ class ReorderPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
         except Exception as e:
             return JsonResponse({'success': False, 'message': f'Error al reordenar: {str(e)}'}, status=400)
 
-@method_decorator(csrf_exempt, name='dispatch')
 class DeletePhotoView(LoginRequiredMixin, SuperuserRequiredMixin, View):
     def post(self, request, photo_id, registro_id=None, paso_nombre=None, app_name=None, step_name=None):
         resolved_url = request.resolver_match
@@ -851,6 +863,20 @@ class PhotoGalleryView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
         ])
 
 
+def _fotos_bloqueadas_response(ids):
+    """403 si alguna de las fotos pertenece a un registro concluido (solo lectura), o None."""
+    pares = Photos.objects.filter(pk__in=ids).values_list('content_type_id', 'object_id').distinct()
+    for ct_id, object_id in pares:
+        ct = ContentType.objects.get_for_id(ct_id)
+        modelo = ct.model_class()
+        registro = modelo.objects.filter(pk=object_id).first() if modelo else None
+        if registro is not None:
+            bloqueado = registro_bloqueado_response(registro)
+            if bloqueado:
+                return bloqueado
+    return None
+
+
 class BulkDeletePhotosView(LoginRequiredMixin, SuperuserRequiredMixin, View):
 
     def post(self, request):
@@ -858,6 +884,10 @@ class BulkDeletePhotosView(LoginRequiredMixin, SuperuserRequiredMixin, View):
         ids = [int(i) for i in data.get('ids', []) if str(i).isdigit()]
         if not ids:
             return JsonResponse({'success': False, 'message': 'No se seleccionaron fotos'}, status=400)
+
+        bloqueado = _fotos_bloqueadas_response(ids)
+        if bloqueado:
+            return bloqueado
 
         photos = Photos.objects.filter(pk__in=ids)
         count = photos.count()
@@ -884,7 +914,7 @@ class BulkDownloadPhotosView(LoginRequiredMixin, View):
         if not ids:
             return JsonResponse({'success': False, 'message': 'No se seleccionaron fotos'}, status=400)
 
-        photos = list(Photos.objects.filter(pk__in=ids))
+        photos = list(_photos_visibles(request.user).filter(pk__in=ids))
 
         buffer = io.BytesIO()
         seen_names = {}
@@ -927,6 +957,10 @@ class CompressPhotosView(LoginRequiredMixin, SuperuserRequiredMixin, View):
 
         if not ids:
             return JsonResponse({'success': False, 'message': 'No se seleccionaron fotos'}, status=400)
+
+        bloqueado = _fotos_bloqueadas_response(ids)
+        if bloqueado:
+            return bloqueado
 
         # .iterator() evita cargar todas las filas en memoria de una vez.
         photos = Photos.objects.filter(pk__in=ids).iterator()

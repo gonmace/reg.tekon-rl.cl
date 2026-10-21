@@ -18,6 +18,7 @@ from core.permissions import UsuariosAccessMixin
 from core.tables import UserTable
 from core.utils.breadcrumbs import BreadcrumbsMixin
 from .models import User
+from .permissions import puede_editar_usuario
 from .serializers import UserSerializer
 
 
@@ -41,6 +42,8 @@ class UsersListView(UsuariosAccessMixin, LoginRequiredMixin, BreadcrumbsMixin, S
 
     def get_queryset(self):
         qs = User.objects.filter(is_deleted=False).exclude(user_type='').select_related('contractor').order_by('user_type', 'first_name', 'last_name')
+        if self.request.user.is_coord:
+            qs = qs.filter(contractor_id=self.request.user.contractor_id)
         q = self.request.GET.get('q', '').strip()
         if q:
             qs = qs.filter(
@@ -70,6 +73,17 @@ class UsersListView(UsuariosAccessMixin, LoginRequiredMixin, BreadcrumbsMixin, S
         return [{'label': 'Usuarios'}]
 
 
+def _validar_password(password, user=None):
+    """Devuelve el mensaje de error de los validadores de Django, o None si es válida."""
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    try:
+        validate_password(password, user)
+    except ValidationError as e:
+        return ' '.join(e.messages)
+    return None
+
+
 class UserApiView(UsuariosAccessMixin, View):
     """CRUD de usuarios vía JSON."""
 
@@ -94,8 +108,14 @@ class UserApiView(UsuariosAccessMixin, View):
             return JsonResponse({'success': False, 'message': 'ADMINISTRADOR solo puede crear usuarios de tipo Coordinador'}, status=403)
         if request.user.is_coord and user_type not in User.ITO_LIKE_ROLES:
             return JsonResponse({'success': False, 'message': 'COORD solo puede crear usuarios ITO o Buscador'}, status=403)
-        if request.user.is_coord and contractor and contractor != request.user.contractor:
-            return JsonResponse({'success': False, 'message': 'COORD solo puede crear usuarios de su empresa'}, status=403)
+        if request.user.is_coord:
+            if contractor and contractor != request.user.contractor:
+                return JsonResponse({'success': False, 'message': 'COORD solo puede crear usuarios de su empresa'}, status=403)
+            contractor = request.user.contractor
+        if password:
+            error = _validar_password(password)
+            if error:
+                return JsonResponse({'success': False, 'message': error}, status=400)
         user = User(
             username=email,
             email=email,
@@ -119,6 +139,8 @@ class UserApiView(UsuariosAccessMixin, View):
             user = User.objects.get(id=user_id, is_deleted=False)
         except User.DoesNotExist:
             return JsonResponse({'success': False, 'message': 'Usuario no encontrado'}, status=404)
+        if not puede_editar_usuario(request.user, user):
+            return JsonResponse({'success': False, 'message': 'No tienes permisos para modificar a este usuario'}, status=403)
         try:
             data = json.loads(request.body.decode('utf-8'))
             user.first_name = data.get('first_name', user.first_name).strip()
@@ -144,6 +166,9 @@ class UserApiView(UsuariosAccessMixin, View):
                 user.report_access = data['report_access'] if isinstance(data['report_access'], list) else []
             password = data.get('password', '').strip()
             if password:
+                error = _validar_password(password, user)
+                if error:
+                    return JsonResponse({'success': False, 'message': error}, status=400)
                 user.set_password(password)
             user.save()
             return JsonResponse({'success': True, 'message': 'Usuario actualizado correctamente'})
@@ -157,6 +182,8 @@ class UserApiView(UsuariosAccessMixin, View):
             user = User.objects.get(id=user_id, is_deleted=False)
         except User.DoesNotExist:
             return JsonResponse({'success': False, 'message': 'Usuario no encontrado'}, status=404)
+        if not puede_editar_usuario(request.user, user) or user.pk == request.user.pk:
+            return JsonResponse({'success': False, 'message': 'No tienes permisos para eliminar a este usuario'}, status=403)
         user.is_deleted = True
         user.is_active = False
         user.save()
@@ -206,6 +233,8 @@ class UserEditModalView(UsuariosAccessMixin, View):
                 action = 'edit'
             except User.DoesNotExist:
                 return JsonResponse({'success': False, 'message': 'Usuario no encontrado'}, status=404)
+            if not puede_editar_usuario(request.user, user):
+                return JsonResponse({'success': False, 'message': 'No tienes permisos para modificar a este usuario'}, status=403)
         else:
             user = None
             action = 'create'

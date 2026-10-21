@@ -53,7 +53,7 @@ def _payload(request):
 def cfg_desde_payload(data, guardada):
     """Config a probar/guardar según el formulario. Lanza ValueError con el mensaje si es inválida.
 
-    `guardada` es la fila de base (o None): si la contraseña viene vacía se usa la guardada.
+    `guardada` es la fila de base (o None): si la contraseña viene vacía se usa la guardada (solo con el mismo servidor y usuario).
     """
     if data.get('origen') != 'personalizada':
         return config_env()
@@ -70,9 +70,11 @@ def cfg_desde_payload(data, guardada):
     if seguridad not in ('ssl', 'tls', 'none'):
         raise ValueError('Seguridad inválida')
     usuario = str(data.get('usuario', '')).strip()
-    password = data.get('password') or (guardada.password if guardada else '')
+    password = data.get('password') or ''
+    if not password and guardada and guardada.host.lower() == host.lower() and guardada.usuario == usuario:
+        password = guardada.password  # misma cuenta: nunca se reenvía la guardada a otro servidor o usuario
     if usuario and not password:
-        raise ValueError('Falta la contraseña del usuario SMTP')
+        raise ValueError('Falta la contraseña del usuario SMTP (al cambiar de servidor o usuario hay que ingresarla de nuevo)')
     remitente = str(data.get('remitente', '')).strip() or usuario
     if not EMAIL_RE.match(parseaddr(remitente)[1] or ''):
         raise ValueError('Ingresa un remitente válido (ej: Reportes Tekon <reportes@tu-dominio.cl>)')

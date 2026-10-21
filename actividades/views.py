@@ -387,63 +387,6 @@ def _compute_map_info(paso, registro, ct, paso_url=None):
 
 
 
-@login_required
-@not_visita
-@require_POST
-def save_widget_data(request, paso_nombre, widget_slug):
-    """
-    Endpoint genérico para guardar los datos de un widget en DatoPaso.
-
-    Espera JSON: {"registro_ct": "app_label.model", "registro_id": 42, "data": {...}}
-    Retorna: {"level": N} o {"errors": [...]}
-    """
-    from widgets.registry import get_widget
-    widget = get_widget(widget_slug)
-    if not widget:
-        return JsonResponse({"error": f"Widget '{widget_slug}' no registrado"}, status=404)
-
-    try:
-        body = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({"error": "JSON inválido"}, status=400)
-
-    data = body.get("data", {})
-    errors = widget.validate_data(data)
-    if errors:
-        return JsonResponse({"errors": errors}, status=400)
-
-    ct_str = body.get("registro_ct", "")
-    registro_id = body.get("registro_id")
-    if not ct_str or not registro_id:
-        return JsonResponse({"error": "registro_ct y registro_id son requeridos"}, status=400)
-
-    try:
-        app_label, model_name = ct_str.split(".")
-        ct = ContentType.objects.get(app_label=app_label, model=model_name)
-    except (ValueError, ContentType.DoesNotExist):
-        return JsonResponse({"error": f"content_type inválido: {ct_str}"}, status=400)
-
-    registro = ct.get_object_for_this_type(id=registro_id)
-    from core.permissions import registro_bloqueado_response
-    bloqueado = registro_bloqueado_response(registro)
-    if bloqueado:
-        return bloqueado
-
-    dato_paso, _ = DatoPaso.objects.get_or_create(
-        content_type=ct,
-        object_id=registro_id,
-        paso_nombre=paso_nombre,
-        defaults={"datos": {}}
-    )
-    dato_paso.set_widget_data(widget_slug, data)
-
-    from actividades.context_builder import rebuild_contexto
-    rebuild_contexto(registro)
-
-    level = widget.completeness(data)
-    return JsonResponse({"level": level})
-
-
 def _compute_paso_derived(paso, registro, ct):
     """Calls compute_derived on all widgets of a paso and merges the results."""
     from widgets.registry import get_widget

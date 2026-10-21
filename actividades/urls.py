@@ -1,6 +1,5 @@
 from django.urls import path
 
-from .views import save_widget_data
 from .views_catalogo import (
     PasoDefinicionCloneView,
     PasoDefinicionDeleteView,
@@ -26,9 +25,6 @@ urlpatterns = [
     path('pasos/<int:pk>/eliminar/', PasoDefinicionDeleteView.as_view(), name='paso_delete'),
     path('pasos/<int:pk>/clonar/', PasoDefinicionCloneView.as_view(), name='paso_clone'),
     path('pasos/<int:pk>/widgets/', PasoWidgetsSetView.as_view(), name='paso_widgets_set'),
-
-    # API de widgets
-    path('api/pasos/<str:paso_nombre>/widgets/<str:widget_slug>/', save_widget_data, name='save_widget_data'),
 
     # Tipos de Actividad — asignación de pasos
     path('tipos/', TipoActividadListView.as_view(), name='tipo_list'),

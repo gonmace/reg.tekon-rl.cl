@@ -57,7 +57,7 @@
     </div>
 
     {# ── Acceso a Reportes ────────────────────────────────────────── #}
-    <div id="reportAccessSection" class="form-control hidden">
+    <div id="reportAccessSection" class="form-control hidden" data-restricted-roles="{{ restricted_roles|join:',' }}">
         <label class="label pb-1">
             <span class="label-text font-medium">Acceso a Reportes</span>
             <span class="label-text-alt text-base-content/50">Sin selección = acceso total</span>
@@ -119,21 +119,3 @@
         </button>
     </div>
 </form>
-
-<script>
-(function () {
-    var restrictedRoles = {{ restricted_roles|safe }};
-    var typeSelect = document.getElementById('{{ form.user_type.id_for_label }}');
-    var section = document.getElementById('reportAccessSection');
-
-    function toggleSection() {
-        if (!typeSelect || !section) return;
-        section.classList.toggle('hidden', restrictedRoles.indexOf(typeSelect.value) === -1);
-    }
-
-    if (typeSelect) {
-        typeSelect.addEventListener('change', toggleSection);
-        toggleSection();
-    }
-})();
-</script>

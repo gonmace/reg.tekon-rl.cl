@@ -203,7 +203,7 @@ Estados:
     var opts = { zoomControl: false };
     if (isMobile) { opts.tap = true; opts.touchZoom = true; opts.scrollWheelZoom = false; }
     map = L.map('map-' + WID, opts).setView([-33.45, -70.66], isMobile ? 10 : 13);
-    osmLayer  = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' });
+    osmLayer  = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', referrerPolicy: 'origin' });
     esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles © Esri' });
     esriLayer.addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);

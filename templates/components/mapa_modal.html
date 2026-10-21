@@ -261,7 +261,7 @@
       // Capas de tiles (nombradas, no apiladas) para poder alternar entre
       // satélite y calles con el toggle flotante de abajo.
       const streetsLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors', maxZoom: 21, maxNativeZoom: 19
+          attribution: '© OpenStreetMap contributors', maxZoom: 21, maxNativeZoom: 19, referrerPolicy: 'origin'
       });
       const satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
           attribution: '© Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',

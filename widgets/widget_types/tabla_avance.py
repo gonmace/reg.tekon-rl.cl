@@ -232,6 +232,12 @@ class TablaAvanceWidget(WidgetBase):
         if 'partidas' not in cleaned:
             return
         if puede_editar_estructura(request.user):
+            if not request.user.is_administrador:
+                return
+            # ADMINISTRADOR define los ítems pero no carga el % actual: conserva el ya guardado.
+            guardado = {p.get('id'): p.get('actual', 0.0) for p in stored.get('partidas') or []}
+            for p in cleaned.get('partidas') or []:
+                p['actual'] = guardado.get(p.get('id'), 0.0)
             return
         # Resto de roles (ITO, Buscador, Coordinación): solo cambian el % actual de partidas ya definidas.
         referencia = avance_registro(registro, paso.nombre)['filas']

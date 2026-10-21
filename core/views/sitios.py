@@ -14,8 +14,6 @@ from django.views import View
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework import status
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from core.forms import SiteForm
 from core.permissions import SuperOrAdminRequiredMixin
 from django.template.loader import render_to_string
@@ -115,7 +113,6 @@ class SiteViewSet(viewsets.ModelViewSet):
         instance.save()
         return Response({'success': True, 'message': f'Sitio "{instance.name}" eliminado correctamente.'}, status=status.HTTP_200_OK)
 
-@method_decorator(csrf_exempt, name='dispatch')
 class SiteEditModalView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         return self.request.user.is_supermanager
@@ -212,7 +209,6 @@ class SiteEditModalView(LoginRequiredMixin, UserPassesTestMixin, View):
             }, status=500)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class SiteCreateModalView(LoginRequiredMixin, UserPassesTestMixin, View):
     """GET: devuelve form HTML para crear sitio. POST: crea el sitio."""
 
@@ -262,7 +258,6 @@ class SiteCreateModalView(LoginRequiredMixin, UserPassesTestMixin, View):
             }, status=500)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class SiteImportView(LoginRequiredMixin, UserPassesTestMixin, View):
     """POST con archivo Excel/CSV: importa sitios usando SiteResource."""
 

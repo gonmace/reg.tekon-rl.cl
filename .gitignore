@@ -26,3 +26,7 @@ backup_data.json
 repomix-output.xml
 *.xlsx
 source/*.xlsx
+
+# Notas operativas de la migración de VPS (IPs, usuarios)
+MIGRACION_PENDIENTE.md
+

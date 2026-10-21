@@ -98,7 +98,7 @@ Estados:
         attribution: '© Esri', maxZoom: 21, maxNativeZoom: 19
       });
       var streetsLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors', maxZoom: 21, maxNativeZoom: 19
+        attribution: '© OpenStreetMap contributors', maxZoom: 21, maxNativeZoom: 19, referrerPolicy: 'origin'
       });
       satLayer.addTo(map);
 

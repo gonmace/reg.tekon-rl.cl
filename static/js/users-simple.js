@@ -101,6 +101,15 @@
         const form = document.querySelector('#userForm');
         if (form) {
           form.addEventListener('submit', (e) => { e.preventDefault(); saveUser(); });
+          // «Acceso a Reportes» solo aplica a los roles restringidos (el <script> del parcial no se ejecuta con innerHTML)
+          const section = form.querySelector('#reportAccessSection');
+          const typeSelect = form.querySelector('[name="user_type"]');
+          if (section && typeSelect) {
+            const restringidos = (section.dataset.restrictedRoles || '').split(',').filter(Boolean);
+            const toggleSection = () => section.classList.toggle('hidden', restringidos.indexOf(typeSelect.value) === -1);
+            typeSelect.addEventListener('change', toggleSection);
+            toggleSection();
+          }
           // «Enviar invitación»: el usuario crea su contraseña, así que se oculta el campo
           const invitar = form.querySelector('[name="invitar"]');
           const bloque = form.querySelector('#passwordBlock');

@@ -27,7 +27,6 @@ class ConcluidoMixin:
     ns = None            # namespace de URLs == prefijo
     paso = None          # paso con un lista_widget
     model = None
-    ct_label = None      # "app_label.model" para save_widget_data
 
     @classmethod
     def setUpTestData(cls):
@@ -115,17 +114,6 @@ class ConcluidoMixin:
         self.alternar(self.root)
         self.assertEqual(self.post_paso(self.ito, 'dos').status_code, 302)
         self.assertEqual(self.entradas(), ['dos'])
-
-    def test_concluido_bloquea_guardado_ajax_de_widgets(self):
-        self.concluir()
-        self.client.force_login(self.root)
-        r = self.client.post(
-            reverse('actividades:save_widget_data', kwargs={'paso_nombre': self.paso, 'widget_slug': 'lista_widget'}),
-            data=json.dumps({'registro_ct': self.ct_label, 'registro_id': self.reg.pk, 'data': {'entradas': ['x']}}),
-            content_type='application/json')
-        self.assertEqual(r.status_code, 403)
-        self.assertTrue(r.json()['locked'])
-        self.assertEqual(self.entradas(), [])
 
     def test_concluido_bloquea_subida_de_fotos(self):
         self.concluir()
