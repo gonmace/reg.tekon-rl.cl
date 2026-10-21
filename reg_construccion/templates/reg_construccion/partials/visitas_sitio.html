@@ -1,0 +1,49 @@
+{% load django_tables2 %}
+{% comment %}
+Panel inferior del listado: visitas de un sitio. Se pinta dentro de #obra-visitas-panel
+(en el servidor al cargar la página y por HTMX al elegir un sitio). Los filtros y la
+paginación usan hx-get explícitos al endpoint del panel, no links relativos.
+{% endcomment %}
+<div class="table-card-header">
+  <div>
+    <h2 class="table-card-title">Reportes · {{ panel_sitio.pti_cell_id|default:"sin PTI" }} · {{ panel_sitio.name }}</h2>
+    <p class="table-card-subtitle">
+      {{ panel_total }} reporte{{ panel_total|pluralize }}
+      {% if panel_page.paginator.count != panel_total %}· {{ panel_page.paginator.count }} con el filtro{% endif %}
+    </p>
+  </div>
+  <div class="flex items-center gap-2 flex-wrap">
+    <input type="date" name="desde" value="{{ panel_desde }}" title="Desde" class="input input-sm input-bordered w-32"
+           hx-get="{{ panel_url }}" hx-trigger="change" hx-target="#obra-visitas-panel" hx-swap="innerHTML"
+           hx-include="#obra-visitas-panel [name='desde'], #obra-visitas-panel [name='hasta']">
+    <input type="date" name="hasta" value="{{ panel_hasta }}" title="Hasta" class="input input-sm input-bordered w-32"
+           hx-get="{{ panel_url }}" hx-trigger="change" hx-target="#obra-visitas-panel" hx-swap="innerHTML"
+           hx-include="#obra-visitas-panel [name='desde'], #obra-visitas-panel [name='hasta']">
+  </div>
+</div>
+
+<div class="md:overflow-x-auto">
+  {% if panel_page.paginator.count %}
+    {% render_table panel_table %}
+  {% else %}
+    <p class="p-6 text-sm text-base-content/60 text-center">No hay reportes en ese rango de fechas.</p>
+  {% endif %}
+</div>
+
+{% if panel_page.paginator.num_pages > 1 %}
+<div class="flex items-center justify-between gap-2 px-4 py-3 text-sm">
+  <span class="text-base-content/60">Página {{ panel_page.number }} de {{ panel_page.paginator.num_pages }}</span>
+  <div class="join">
+    {% if panel_page.has_previous %}
+    <button type="button" class="btn btn-sm join-item" title="Anterior"
+            hx-get="{{ panel_url }}?page={{ panel_page.previous_page_number }}&desde={{ panel_desde }}&hasta={{ panel_hasta }}"
+            hx-target="#obra-visitas-panel" hx-swap="innerHTML"><i class="fa-solid fa-chevron-left"></i></button>
+    {% endif %}
+    {% if panel_page.has_next %}
+    <button type="button" class="btn btn-sm join-item" title="Siguiente"
+            hx-get="{{ panel_url }}?page={{ panel_page.next_page_number }}&desde={{ panel_desde }}&hasta={{ panel_hasta }}"
+            hx-target="#obra-visitas-panel" hx-swap="innerHTML"><i class="fa-solid fa-chevron-right"></i></button>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

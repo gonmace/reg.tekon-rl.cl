@@ -5,7 +5,7 @@ from widgets.registry import register_widget
 @register_widget
 class CameraWidget(WidgetBase):
     slug = "camera_widget"
-    nombre = "Fotos"
+    nombre = "Imágenes"
     icon = "fa-solid fa-camera"
 
     def validate_config(self, config):
@@ -54,3 +54,20 @@ class CameraWidget(WidgetBase):
             "photos": photos,
             "is_empty": len(photo_ids) == 0,
         }
+
+
+@register_widget
+class CameraLibroWidget(CameraWidget):
+    """Segunda cámara de un paso: sus fotos van en una etapa propia (config `etapa`, default obra_libro)."""
+    slug = "camera_libro_widget"
+    nombre = "Libro de obras"
+    icon = "fa-solid fa-book"
+
+    def validate_config(self, config):
+        errors = super().validate_config(config)
+        if "etapa" in config and not (isinstance(config["etapa"], str) and config["etapa"].strip()):
+            errors.append("etapa debe ser un texto no vacío")
+        return errors
+
+    def to_contexto(self, datos, config, registro, paso_nombre, ct=None):
+        return super().to_contexto(datos, config, registro, config.get("etapa") or "obra_libro", ct)

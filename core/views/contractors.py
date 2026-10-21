@@ -13,10 +13,11 @@ from django.views import View
 from django_tables2 import SingleTableView
 from core.models.contractors import Contractor
 from core.tables import ContractorTable
+from core.permissions import SuperOrAdminRequiredMixin
 from core.utils.breadcrumbs import BreadcrumbsMixin
 
 
-class ContractorsView(LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
+class ContractorsView(SuperOrAdminRequiredMixin, LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
     model = Contractor
     table_class = ContractorTable
     template_name = 'pages/contractors.html'
@@ -47,7 +48,7 @@ class ContractorsView(LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
         return [{'label': 'Contratistas'}]
 
 
-class ContractorViewSet(View):
+class ContractorViewSet(SuperOrAdminRequiredMixin, View):
     """ViewSet para operaciones CRUD de contratistas."""
     
     def get(self, request):
@@ -172,7 +173,7 @@ class ContractorViewSet(View):
             }, status=500)
 
 
-class ContractorEditModalView(View):
+class ContractorEditModalView(SuperOrAdminRequiredMixin, View):
     """Vista para mostrar/editar contratista en modal."""
     
     def get(self, request, contractor_id=None):

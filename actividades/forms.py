@@ -58,6 +58,13 @@ def build_dynamic_form(paso, data=None, initial=None, widget_slug=None):
                 widget=forms.Textarea(attrs={'rows': 3}),
                 label='Comentario',
             )
+        elif slug == 'lista_widget':
+            from widgets.fields import TextListField
+            fields['entradas'] = TextListField(label='Entradas', max_items=int(pw.config.get('max_items', 50) or 50))
+        elif slug == 'tabla_avance_widget':
+            from widgets.widget_types.tabla_avance import PartidasField
+            fields['plantilla'] = forms.CharField(required=False, widget=forms.HiddenInput, label='Plantilla')
+            fields['partidas'] = PartidasField(label='Partidas')
         elif slug == 'form_dinamico_widget':
             from widgets.widget_types.form_dinamico import parse_campos, django_field
             for campo in parse_campos(pw.config.get('campos', '')):

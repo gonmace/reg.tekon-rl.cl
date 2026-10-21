@@ -10,6 +10,7 @@ sqlparse==0.5.3
 
 # Auth y seguridad
 django-axes==7.0.1
+django-hijack==3.7.9
 django-csp==3.8
 whitenoise==6.9.0
 

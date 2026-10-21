@@ -3,6 +3,7 @@ Tablas django-tables2 para la app core.
 """
 
 import django_tables2 as tables
+from django.utils import timezone
 from django.utils.html import format_html
 
 from core.models.contractors import Contractor
@@ -110,6 +111,10 @@ class UserTable(tables.Table):
         verbose_name='Estado',
         attrs={'th': {'class': 'text-center'}, 'td': {'class': 'text-center py-1 md:px-4'}},
     )
+    last_login = tables.Column(
+        verbose_name='Última conexión', empty_values=(),  # () para que render_last_login también reciba None
+        attrs={'td': {'class': 'py-1 md:px-4'}},
+    )
     acciones = tables.TemplateColumn(
         template_name='partials/user_actions.html',
         verbose_name='Acciones',
@@ -122,8 +127,8 @@ class UserTable(tables.Table):
         template_name = CUPERTINO_TEMPLATE
         attrs = {'class': 'table w-full'}
         row_attrs = {'class': 'pt-2'}
-        fields = ('get_full_name', 'username', 'contractor', 'user_type', 'is_active', 'acciones')
-        sequence = ('get_full_name', 'username', 'contractor', 'user_type', 'is_active', 'acciones')
+        fields = ('get_full_name', 'username', 'contractor', 'user_type', 'is_active', 'last_login', 'acciones')
+        sequence = ('get_full_name', 'username', 'contractor', 'user_type', 'is_active', 'last_login', 'acciones')
         order_by = ('user_type', 'first_name', 'last_name')
         empty_text = 'No hay usuarios para mostrar.'
 
@@ -136,7 +141,7 @@ class UserTable(tables.Table):
         if not record.user_type:
             return format_html('<span class="badge badge-primary text-xs">Superusuario</span>')
         badge_classes = {
-            User.GERENCIA:  'badge-error',
+            User.ADMINISTRADOR:  'badge-error',
             User.COORD:     'badge-warning',
             User.ITO:       'badge-info',
             User.SEARCHER:  'badge-accent',
@@ -144,6 +149,13 @@ class UserTable(tables.Table):
         }
         cls = badge_classes.get(record.user_type, 'badge-ghost')
         return format_html('<span class="badge {} text-xs">{}</span>', cls, record.get_user_type)
+
+    def render_last_login(self, value, record):
+        if value:
+            return timezone.localtime(value).strftime('%d/%m/%Y %H:%M')
+        if not record.has_usable_password():  # invitado que aún no creó su contraseña
+            return format_html('<span class="badge badge-warning badge-soft text-xs">Invitación pendiente</span>')
+        return format_html('<span class="text-base-content/40 text-xs">Nunca</span>')
 
     def render_is_active(self, value):
         if value:

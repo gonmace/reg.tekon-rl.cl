@@ -9,9 +9,9 @@ class Site(models.Model):
         (TORRE, "Torre"),
     ]
 
-    pti_cell_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="PTI ID", unique=True)
+    pti_cell_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="PTI ID")
     operator_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="Operador ID")
-    name = models.CharField(max_length=100, verbose_name="Nombre del sitio", unique=True)
+    name = models.CharField(max_length=100, verbose_name="Nombre del sitio")
     tipo_sitio = models.CharField(
         max_length=10,
         choices=TIPO_SITIO_CHOICES,
@@ -26,6 +26,7 @@ class Site(models.Model):
     lat_con = models.FloatField(null=True, blank=True, verbose_name="Latitud Construcción")
     lon_con = models.FloatField(null=True, blank=True, verbose_name="Longitud Construcción")
     alt = models.IntegerField(null=True, blank=True, verbose_name="Altura (m)")
+    tipo_estructura = models.CharField(max_length=120, blank=True, default="", verbose_name="Tipo de estructura")
     region = models.CharField(max_length=100, blank=True, null=True, verbose_name="Región", db_index=True)
     comuna = models.CharField(max_length=100, blank=True, null=True, verbose_name="Comuna", db_index=True)
     is_deleted = models.BooleanField(default=False)
@@ -49,6 +50,22 @@ class Site(models.Model):
         verbose_name = 'Sitio'
         verbose_name_plural = 'Sitios'
         ordering = ['pti_cell_id']
+        # Unicidad solo entre sitios activos: un sitio eliminado (soft delete) no debe
+        # seguir ocupando su PTI ID ni su nombre. Los NULL nunca chocan entre sí.
+        constraints = [
+            models.UniqueConstraint(
+                fields=['pti_cell_id'],
+                condition=models.Q(is_deleted=False),
+                name='unique_site_pti_cell_id_activo',
+                violation_error_message='Ya existe un sitio activo con este PTI ID.',
+            ),
+            models.UniqueConstraint(
+                fields=['name'],
+                condition=models.Q(is_deleted=False),
+                name='unique_site_name_activo',
+                violation_error_message='Ya existe un sitio activo con este nombre.',
+            ),
+        ]
 
     @staticmethod
     def get_table():

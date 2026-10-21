@@ -1,0 +1,32 @@
+{% load access_tags %}
+<div class="flex items-center justify-center gap-1">
+  <span class="obra-row-id" data-id="{{ record.id }}" style="display:none;"></span>
+  <a href="{% url 'reg_construccion:pdf' registro_id=record.id %}" target="_blank" rel="noopener"
+     class="btn btn-sm btn-ghost btn-circle text-error"
+     title="{% if record.concluido %}Generar PDF{% else %}Generar PDF (borrador){% endif %}" hx-boost="false">
+    <i class="fa-solid fa-file-pdf"></i>
+  </a>
+  {% if not request.user.is_visita %}
+  {% if record.es_ultima %}
+  <button type="button" class="btn btn-sm btn-ghost btn-circle text-accent obra-nueva-btn"
+          data-id="{{ record.id }}" data-nombre="{{ record.sitio.name }}" title="Nuevo reporte (otra fecha)">
+    <i class="fa-solid fa-calendar-plus"></i>
+  </button>
+  {% endif %}
+  {% if not record.concluido %}
+  <button type="button" class="btn btn-sm btn-ghost btn-circle text-edit obra-edit-btn"
+          data-id="{{ record.id }}" title="Editar datos del reporte">
+    <i class="fa-solid fa-pen-to-square"></i>
+  </button>
+  {% endif %}
+  {% endif %}
+  {% if not record.concluido %}
+  {% supermanager_only %}
+  <button type="button" class="btn btn-sm btn-ghost btn-circle text-delete obra-delete-btn"
+          data-id="{{ record.id }}" data-nombre="{{ record.sitio.name }} · {{ record.fecha|date:'d/m/Y' }}"
+          title="Eliminar reporte">
+    <i class="fa-solid fa-trash"></i>
+  </button>
+  {% endsupermanager_only %}
+  {% endif %}
+</div>

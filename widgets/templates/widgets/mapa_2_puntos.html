@@ -87,10 +87,11 @@ Estados:
 
       var container = w.querySelector('.mapa-2-puntos-container');
       // maxZoom 21: tope real que acepta la API de Google Static Maps (ver
-      // core/utils/coordenadas.py obtener_imagen_google_maps) — el zoom que
-      // se manda a MapaSaveView es el que tenga el mapa Leaflet al guardar,
-      // así que si el layer se queda en el default de Leaflet (18) nunca se
-      // puede pedir una imagen tan acercada como Google permite.
+      // core/utils/coordenadas.py). El zoom de la imagen guardada NO sale de
+      // este mapa: MapaSaveView lo recalcula con calcular_zoom_optimo()
+      // (máximo zoom que deja ambos puntos visibles en la imagen estática),
+      // así que el usuario puede hacer zoom/pan libremente sin riesgo de
+      // cortar un punto en la imagen final.
       var map = L.map(container, { zoomControl: false, maxZoom: 21 });
 
       var satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {

@@ -30,7 +30,7 @@ _ITO_PERMS = [
 ]
 
 ROLE_PERMISSIONS = {
-    'GERENCIA': _COORD_PERMS,
+    'ADMINISTRADOR': _COORD_PERMS,
     'COORD': _COORD_PERMS,
     'ITO': _ITO_PERMS,
     'SEARCHER': _ITO_PERMS,
@@ -129,7 +129,7 @@ def _is_ajax(request):
 
 def not_visita(view_func):
     """Bloquea usuarios VISITA. JSON 403 para AJAX, redirect para páginas.
-    Usar en endpoints que ITO/SEARCHER/COORD/GERENCIA pueden ejecutar."""
+    Usar en endpoints que ITO/SEARCHER/COORD/ADMINISTRADOR pueden ejecutar."""
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         if request.user.is_visita:
@@ -155,6 +155,45 @@ def superuser_required(view_func):
     return _wrapped
 
 
+def es_super_o_admin(user):
+    """Superusuario (sin empresa) o ADMINISTRADOR: los únicos que gestionan Sitios y Empresas."""
+    return bool(user and user.is_authenticated and (user.is_supermanager or user.is_administrador))
+
+
+class SuperOrAdminRequiredMixin:
+    """CBV mixin: solo superusuario y ADMINISTRADOR. JSON 403 en endpoints AJAX, redirect en páginas.
+    Un anónimo también se rechaza (lo manda a iniciar sesión)."""
+    def dispatch(self, request, *args, **kwargs):
+        if not es_super_o_admin(request.user):
+            if _is_ajax(request):
+                return JsonResponse({'success': False, 'message': 'Acción restringida al superusuario y al administrador'}, status=403)
+            if not request.user.is_authenticated:
+                from django.contrib.auth.views import redirect_to_login
+                return redirect_to_login(request.get_full_path())
+            messages.error(request, 'Sin permisos suficientes.')
+            return redirect('dashboard:dashboard')
+        return super().dispatch(request, *args, **kwargs)
+
+
+def puede_gestionar_usuarios(user):
+    """Superusuario y COORD gestionan usuarios; el ADMINISTRADOR no tiene acceso a Usuarios."""
+    return bool(user and user.is_authenticated and (user.is_supermanager or user.is_coord))
+
+
+class UsuariosAccessMixin:
+    """CBV mixin de Usuarios: solo superusuario y COORD. JSON 403 en AJAX, redirect en páginas."""
+    def dispatch(self, request, *args, **kwargs):
+        if not puede_gestionar_usuarios(request.user):
+            if _is_ajax(request):
+                return JsonResponse({'success': False, 'message': 'Sin acceso a la gestión de usuarios'}, status=403)
+            if not request.user.is_authenticated:
+                from django.contrib.auth.views import redirect_to_login
+                return redirect_to_login(request.get_full_path())
+            messages.error(request, 'Sin permisos suficientes.')
+            return redirect('dashboard:dashboard')
+        return super().dispatch(request, *args, **kwargs)
+
+
 class NotVisitaMixin:
     """CBV mixin: bloquea VISITA. Siempre devuelve JSON 403 (usar en endpoints AJAX)."""
     def dispatch(self, request, *args, **kwargs):
@@ -172,11 +211,11 @@ class SuperuserRequiredMixin:
 
 
 def coord_or_above_required(view_func):
-    """Solo COORD, GERENCIA y supermanager. JSON 403 para AJAX, redirect para páginas."""
+    """Solo COORD, ADMINISTRADOR y supermanager. JSON 403 para AJAX, redirect para páginas."""
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         user = request.user
-        if not (user.is_supermanager or user.is_coord or user.is_gerencia):
+        if not (user.is_supermanager or user.is_coord or user.is_administrador):
             if _is_ajax(request):
                 return JsonResponse({'success': False, 'message': 'Sin permisos para esta acción'}, status=403)
             messages.error(request, 'Sin permisos para esta acción.')
@@ -196,10 +235,10 @@ class ItoLikeMixin:
 
 
 class CoordOrAboveMixin:
-    """CBV mixin: solo COORD, GERENCIA y supermanager. JSON 403 para AJAX, redirect para páginas."""
+    """CBV mixin: solo COORD, ADMINISTRADOR y supermanager. JSON 403 para AJAX, redirect para páginas."""
     def dispatch(self, request, *args, **kwargs):
         user = request.user
-        if user.is_authenticated and not (user.is_supermanager or user.is_coord or user.is_gerencia):
+        if user.is_authenticated and not (user.is_supermanager or user.is_coord or user.is_administrador):
             if _is_ajax(request):
                 return JsonResponse({'success': False, 'message': 'Sin permisos para esta acción'}, status=403)
             messages.error(request, 'Sin permisos para esta acción.')
@@ -224,13 +263,13 @@ class OwnedByUserMixin:
 def can_access_registro(user, registro):
     """Ownership a nivel de objeto para registros con FK `user`.
 
-    Supermanager y VISITA acceden a todos los registros (consistente con
-    `OwnedByUserMixin`); el resto solo a los registros propios. Los permisos de
+    Supermanager, ADMINISTRADOR y VISITA acceden a todos los registros (consistente
+    con `OwnedByUserMixin`); el resto solo a los registros propios. Los permisos de
     escritura (rol, no-visita) se controlan aparte con los mixins/decoradores.
     """
     if not getattr(user, 'is_authenticated', False):
         return False
-    if user.is_supermanager or user.is_visita:
+    if user.is_supermanager or user.is_visita or user.is_administrador:
         return True
     return getattr(registro, 'user_id', None) == user.id
 
@@ -244,6 +283,57 @@ def registro_access_denied(request, registro):
     if can_access_registro(request.user, registro):
         return None
     return JsonResponse({'success': False, 'message': 'Sin permisos para este registro'}, status=403)
+
+
+def alcance_registros(qs, user):
+    """Restringe un queryset de registros (con FK `user`) a lo que `user` puede ver.
+
+    Supermanager, ADMINISTRADOR y VISITA ven todo; COORD, los de su contratista; el
+    resto (ITO/Buscador), solo los suyos. Es la misma regla de los listados.
+    """
+    if user is None or user.is_supermanager or user.is_visita or user.is_administrador:
+        return qs
+    if user.is_coord and user.contractor_id:
+        return qs.filter(user__contractor_id=user.contractor_id)
+    return qs.filter(user=user)
+
+
+# ── Registro concluido ───────────────────────────────────────────────────────
+# Un registro concluido es de solo lectura (incluso para el superusuario): para
+# corregirlo hay que reabrirlo. Todo endpoint que escriba datos de un registro
+# debe llamar a `registro_bloqueado_response`.
+
+MENSAJE_BLOQUEADO = (
+    'El registro está concluido y ya no se puede modificar. '
+    'Pide a un administrador que lo reabra.'
+)
+MENSAJE_SOLO_ADMIN_REABRE = 'Solo un administrador o el superusuario puede reabrir un registro concluido.'
+
+
+def registro_bloqueado(registro):
+    """True si el registro está concluido (solo lectura)."""
+    return bool(getattr(registro, 'concluido', False))
+
+
+def registro_bloqueado_response(registro):
+    """403 JSON si el registro está concluido, o None si se puede modificar.
+
+    Uso: `resp = registro_bloqueado_response(reg)` ; `if resp: return resp`.
+    """
+    if not registro_bloqueado(registro):
+        return None
+    return JsonResponse(
+        {'success': False, 'locked': True, 'message': MENSAJE_BLOQUEADO}, status=403,
+    )
+
+
+def puede_cambiar_concluido(user, registro):
+    """Concluir: supermanager o ITO/Buscador. Reabrir: solo supermanager o ADMINISTRADOR."""
+    if not getattr(user, 'is_authenticated', False):
+        return False
+    if registro_bloqueado(registro):
+        return bool(user.is_supermanager or user.is_administrador)
+    return bool(user.is_supermanager or user.is_ito_like)
 
 
 class RegistroOwnerMixin:

@@ -1,0 +1,14 @@
+<form id="obra-edit-form" data-registro-id="{{ registro.id }}" class="flex flex-col gap-3">
+  {% for field in form %}
+  <label class="form-control w-full">
+    <span class="label-text text-sm mb-1">{{ field.label }}</span>
+    {{ field }}
+    {% if field.errors %}<span class="text-error text-xs mt-1">{{ field.errors|join:" " }}</span>{% endif %}
+  </label>
+  {% endfor %}
+  <p id="obra-edit-error" class="text-error text-sm hidden"></p>
+  <div class="modal-action">
+    <button type="button" id="obra-edit-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+    <button type="submit" class="btn btn-save btn-sm">Guardar</button>
+  </div>
+</form>

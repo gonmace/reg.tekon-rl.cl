@@ -28,7 +28,7 @@
 
 {% block table_actions %}
   {% if show_activate_button %}
-  {% for_role 'COORD' 'GERENCIA' %}
+  {% for_role 'COORD' 'ADMINISTRADOR' %}
   <button type="button" class="btn btn-add btn-sm" id="activar-registro-btn"
           onclick="document.getElementById('activar-registro-modal').showModal()">
     <i class="fa-solid fa-plus mr-1"></i>

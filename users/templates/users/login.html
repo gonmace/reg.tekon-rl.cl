@@ -7,16 +7,10 @@
 <div class="login-page">
   <div class="login-card">
 
-    <div class="login-logo">
-      {% if app_settings.logo %}
-        <img src="{{ app_settings.logo.url }}" alt="Logo">
-      {% else %}
-        <img src="{% static 'img/favicon.ico' %}" alt="Logo">
-      {% endif %}
-    </div>
-
     <div class="flex justify-center mb-4">
-      <img src="{% static 'img/logo_RL.png' %}" alt="Redline" class="h-10 opacity-80">
+      {# Dos versiones: «Line» blanco para el tema oscuro y negro para el claro (ver .logo-rl-* en styles.css) #}
+      <img src="{% static 'img/logo_RL.png' %}" alt="Redline" class="logo-rl-oscuro h-10 opacity-80">
+      <img src="{% static 'img/logo_RL_claro.png' %}" alt="Redline" class="logo-rl-claro h-10 opacity-80">
     </div>
 
     <p class="login-subtitle">Reportes Tekon</p>

@@ -1,0 +1,40 @@
+{% extends 'components/generic_tables2_template.html' %}
+{% load static %}
+
+{% block table_title %}
+  <span class="flex items-center gap-2 flex-wrap">{{ page_title|default:"Sitios en construcción" }}</span>
+{% endblock %}
+{% block table_subtitle %}Selecciona un sitio para ver sus reportes.{% endblock %}
+
+{% block table_search %}
+  {% if pasos_config_url %}
+  <a href="{{ pasos_config_url }}" class="btn btn-sm btn-outline btn-accent" hx-boost="false">
+    <i class="fa-solid fa-stairs mr-1"></i>Pasos
+  </a>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}
+
+{% block content %}
+  {{ block.super }}
+  {# Tabla inferior: visitas del sitio elegido (se carga por HTMX al hacer clic en un sitio) #}
+  <div class="px-2 md:px-4 pb-4">
+    <div id="obra-visitas-panel" class="table-card" data-sitio="{{ sitio_sel|default:'' }}">
+      {% if panel_sitio %}
+        {% include 'reg_construccion/partials/visitas_sitio.html' %}
+      {% else %}
+        <p class="p-6 text-sm text-base-content/60 text-center">Selecciona un sitio para ver sus reportes.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock content %}
+
+{% block extra_modals %}
+  {{ block.super }}
+  {% include 'reg_construccion/partials/modales.html' %}
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  <script src="{% static 'js/reg_construccion.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% comment %}
+widgets/tabla_avance_widget.html
+Tabla de ítems y avance de obra con totales en vivo. El % anterior sale de las
+visitas previas del sitio; la ITO solo edita el % ejecución actual. Coordinación y
+superusuario además definen/ajustan los ítems (plantilla o por sitio).
+Los datos viajan en los campos ocultos "partidas" (JSON) y "plantilla".
+
+Nombre:
+  Tabla de avance
+
+Tipo:
+  form
+
+Uso:
+  include 'widgets/tabla_avance_widget.html'
+
+Config:
+  plantillas — JSON: lista de {"nombre", "partidas": [{"nombre", "incidencia"}]}; cada plantilla suma 100
+
+Estados:
+  1 — Sin ítems guardados en esta visita
+  3 — Ítems guardados
+{% endcomment %}
+{% load static %}
+<div id="tabla-avance" class="tabla-avance bg-base-100 rounded-box border border-base-300 p-3 md:p-4">
+  <div class="tabla-avance-estructura hidden flex-wrap items-center gap-2 mb-3">
+    <label class="text-sm text-base-content/70" for="tabla-avance-plantilla">Plantilla</label>
+    <select id="tabla-avance-plantilla" class="select select-bordered select-sm"></select>
+    <button type="button" class="btn btn-sm btn-ghost tabla-avance-aplicar">Aplicar plantilla</button>
+    <button type="button" class="btn btn-sm btn-add tabla-avance-agregar ml-auto">
+      <i class="fa-solid fa-plus"></i> Ítem
+    </button>
+  </div>
+
+  <p class="tabla-avance-aviso hidden alert alert-warning text-sm mb-3"></p>
+
+  <div class="overflow-x-auto">
+    <table class="table table-sm w-full tabla-avance-tabla">
+      <thead>
+        <tr class="text-xs uppercase">
+          <th>Ítem</th>
+          <th class="text-right">Incid. %</th>
+          <th class="text-right">Anterior %</th>
+          <th class="text-right">Actual %</th>
+          <th class="text-right">Acum. %</th>
+          <th class="text-right">Total %</th>
+          <th class="tabla-avance-col-acc hidden"></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+      <tfoot>
+        <tr class="font-semibold">
+          <td>Total obra</td>
+          <td class="text-right tabla-avance-suma-incidencia"></td>
+          <td colspan="3"></td>
+          <td class="text-right tabla-avance-total"></td>
+          <td class="tabla-avance-col-acc hidden"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <input type="hidden" name="partidas" class="tabla-avance-json"
+         value="{% if form.is_bound %}{{ form.partidas.value }}{% else %}[]{% endif %}">
+  <input type="hidden" name="plantilla" class="tabla-avance-plantilla-hidden"
+         value="{% if form.is_bound %}{{ form.plantilla.value }}{% endif %}">
+  {{ tabla_data|json_script:"tabla-avance-data" }}
+</div>
+<script src="{% static 'js/tabla_avance.js' %}" defer></script>

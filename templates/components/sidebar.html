@@ -30,7 +30,7 @@
                          data-submenu="{{ forloop.counter }}" style="max-height: 0; opacity: 0">
                         {% for child in menu_item.children %}
                             <a href="{% url child.url %}"
-                               class="flex items-center px-3 py-2 text-base-content transition-colors duration-300 transform rounded-lg hover:bg-base-200 {% if request|is_menu_active:child %}bg-primary/10 text-primary border-l-4 border-primary{% endif %}"
+                               class="flex items-center px-3 py-2 text-base-content transition-colors duration-150 rounded-lg text-sm hover:bg-base-100/70 {% if request|is_menu_active:child %}bg-base-100 text-primary font-medium shadow-xs ring-1 ring-base-300{% endif %}"
                                data-active="{% if request|is_menu_active:child %}true{% else %}false{% endif %}">
                                 <i class="{{ child.icon }} w-5 h-5 {% if request|is_menu_active:child %}text-primary{% endif %}"></i>
                                 <span class="mx-2">{{ child.name }}</span>
@@ -40,23 +40,13 @@
                 </div>
             {% else %}
                 <a href="{% url menu_item.url %}"
-                   class="flex items-center px-3 py-2 text-base-content transition-colors duration-300 transform rounded-lg hover:bg-base-200 {% if request|is_menu_active:menu_item %}bg-primary/10 text-primary border-l-4 border-primary{% endif %}">
+                   class="flex items-center px-3 py-2 text-base-content transition-colors duration-150 rounded-lg text-sm hover:bg-base-100/70 {% if request|is_menu_active:menu_item %}bg-base-100 text-primary font-medium shadow-xs ring-1 ring-base-300{% endif %}">
                     <i class="{{ menu_item.icon }} w-5 h-5 {% if request|is_menu_active:menu_item %}text-primary{% endif %}"></i>
                     <span class="mx-2">{{ menu_item.name }}</span>
                 </a>
             {% endif %}
         {% endfor %}
     </nav>
-
-    <div class="mt-6 flex-shrink-0">
-        <form method="post" action="{% url 'users:logout' %}" class="block">
-            {% csrf_token %}
-            <button type="submit"
-                    class="w-full text-left px-4 py-2 text-sm text-error hover:bg-base-200">
-                <i class="fas fa-sign-out-alt mr-2"></i> Cerrar sesión
-            </button>
-        </form>
-    </div>
 </aside>
 
 <script>

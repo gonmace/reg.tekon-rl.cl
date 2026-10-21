@@ -34,6 +34,12 @@ def render_widget(context, widget):
     if field_name in datos:
         ctx.setdefault('value', datos[field_name])
 
+    # Variables propias del widget (p. ej. datos calculados por registro)
+    from widgets.registry import get_widget
+    widget_obj = get_widget(widget.widget_slug)
+    if widget_obj:
+        ctx.update(widget_obj.extra_context(ctx))
+
     # Normalizar descripciones de string CSV a lista
     if 'descripciones' in ctx and isinstance(ctx['descripciones'], str):
         ctx['descripciones'] = [d.strip() for d in ctx['descripciones'].split(',') if d.strip()]

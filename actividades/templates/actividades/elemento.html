@@ -10,6 +10,15 @@
   </a>
 </div>
 
+{% if widget_titulo %}<h1 class="text-lg font-semibold mb-3">{{ widget_titulo }}</h1>{% endif %}
+
+{% if bloqueado %}
+<div class="alert alert-info text-sm mb-3" role="status">
+  <i class="fa-solid fa-lock"></i>
+  <span>Registro concluido (solo lectura).</span>
+</div>
+{% endif %}
+
 {% if widgets %}
   {% if has_form_widgets %}
   <form method="post" action="" class="bg-base-100 p-2 py-6">
@@ -17,16 +26,18 @@
   {% endif %}
 
   <fieldset class="flex flex-col gap-6 border-0 p-0 m-0 min-w-0" id="widgets-container"
-            {% if request.user.is_visita %}disabled{% endif %}>
+            {% if request.user.is_visita or bloqueado %}disabled{% endif %}>
     {% for widget in widgets %}
       {% render_widget widget %}
     {% endfor %}
   </fieldset>
 
   {% if has_form_widgets %}
+    {% if not bloqueado %}
     <div class="mt-4">
       <button type="submit" class="btn btn-success w-full" data-access="{% btn_access %}">Guardar</button>
     </div>
+    {% endif %}
   </form>
   {% endif %}
 {% else %}

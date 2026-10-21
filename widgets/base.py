@@ -34,6 +34,20 @@ class WidgetBase:
         """
         return self.completeness(data)
 
+    def extra_context(self, context: dict) -> dict:
+        """
+        Variables extra para el template del widget (se mezclan en el contexto de
+        render_widget). Recibe el contexto aplanado de la página del paso
+        (registro, paso, datos, request, ...). Default: nada.
+        """
+        return {}
+
+    def before_save(self, cleaned: dict, stored: dict, request, registro, paso, config: dict) -> None:
+        """
+        Se llama tras validar el form del paso y antes de persistir en DatoPaso.
+        Puede mutar `cleaned` (p. ej. para aplicar permisos por rol). Default: nada.
+        """
+
     def to_display(self, data: dict, config: dict) -> dict:
         """
         Convierte datos guardados en DatoPaso a formato legible para PDF/informe.

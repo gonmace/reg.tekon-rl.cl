@@ -24,6 +24,8 @@ _WIDGET_TIPO_MAP = {
 }
 
 _CAMERA_SLUGS = {'camera_widget'}
+# Cámaras adicionales de un paso: cada una guarda sus fotos en su propia etapa (config `etapa`).
+_CAMERA_EXTRA_SLUGS = {'camera_libro_widget'}
 _MAP_SLUGS = {'mapa_1p', 'mapa_2_puntos', 'mapa_3_puntos'}
 _FORM_SLUGS = {'comentario_widget', 'ubicacion_widget'}
 
@@ -103,6 +105,13 @@ def _widget_has_data(slug, datos, config):
 
 
 _LEVEL_COLOR = {1: 'paso-rojo', 2: 'paso-amarillo', 3: 'paso-verde'}
+
+
+def _camera_color(count, min_count):
+    """Color del botón de cámara; sin mínimo (opcional) y sin fotos → 'paso-opcional'."""
+    if count >= min_count:
+        return 'paso-verde' if count else 'paso-opcional'
+    return 'paso-amarillo' if count > 0 else 'paso-rojo'
 _IMGS_DESC_SLUGS = {'imgs_desc_widget'}
 
 
@@ -133,7 +142,7 @@ def _compute_imgs_desc_level(pw, registro, ct):
 def _compute_form_widgets(paso, registro, ct, paso_url):
     """Returns a list of per-widget dicts for all non-map, non-camera widgets in this paso."""
     from widgets.registry import get_widget
-    excluded = _MAP_SLUGS | _CAMERA_SLUGS
+    excluded = _MAP_SLUGS | _CAMERA_SLUGS | _CAMERA_EXTRA_SLUGS
     form_pws = [pw for pw in paso.paso_widgets.order_by('orden')
                 if pw.widget_slug not in excluded]
     if not form_pws:
@@ -154,7 +163,8 @@ def _compute_form_widgets(paso, registro, ct, paso_url):
             level = widget.completeness_with_config(datos, pw.config) if widget else (3 if _widget_has_data(pw.widget_slug, datos, pw.config) else 1)
         result.append({
             'url': f'{paso_url}?widget={pw.widget_slug}',
-            'color': _LEVEL_COLOR.get(level, 'paso-rojo'),
+            # Widget opcional (config `opcional`) y vacío → gris «opcional» en vez de rojo.
+            'color': 'paso-opcional' if level == 1 and pw.config.get('opcional') else _LEVEL_COLOR.get(level, 'paso-rojo'),
             'icon': icon,
             'slug': pw.widget_slug,
             'boton_template': f'widgets/{pw.widget_slug}_boton.html',
@@ -170,7 +180,7 @@ def _compute_camera_info(paso, registro, ct, photos_url, paso_url=None):
         return {'enabled': False}
     min_count = camera_pws[0].config.get('foto_min', 4)
     count = Photos.objects.filter(content_type=ct, object_id=registro.id, etapa=paso.nombre).count()
-    color = 'paso-verde' if count >= min_count else ('paso-amarillo' if count > 0 else 'paso-rojo')
+    color = _camera_color(count, min_count)
     slug = camera_pws[0].widget_slug
     nav_url = f'{paso_url}?widget={slug}' if paso_url else photos_url
     return {
@@ -184,6 +194,32 @@ def _compute_camera_info(paso, registro, ct, photos_url, paso_url=None):
         'boton_template': f'widgets/{slug}_boton.html',
         'icon': 'fa-solid fa-camera',
     }
+
+
+def camera_etapa(pw, paso):
+    """Etapa (Photos.etapa) de un widget de cámara: `config['etapa']` o el nombre del paso."""
+    return (pw.config or {}).get('etapa') or paso.nombre
+
+
+def _compute_camera_extra_info(paso, registro, ct, paso_url):
+    """Botones de las cámaras adicionales del paso (p. ej. Libro de obras), una por widget."""
+    from widgets.registry import get_widget
+    infos = []
+    for pw in paso.paso_widgets.filter(widget_slug__in=_CAMERA_EXTRA_SLUGS).order_by('orden'):
+        min_count = pw.config.get('foto_min', 0)
+        count = Photos.objects.filter(content_type=ct, object_id=registro.id, etapa=camera_etapa(pw, paso)).count()
+        widget = get_widget(pw.widget_slug)
+        infos.append({
+            'enabled': True,
+            'url': f'{paso_url}?widget={pw.widget_slug}',
+            'color': _camera_color(count, min_count),
+            'count': count,
+            'min_count': min_count,
+            'slug': pw.widget_slug,
+            'boton_template': f'widgets/{pw.widget_slug}_boton.html',
+            'icon': widget.icon if widget and widget.icon else 'fa-solid fa-camera',
+        })
+    return infos
 
 
 def _resolve_paso_coord(registro, ct, paso_nombre_raw):
@@ -284,7 +320,7 @@ def regenerar_mapas_2_puntos_afectados(registro, ct, paso_nombre_cambiado):
         obj, _created = GoogleMapsImage.objects.update_or_create(
             content_type=ct, object_id=registro.id, etapa=etapa,
             defaults={
-                'zoom': existing.zoom if existing else 17,
+                'zoom': zoom,
                 'maptype': 'hybrid', 'scale': 2, 'tamano': '640x640',
                 'coordenadas_json': _json.dumps(coordenadas), 'was_created': True,
             },
@@ -387,6 +423,12 @@ def save_widget_data(request, paso_nombre, widget_slug):
     except (ValueError, ContentType.DoesNotExist):
         return JsonResponse({"error": f"content_type inválido: {ct_str}"}, status=400)
 
+    registro = ct.get_object_for_this_type(id=registro_id)
+    from core.permissions import registro_bloqueado_response
+    bloqueado = registro_bloqueado_response(registro)
+    if bloqueado:
+        return bloqueado
+
     dato_paso, _ = DatoPaso.objects.get_or_create(
         content_type=ct,
         object_id=registro_id,
@@ -395,7 +437,6 @@ def save_widget_data(request, paso_nombre, widget_slug):
     )
     dato_paso.set_widget_data(widget_slug, data)
 
-    registro = ct.get_object_for_this_type(id=registro_id)
     from actividades.context_builder import rebuild_contexto
     rebuild_contexto(registro)
 

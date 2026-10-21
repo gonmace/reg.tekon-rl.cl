@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'adminsortable2',
     'axes',
+    'hijack',
     'tailwind',
     'theme',
     'simple_history',
@@ -41,9 +42,9 @@ INSTALLED_APPS = [
     'core',
     'photos',
     'reg_txtss',
+    'reg_construccion',
     'pdf_reports',
     'registros',
-    'dashboard',
     'actividades',
     'widgets',
 ]
@@ -59,6 +60,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'hijack.middleware.HijackUserMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
@@ -174,8 +176,8 @@ LOGOUT_REDIRECT_URL = '/login/'
 
 # ── Email ─────────────────────────────────────────────────────────────────────
 
+# Valores por defecto desde .env. Sin EMAIL_HOST el correo va a la consola.
 if config('EMAIL_HOST', default=''):
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = config('EMAIL_HOST')
     EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
     EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
@@ -184,9 +186,13 @@ if config('EMAIL_HOST', default=''):
     EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
     DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@example.com')
 else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     DEFAULT_FROM_EMAIL = 'noreply@localhost'
 
+# Resuelve al enviar: .env, o la configuración personalizada guardada desde Configuración → Correo
+EMAIL_BACKEND = 'core.email_backend.ConfigurableEmailBackend'
+
+# Segundos máximos de espera al servidor SMTP (sin esto un servidor caído deja colgada la petición)
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=20, cast=int)
 SITE_URL = config('SITE_URL', default='http://localhost:8000')
 
 GOOGLE_MAPS_API_KEY = config('GOOGLE_MAPS_API_KEY', default='')
@@ -234,8 +240,17 @@ CACHES = {
     }
 }
 
+# Los tests usan un caché en memoria: varios llaman a cache.clear(), que con Redis vacía TODA la base
+# (incluidas las sesiones reales de desarrollo → todos quedaban deslogueados al correr la suite).
+if 'test' in sys.argv:
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
+
+# ── django-hijack (impersonate, solo is_superuser) ───────────────────────────
+HIJACK_PERMISSION_CHECK = 'users.permissions.can_hijack'
+HIJACK_INSERT_BEFORE = None  # banner propio en templates/base.html
 
 # ── django-axes (protección brute-force) ─────────────────────────────────────
 

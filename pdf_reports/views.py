@@ -230,6 +230,8 @@ class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
                 _clean(reg.sitio.name),
                 _clean(reg.alternativa),
             ]
+            if not reg.concluido:
+                parts.append('BORRADOR')
             return '-'.join(p for p in parts if p) + '.pdf'
         except Exception:
             return 'registro.pdf'
@@ -402,6 +404,8 @@ class RegistroPDFView(LoginRequiredMixin, WeasyTemplateView):
 
         context.update({
             'registro': registro,
+            # Sin concluir → el PDF lleva la marca de agua «BORRADOR».
+            'borrador': not registro.concluido,
             'datos_generales': datos_generales,
             'inspeccion_sitio': {
                 'Responsable Técnico:': (registro.user.first_name + ' ' + registro.user.last_name).strip() if registro.user else 'N/A',
@@ -548,6 +552,7 @@ def preview_registro_individual(request, registro_id):
     context['imagenes_fotos'] = _fotos_to_media_urls(context.get('imagenes_fotos', []))
     _pasos_to_media_urls(context.get('pasos_widgets'))
 
+    context['es_preview'] = True
     return render(request, 'reportes_txtss/txtss.html', context)
 
 

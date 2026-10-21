@@ -15,6 +15,7 @@ from registros.mixins.breadcrumbs_mixin import RegistroBreadcrumbsMixin
 from registros.components.registro_config import RegistroConfig, ElementoGenerico
 from registros.components.editable_table import EditableTableElemento
 from registros.forms.activar import create_activar_registro_form
+from core.permissions import puede_cambiar_concluido, registro_bloqueado
 from registros.tables import create_registros_table
 from typing import Dict, Any
 
@@ -91,7 +92,7 @@ class GenericRegistroTableListView(LoginRequiredMixin, BreadcrumbsMixin, SingleT
             queryset = queryset.select_related(*fk_names)
 
         user = self.request.user
-        if user.is_supermanager or user.is_visita or user.is_gerencia:
+        if user.is_supermanager or user.is_visita or user.is_administrador:
             pass  # ven todos los registros
         elif user.is_coord and user.contractor:
             queryset = queryset.filter(user__contractor=user.contractor)
@@ -211,6 +212,13 @@ class GenericRegistroStepsView(RegistroBreadcrumbsMixin, LoginRequiredMixin, Bre
         """Obtiene la URL para generar el PDF. Debe ser sobrescrito."""
         return None
     
+    def get_registros_sitio(self, registro):
+        """Registros mostrados en el selector de fecha. Por defecto, los del mismo sitio y usuario."""
+        return self.registro_config.registro_model.objects.filter(
+            sitio=registro.sitio,
+            user=registro.user
+        ).order_by('-fecha')
+
     def get_context_data(self, **kwargs):
         """Obtiene el contexto con los pasos configurados."""
         context = super().get_context_data(**kwargs)
@@ -219,10 +227,7 @@ class GenericRegistroStepsView(RegistroBreadcrumbsMixin, LoginRequiredMixin, Bre
         registro = get_object_or_404(self.registro_config.registro_model, id=registro_id)
         
         # Obtener registros del mismo sitio para el selector de fecha
-        registros_sitio = self.registro_config.registro_model.objects.filter(
-            sitio=registro.sitio,
-            user=registro.user
-        ).order_by('-fecha')
+        registros_sitio = self.get_registros_sitio(registro)
         
         # Generar contexto de pasos
         steps_context = self._generate_steps_context(registro)
@@ -233,6 +238,8 @@ class GenericRegistroStepsView(RegistroBreadcrumbsMixin, LoginRequiredMixin, Bre
         context.update({
             'registro': registro,
             'registros_sitio': registros_sitio,  # Agregar registros del mismo sitio
+            'bloqueado': registro_bloqueado(registro),
+            'puede_cambiar_concluido': puede_cambiar_concluido(self.request.user, registro),
             'steps': steps_context,
             'steps_config': self.registro_config.pasos,
             'title': self.registro_config.title,

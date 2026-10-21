@@ -1,0 +1,13 @@
+{% comment %}
+widgets/camera_libro_widget_boton.html
+{% endcomment %}
+<a href="{{ widget.url }}"
+   class="btn btn-{{ widget.color }} btn-circle sombra active:scale-95 transition-transform duration-100 relative"
+   title="Libro de obras{% if widget.min_count %} — {{ widget.count }}/{{ widget.min_count }}{% elif widget.count %} — {{ widget.count }}{% endif %}">
+  <i class="fa-solid fa-book text-xl"></i>
+  {% if widget.min_count %}
+    <span class="badge badge-xs absolute -top-2 -right-2 font-bold">{{ widget.count }}/{{ widget.min_count }}</span>
+  {% elif widget.count %}
+    <span class="badge badge-xs absolute -top-2 -right-2 font-bold">{{ widget.count }}</span>
+  {% endif %}
+</a>

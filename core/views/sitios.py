@@ -17,6 +17,7 @@ from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from core.forms import SiteForm
+from core.permissions import SuperOrAdminRequiredMixin
 from django.template.loader import render_to_string
 import json
 import logging
@@ -24,7 +25,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SitiosView(LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
+class SitiosView(SuperOrAdminRequiredMixin, LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
     model = Site
     table_class = SiteTable
     template_name = 'pages/sitios.html'
@@ -65,7 +66,7 @@ class SitiosView(LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
 
 class IsSiteManagerOrReadOnly(BasePermission):
     """Lectura para cualquier usuario autenticado; escritura (crear/editar/borrar)
-    solo para supermanager, coordinación o gerencia. Los sitios son datos
+    solo para supermanager, coordinación o administrador. Los sitios son datos
     maestros compartidos, no pertenecen a un usuario."""
     message = 'No tienes permisos para modificar sitios.'
 
@@ -78,7 +79,7 @@ class IsSiteManagerOrReadOnly(BasePermission):
         return bool(
             user.is_supermanager
             or getattr(user, 'is_coord', False)
-            or getattr(user, 'is_gerencia', False)
+            or getattr(user, 'is_administrador', False)
         )
 
 
@@ -145,6 +146,7 @@ class SiteEditModalView(LoginRequiredMixin, UserPassesTestMixin, View):
                 'lat_con': site.lat_con,
                 'lon_con': site.lon_con,
                 'alt': site.alt or '',
+                'tipo_estructura': site.tipo_estructura,
                 'region': site.region or '',
                 'comuna': site.comuna or '',
             }

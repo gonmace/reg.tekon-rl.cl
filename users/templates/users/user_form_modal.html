@@ -23,7 +23,7 @@
     </div>
     {% endif %}
 
-    <div class="flex gap-3">
+    <div id="nameBlock" class="flex gap-3">
         <div class="form-control flex-1">
             <label for="{{ form.first_name.id_for_label }}" class="label">
                 <span class="label-text font-medium">{{ form.first_name.label }}</span>
@@ -76,7 +76,19 @@
         </div>
     </div>
 
+    {% if action == 'create' %}
     <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-3">
+            <input type="checkbox" name="invitar" class="checkbox checkbox-sm checkbox-primary" />
+            <span class="label-text">
+                <span class="font-medium">Enviar invitación por correo</span><br>
+                <span class="text-xs text-base-content/60">Solo se pide el correo: el usuario completa su nombre, apellido, teléfono y contraseña al activar su cuenta.</span>
+            </span>
+        </label>
+    </div>
+    {% endif %}
+
+    <div id="passwordBlock" class="form-control">
         <label class="label">
             <span class="label-text font-medium">Contraseña</span>
             {% if action == 'create' %}

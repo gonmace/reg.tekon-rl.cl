@@ -1,0 +1,24 @@
+{% comment %}
+widgets/camera_libro_widget.html
+Imágenes del libro de obras: igual que la cámara de fotos, pero guardadas en su propia etapa
+(config `etapa`), de modo que un mismo paso puede tener dos cámaras independientes.
+
+Nombre:
+  Libro de obras
+
+Tipo:
+  ajax
+
+Uso:
+  include 'widgets/camera_libro_widget.html'
+
+Config:
+  foto_min — Número mínimo de imágenes requeridas, default 0
+  etapa — Etapa en la que se guardan las imágenes, default obra_libro
+
+Estados:
+  1 — Sin imágenes cargadas
+  2 — Imágenes cargadas pero bajo el mínimo requerido
+  3 — Imágenes suficientes o sin mínimo definido
+{% endcomment %}
+{% include 'widgets/camera_widget.html' with upload_url=upload_url foto_min=foto_min foto_count=foto_count %}

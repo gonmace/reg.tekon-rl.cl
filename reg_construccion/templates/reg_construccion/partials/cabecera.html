@@ -1,0 +1,75 @@
+{% load static %}
+<section class="mb-2 md:mb-4 bg-base-100 rounded-box border border-base-300 p-3 md:p-4" id="obra-cabecera"
+         data-steps-base="{% url 'reg_construccion:list' %}">
+  <div class="flex flex-wrap items-center justify-between gap-2 md:gap-3 mb-1 md:mb-3">
+    <div class="min-w-0">
+      <h2 class="text-base font-semibold truncate">
+        {{ registro.sitio.pti_cell_id }} · {{ registro.sitio.name }}
+      </h2>
+      <p class="text-xs text-base-content/60">Reporte · Rev. {{ registro.revision }}</p>
+    </div>
+    <div class="flex flex-nowrap items-center gap-2">
+      <label class="flex items-center gap-2 text-sm">
+        <span class="text-base-content/60">Reporte</span>
+        <select id="obra-visita-selector" class="select select-bordered select-sm">
+          {% for v in visitas %}
+          <option value="{{ v.id }}" {% if v.id == registro.id %}selected{% endif %}>
+            {{ v.fecha|date:"d/m/Y" }}{% if v.id == registro.id %} (actual){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if puede_gestionar and es_ultima_visita %}
+      {# En móvil solo el ícono (btn-square) para que no salte a otra fila; el texto vuelve desde sm. #}
+      <button type="button" class="btn btn-sm btn-add obra-nueva-btn max-sm:btn-square shrink-0"
+              data-id="{{ registro.id }}" data-nombre="{{ registro.sitio.name }}"
+              title="Nuevo reporte" aria-label="Nuevo reporte">
+        <i class="fa-solid fa-calendar-plus"></i><span class="hidden sm:inline"> Nuevo reporte</span>
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Datos colapsables en móvil (cerrados por defecto) para que los botones queden a la vista; siempre abiertos en ≥ md -->
+  <div class="collapse md:collapse-open">
+    {# p-0 pe-0: el checkbox invisible trae padding de 1rem (DaisyUI) y estira la fila del título. #}
+    <input type="checkbox" class="md:hidden min-h-0 p-0 pe-0" aria-label="Mostrar u ocultar datos del reporte" />
+    <div class="collapse-title md:hidden min-h-0 p-0 text-xs font-medium text-primary">
+      <i class="fa-solid fa-chevron-down mr-1"></i> Datos del reporte
+    </div>
+    <div class="collapse-content p-0">
+  <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-sm pt-2">
+    <div><dt class="text-xs text-base-content/60">ITO</dt>
+         <dd>{{ registro.ito_nombre }}</dd></div>
+    <div><dt class="text-xs text-base-content/60">Fecha del reporte</dt>
+         <dd>{{ registro.fecha|date:"d/m/Y" }}</dd></div>
+    <div><dt class="text-xs text-base-content/60">Contratista</dt>
+         <dd>{{ registro.contratista.name|default:"—" }}</dd></div>
+    <div><dt class="text-xs text-base-content/60">Proyecto</dt>
+         <dd>{{ registro.sitio.name }}</dd></div>
+    <div><dt class="text-xs text-base-content/60">Código PTI</dt>
+         <dd>{{ registro.sitio.pti_cell_id|default:"—" }}</dd></div>
+    <div><dt class="text-xs text-base-content/60">Código operador</dt>
+         <dd>{{ registro.sitio.operator_id|default:"—" }}</dd></div>
+    <div><dt class="text-xs text-base-content/60">Tipo de estructura</dt>
+         <dd>{{ registro.sitio.tipo_estructura|default:"—" }}</dd></div>
+    <div><dt class="text-xs text-base-content/60">Altura</dt>
+         <dd>{% if registro.sitio.alt is not None %}{{ registro.sitio.alt }} m{% else %}—{% endif %}</dd></div>
+    <div><dt class="text-xs text-base-content/60">Coordenadas</dt>
+         <dd class="tabular-nums">{{ coord_lat_dms }}<br>{{ coord_lon_dms }}</dd></div>
+    <div><dt class="text-xs text-base-content/60">Estado / avance</dt>
+         <dd><span class="badge badge-soft badge-sm">{{ registro.get_estado_obra_display }}</span>
+             <span class="ml-1 tabular-nums">{{ registro.avance_pct|floatformat:1 }}%</span></dd></div>
+  </dl>
+  {% if puede_gestionar and not bloqueado %}
+  <div class="mt-3 flex justify-end">
+    <button type="button" class="btn btn-sm btn-edit obra-edit-btn" data-id="{{ registro.id }}">
+      <i class="fa-solid fa-pen-to-square"></i> Editar datos
+    </button>
+  </div>
+  {% endif %}
+    </div>
+  </div>
+</section>
+{% include 'reg_construccion/partials/modales.html' %}
+<script src="{% static 'js/reg_construccion.js' %}" defer></script>

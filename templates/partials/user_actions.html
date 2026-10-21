@@ -1,4 +1,26 @@
 <div class="flex items-center justify-center gap-1">
+  {% if request.user.is_superuser and record.id != request.user.id %}
+  <form method="post" action="{% url 'hijack:acquire' %}" hx-boost="false" class="inline">
+    {% csrf_token %}
+    <input type="hidden" name="user_pk" value="{{ record.id }}">
+    <input type="hidden" name="next" value="/">
+    <button type="submit"
+            class="btn btn-sm btn-ghost btn-circle text-view"
+            title="Ver la app como este usuario">
+      <i class="fa-solid fa-user-secret"></i>
+    </button>
+  </form>
+  {% endif %}
+  {% if record.is_active and record.id != request.user.id and not record.is_superuser %}
+  <button type="button"
+          class="btn btn-sm btn-ghost btn-circle text-accent user-invite-btn"
+          data-id="{{ record.id }}"
+          data-nombre="{{ record.display_name }}"
+          data-correo="{{ record.email|default:record.username }}"
+          title="{% if record.has_usable_password %}Enviar enlace para crear una nueva contraseña{% else %}Reenviar invitación (aún no crea su contraseña){% endif %}">
+    <i class="fa-solid fa-envelope"></i>
+  </button>
+  {% endif %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-edit user-edit-btn"
           data-id="{{ record.id }}"

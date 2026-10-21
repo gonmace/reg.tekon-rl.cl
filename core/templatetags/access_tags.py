@@ -51,7 +51,7 @@ class _RoleNode(template.Node):
 @register.tag('for_role')
 def do_for_role(parser, token):
     """Visible para los roles indicados (y siempre para superusuario).
-    Uso: {% for_role 'COORD' 'GERENCIA' %}...{% endfor_role %}"""
+    Uso: {% for_role 'COORD' 'ADMINISTRADOR' %}...{% endfor_role %}"""
     bits = token.split_contents()
     roles = [r.strip("'\"") for r in bits[1:]]
     nodelist = parser.parse(('endfor_role',))
@@ -64,7 +64,8 @@ def btn_access(context):
     """Devuelve 'allowed', 'disabled' o 'hidden' según el rol del usuario.
     Uso: {% btn_access as access %} o data-access="{% btn_access %}"
     - VISITA           → hidden   (botón oculto)
-    - COORD / GERENCIA → disabled (visible pero inactivo)
+    - Registro concluido (`bloqueado` en el contexto) → disabled para todos
+    - COORD / ADMINISTRADOR → disabled (visible pero inactivo)
     - ITO / SEARCHER / Supermanager → allowed
     Ver ROLES.md."""
     u = _get_user(context)
@@ -72,6 +73,8 @@ def btn_access(context):
         return 'hidden'
     if u.is_visita:
         return 'hidden'
-    if u.is_coord or u.is_gerencia:
+    if context.get('bloqueado'):
+        return 'disabled'
+    if u.is_coord or u.is_administrador:
         return 'disabled'
     return 'allowed'

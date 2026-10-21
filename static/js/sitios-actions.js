@@ -29,6 +29,26 @@
     editModal?.close();
   };
 
+  // Etiquetas de los campos del SiteForm, para mostrar errores legibles
+  const FIELD_LABELS = {
+    pti_cell_id: 'PTI ID', operator_id: 'Operador ID', name: 'Nombre Sitio',
+    tipo_sitio: 'Tipo de sitio', tipo_estructura: 'Tipo de estructura', alt: 'Altura (m)',
+    region: 'Región', comuna: 'Comuna', tipo_coordenada: 'Tipo de coordenada',
+    lat: 'Latitud', lon: 'Longitud',
+  };
+
+  // {campo: ['mensaje', ...]} → "PTI ID: Ya existe Sitio con este PTI ID."
+  function formatFormErrors(errors) {
+    if (!errors || typeof errors !== 'object') return '';
+    return Object.entries(errors)
+      .map(([campo, msgs]) => {
+        const texto = [].concat(msgs).join(' ');
+        const label = FIELD_LABELS[campo];
+        return label ? `${label}: ${texto}` : texto;
+      })
+      .join(' · ');
+  }
+
   function bindFormSubmit(form, url, successMsg) {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -65,7 +85,10 @@
             editModal.close();
             reloadTable();
           } else {
-            window.Alert?.error(data.message || 'Error al guardar.');
+            // El servidor responde 400 con el detalle por campo: se muestra para poder corregir.
+            const detalle = formatFormErrors(data.errors);
+            const base = data.message || 'Error al guardar.';
+            window.Alert?.error(detalle ? `${base} ${detalle}` : base);
           }
         })
         .catch(() => window.Alert?.error('Error de red o del servidor.'));

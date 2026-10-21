@@ -778,7 +778,8 @@ python manage.py createsuperuser
 <head>
   <meta charset="UTF-8">
   <title>Informe {title}</title>
-  <link rel="stylesheet" href="{{% static 'css/weasyprint.css' %}}">
+  {{# En el PDF el CSS lo carga la vista desde disco (pdf_stylesheets); solo la vista previa HTML lo pide por /static/. #}}
+  {{% if es_preview %}}<link rel="stylesheet" href="{{% static 'css/weasyprint.css' %}}">{{% endif %}}
 </head>
 <body>
 
@@ -1029,6 +1030,7 @@ def preview_{app_name}_individual(request, registro_id):
     view = {app_name.title().replace('_', '')}PDFView()
     view.kwargs = {{'registro_id': registro_id}}
     context = view.get_context_data()
+    context['es_preview'] = True
     return render(request, 'reportes_{app_name}/{app_name}.html', context)
 '''
         
@@ -1078,6 +1080,7 @@ def preview_{app_name}_individual(request, registro_id):
     view = {app_name.title().replace('_', '')}PDFView()
     view.kwargs = {{'registro_id': registro_id}}
     context = view.get_context_data()
+    context['es_preview'] = True
     return render(request, 'reportes_{app_name}/{app_name}.html', context)
 '''
         

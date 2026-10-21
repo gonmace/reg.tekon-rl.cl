@@ -1,0 +1,55 @@
+{% comment %}
+widgets/lista_widget.html
+Lista numerada de textos (actividades inspeccionadas, comentarios generales). Cada ítem se puede
+agregar, editar, quitar y reordenar. Los ítems viajan como JSON en el campo
+oculto "entradas" del form del paso.
+
+Nombre:
+  Lista numerada
+
+Tipo:
+  form
+
+Uso:
+  include 'widgets/lista_widget.html'
+
+Config:
+  label — título de la lista, default Lista
+  placeholder — texto de ayuda de cada ítem
+  max_items — máximo de ítems, default 50
+  multilinea — true: cada ítem es un textarea (párrafos libres), default false
+  numerada — false: no muestra la numeración, default true
+
+Estados:
+  1 — Lista vacía
+  3 — Lista con al menos un ítem
+{% endcomment %}
+{% load static actividades_tags %}
+<div class="lista-widget bg-base-100 rounded-box border border-base-300 p-4"
+     data-placeholder="{{ placeholder|default:'Escribe aquí…' }}"
+     data-max-items="{{ max_items|default:50 }}"
+     data-multilinea="{% if multilinea %}1{% else %}0{% endif %}"
+     data-numerada="{% if numerada is False %}0{% else %}1{% endif %}">
+  <div class="flex items-center justify-between mb-3">
+    <span class="flex items-center gap-2 text-sm font-medium">
+      <i class="fa-solid {% if numerada is False %}fa-paragraph{% else %}fa-list-ol{% endif %} text-base-content/60"></i>
+      {{ label|default:"Lista" }}
+    </span>
+  </div>
+
+  <ol class="lista-items flex flex-col gap-2"></ol>
+  <p class="lista-vacia text-sm text-base-content/50 py-2">Aún no hay ítems. Usa «Agregar».</p>
+
+  <div class="mt-3">
+    <button type="button" class="btn btn-sm btn-add lista-add">
+      <i class="fa-solid fa-plus"></i> Agregar
+    </button>
+  </div>
+
+  <input type="hidden" name="entradas" class="lista-json"
+         value="{% if form.is_bound %}{{ form.entradas.value }}{% else %}[]{% endif %}">
+  {% with inicial=datos|dict_get:"entradas" %}
+  {{ inicial|json_script:"lista-inicial" }}
+  {% endwith %}
+</div>
+<script src="{% static 'js/lista_widget.js' %}" defer></script>

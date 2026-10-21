@@ -19,6 +19,7 @@ class SiteResource(resources.ModelResource):
     lat_con = fields.Field(attribute='lat_con', column_name='Latitud Construcción')
     lon_con = fields.Field(attribute='lon_con', column_name='Longitud Construcción')
     alt = fields.Field(attribute='alt', column_name='Altura (m)')
+    tipo_estructura = fields.Field(attribute='tipo_estructura', column_name='Tipo de estructura')
     region = fields.Field(attribute='region', column_name='Region / Provincia')
     comuna = fields.Field(attribute='comuna', column_name='Comuna / Municipio')
     class Meta:
@@ -26,11 +27,16 @@ class SiteResource(resources.ModelResource):
         fields = (
             'pti_cell_id', 'operator_id', 'nombre_sitio', 'tipo_sitio',
             'lat_man', 'lon_man', 'lat_ing', 'lon_ing', 'lat_con', 'lon_con',
-            'alt', 'region', 'comuna',
+            'alt', 'tipo_estructura', 'region', 'comuna',
         )
         export_order = (
             'pti_cell_id', 'operator_id', 'nombre_sitio', 'tipo_sitio',
             'lat_man', 'lon_man', 'lat_ing', 'lon_ing', 'lat_con', 'lon_con',
-            'alt', 'region', 'comuna',
+            'alt', 'tipo_estructura', 'region', 'comuna',
         )
         import_id_fields = ('pti_cell_id',)
+
+    def get_queryset(self):
+        # El PTI ID solo es único entre sitios activos: un sitio eliminado con el mismo
+        # PTI no debe confundirse con el que se está actualizando.
+        return Site.objects.filter(is_deleted=False)

@@ -40,9 +40,10 @@ class SiteForm(forms.ModelForm):
 
     class Meta:
         model = Site
-        fields = ['pti_cell_id', 'operator_id', 'name', 'tipo_sitio', 'alt', 'region', 'comuna']
+        fields = ['pti_cell_id', 'operator_id', 'name', 'tipo_sitio', 'tipo_estructura', 'alt', 'region', 'comuna']
         labels = {
             'alt': 'Altura (m)',
+            'tipo_estructura': 'Tipo de estructura',
             'region': 'Región',
             'comuna': 'Comuna',
             'pti_cell_id': 'PTI ID',
@@ -75,6 +76,10 @@ class SiteForm(forms.ModelForm):
                 css_class='flex flex-wrap -mx-2 mb-4',
             ),
             Div(
+                Div(Field('tipo_estructura'), css_class='w-full px-2'),
+                css_class='flex flex-wrap -mx-2 mb-4',
+            ),
+            Div(
                 Div(Field('name'), css_class='w-full md:w-2/3 px-2'),
                 Div(Field('tipo_sitio'), css_class='w-full md:w-1/3 px-2'),
                 css_class='flex flex-wrap items-end -mx-2 mb-4',
@@ -97,6 +102,25 @@ class SiteForm(forms.ModelForm):
                 css_class='flex gap-2 justify-center',
             ),
         )
+
+    # ModelForm omite las restricciones únicas condicionales cuando el campo de la
+    # condición (is_deleted) no está en el formulario; se valida explícitamente aquí.
+    def _unico_entre_activos(self, campo, mensaje):
+        valor = self.cleaned_data.get(campo)
+        if valor in (None, ''):
+            return valor
+        qs = Site.objects.filter(is_deleted=False, **{campo: valor})
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError(mensaje)
+        return valor
+
+    def clean_pti_cell_id(self):
+        return self._unico_entre_activos('pti_cell_id', 'Ya existe un sitio activo con este PTI ID.')
+
+    def clean_name(self):
+        return self._unico_entre_activos('name', 'Ya existe un sitio activo con este nombre.')
 
     def save(self, commit=True):
         site = super().save(commit=False)

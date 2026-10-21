@@ -61,7 +61,7 @@ Línea 3: Región · Comuna  · Acciones (der.)
 **Reglas clave:**
 - `.table-card { overflow: clip; }` — permite sticky en hijos (no usar `overflow: hidden`)
 - `.table-card-header { position: sticky; top: 0; z-index: 10; background-color: var(--color-base-200); }` — header fijo al scrollear
-- `.table tbody { background-color: var(--color-secondary); padding-top: 0.25rem; }` — fondo igual al `main`, separación del header
+- `.table tbody { background-color: transparent; padding-top: 0.25rem; }` — deja ver el fondo del contenedor mayor (no usar un color fijo: en el tema claro se vería distinto), separación del header
 - `.table tbody tr { display: flex; flex-wrap: wrap; background-color: var(--color-base-100); border-radius: var(--radius-box); }` — cada fila como card
 - Badge de tipo sitio: `--size: 1rem; font-size: 0.6rem` en mobile para no estirar la línea 2
 
@@ -89,7 +89,7 @@ urlpatterns = [
 ]
 ```
 
-Apps afectadas: `reg_construccion/urls.py`, `reg_txtss/urls.py`, `pdf_reports/urls.py`
+Apps afectadas: `reg_construccion/urls.py`, `reg_txtss/urls.py`, `pdf_reports/urls.py` (`reg_construccion` es la app de Construcción Sitios, ver abajo)
 
 ---
 
@@ -139,3 +139,39 @@ if (form) {
 source .venv/bin/activate
 python3 manage.py runserver 8001
 ```
+
+---
+
+## Registros por pasos (TX/TSS, Construcción Sitios)
+
+- El timeline de pasos dinámicos es **genérico**: `registros/views/dynamic_steps.py` (`DynamicPasoViewBase`, `MapaSaveViewBase`, `get_dynamic_steps`, `make_toggle_concluido`/`make_formatear_registro`/`make_resumen_formatear`). Cada app lo subclasea fijando `registro_model` y `url_namespace`.
+- **Convención:** el namespace de URLs de la app == su prefijo en `config/urls.py` (`reg_txtss` → `/reg_txtss/`, `reg_construccion` → `/reg_construccion/`) y publica `steps`, `paso_dinamico`, `mapa_save`. El motor arma URLs de fotos como `/<namespace>/<id>/<paso>/photos/`.
+- Cada app registra su modelo en `AppConfig.ready()` con `registros.registry.register_registro_model(namespace, Model)`. `photos` lo usa para resolver el registro por URL (nunca asumir `RegTxtss`).
+- Widgets (`widgets/widget_types/`): además de `validate_*`/`to_display`, pueden definir `extra_context(context)` (variables para su template) y `before_save(cleaned, stored, request, registro, paso, config)` (p. ej. permisos por rol antes de persistir).
+- **Construcción Sitios** (`reg_construccion`): un registro por **visita** (en la interfaz y el PDF se llama **«reporte»**; único `(sitio, fecha)`); un sitio activado acumula varias visitas. Tipo de actividad `reg_construccion_torres` (sembrado en la migración 0002): pasos `obra_objetivos` (se muestra como «Actividades», con lista + cámara de fotos (mín. 4) + segunda cámara «Libro de obras» (`camera_libro_widget`, etapa `obra_libro`, opcional); la clave interna se conserva por los datos guardados), `obra_avance`, `obra_electrico` (un comentario + cámara) y `obra_comentarios` («Comentarios y acciones»: `lista_widget` con `multilinea`/`numerada: false`, un párrafo por entrada en el PDF). No hay paso de fotos general: cada sección con cámara tiene sus fotos (`etapa` = nombre del paso, o `config['etapa']` en cámaras extra como `camera_libro_widget`, que permiten dos cámaras en un mismo paso) y su selector 1/2 por fila en el PDF. El PDF oculta Eléctrico y Comentarios si están vacíos. La tabla de ítems (partidas de obra) es `tabla_avance_widget`: el % anterior/acumulado **se calcula** recorriendo las visitas del sitio (no se guarda); `RegConstruccion.avance_pct` es un denormalizado que mantiene `reg_construccion/signals.py`.
+- **Listado maestro-detalle** (`/reg_construccion/`): arriba `SitiosObraTable` (una fila por sitio con el resumen de su última visita, una sola consulta con subqueries) y abajo el panel `#obra-visitas-panel` con las visitas del sitio elegido (`visitas_sitio`, HTMX; la selección va en `?sitio=ID`). El alcance por rol es `core.permissions.alcance_registros`. Los enlaces/filtros del panel usan `hx-get` explícitos, no los links relativos de django-tables2. Las tablas móviles se ordenan por `nth-child` en `styles.css` (`.reg-obra-sitios-table`, `.reg-obra-visitas-table`): si cambian las columnas, hay que actualizar ese bloque.
+- Datos de Construcción solo para sitios `TORRE`. Solo superusuario y ADMINISTRADOR definen los ítems (plantilla, agregar, borrar); el resto de los roles (ITO, Buscador, COORD) solo edita el `% actual`.
+
+## Registro concluido
+
+Un registro concluido es de **solo lectura para todos** (reglas en `ROLES.md`). Todo endpoint que escriba datos de un registro debe hacer `registro_bloqueado_response(registro)` (`core/permissions.py`) y devolver su 403 si no es `None`; las plantillas con widgets reciben `bloqueado` en el contexto (`btn_access` lo traduce a `disabled`). El PDF recibe `borrador = not registro.concluido` (marca de agua `.marca-agua` en `weasyprint.css`).
+
+## Dashboard (inicio `/`)
+
+Solo Construcción Sitios. Vista: `core/views/dashboard.py`; plantilla `core/templates/pages/dashboard.html`; toda la lógica en `reg_construccion/dashboard.py` (`panel`, `actividad_reciente`, `pendientes`, `mapa_geojson`, y `sitios_con_ultima_visita`, que también usa el listado maestro). Todo pasa por `alcance_registros` y se cachea por alcance (`cached`). Mapa Leaflet: `static/js/dashboard_construccion.js` + `reg_construccion:api_mapa_dashboard`; las teselas de OSM exigen `referrerPolicy: 'origin'` (sin Referer responde «Access blocked»). Usuarios sin acceso a `construccion` ven una bienvenida. El app `dashboard` (TX/TSS ejecutivo) fue eliminado; sus tablas huérfanas pueden borrarse: `DROP TABLE dashboard_dashboardmetric, dashboard_sitiodashboard; DELETE FROM django_migrations WHERE app='dashboard';`
+
+## Impersonate
+
+`django-hijack`. Solo `is_superuser` de Django puede impersonar, y nunca a otro superuser (`users/permissions.py::can_hijack`). Botón en la lista de Usuarios; banner en `templates/base.html`. Los cambios hechos mientras se impersona quedan en `simple_history` a nombre del usuario impersonado; los inicios/fines se registran en el logger `users.hijack`.
+
+## Correo
+
+- `EMAIL_BACKEND` es `core.email_backend.ConfigurableEmailBackend`: al enviar resuelve la config con `core/email_config.py::get_email_config()`. Por defecto lee `EMAIL_*` del `.env` (sin `EMAIL_HOST` va a la consola); si en **Configuración → Correo** (solo superusuario) hay una configuración personalizada activa (`core.models.correo.ConfiguracionCorreo`), esa manda. Los correos con el remitente por defecto salen con el de la config activa.
+- La contraseña personalizada se guarda **sin cifrar** en base (decisión del proyecto); nunca se muestra en pantalla ni en errores. Una config personalizada solo se activa si conecta.
+- Las pruebas de la pantalla (conectar / enviar) usan lo que esté en el formulario, aunque no se haya guardado. Las pruebas automáticas deben mockear `core.views.correo.conectar` / `crear_backend` (no tocar la red).
+- El certificado del SMTP del hosting es `*.web-hosting.com`: se usa el nombre real del servidor en `EMAIL_HOST` para que la verificación SSL pase.
+
+## Notas
+- `User.get_full_name` es una **propiedad** (sin paréntesis) en este proyecto.
+- Varios archivos usan finales de línea CRLF (`templates/base.html`, `registros/views/*.py`, `photos/views.py`, ...): al editar por script, conservar el formato para no ensuciar el diff.
+- Si hay `tailwind start` corriendo, `static/css/dist/styles.css` se regenera sin minificar: antes de commitear, correr `cd theme/static_src && npm run build`.

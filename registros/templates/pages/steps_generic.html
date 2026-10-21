@@ -30,7 +30,7 @@
                     </option>
                 {% endfor %}
             </select>
-            {% for_role 'COORD' 'GERENCIA' %}
+            {% for_role 'COORD' 'ADMINISTRADOR' %}
             <button class="btn btn-primary btn-sm" id="activar-registro-btn" type="button">
                 <i class="fa-solid fa-plus"></i>
                 Nueva Fecha
@@ -41,15 +41,17 @@
 </div>
 {% endif %}
 
+{% if registro_header_template %}{% include registro_header_template %}{% endif %}
+
 <!-- Datos del sitio y PDF -->
-<div class="mb-4 flex items-center gap-3">
+<div class="mb-1 md:mb-4 flex items-center gap-3">
   {% if back_url %}
   <a href="{{ back_url }}" class="btn btn-sm btn-ghost" title="Volver al listado">
     <i class="fa-solid fa-arrow-left"></i>
     Atrás
   </a>
   {% endif %}
-  {% if registro.sitio %}
+  {% if registro.sitio and not registro_header_template %}
   <span class="text-sm font-bold text-accent">
     {% if registro.sitio.pti_cell_id %}{{ registro.sitio.pti_cell_id }}{% endif %}
     {% if registro.sitio.operator_id %} · {{ registro.sitio.operator_id }}{% endif %}
@@ -72,6 +74,7 @@
             <span class="badge badge-sm w-20 justify-center text-white" style="background-color:#dc2626;border-color:#b91c1c;">Sin Datos</span>
             <span class="badge badge-sm w-20 justify-center text-white" style="background-color:#ca8a04;border-color:#a16207;">Parciales</span>
             <span class="badge badge-sm w-20 justify-center text-white" style="background-color:#16a34a;border-color:#15803d;">Completos</span>
+            <span class="badge badge-sm w-20 justify-center text-white" style="background-color:#64748b;border-color:#475569;" title="Opcional y aún sin datos: pasa a verde al llenarse">Opcional</span>
         </div>
 
         <div class="flex flex-col flex-1 gap-2 min-w-0">
@@ -103,15 +106,19 @@
         {% if pdf_url %}
         <div class="flex flex-col items-center gap-1 self-start ml-auto shrink-0">
           <button id="btn-pdf"
-                  class="btn btn-sm text-white {% if not concluido %}btn-disabled opacity-40 pointer-events-none{% endif %}"
-                  style="background-color:#dc2626;border-color:#b91c1c;" title="Generar PDF"
+                  class="btn btn-sm text-white"
+                  style="background-color:#dc2626;border-color:#b91c1c;"
+                  title="{% if concluido %}Generar PDF{% else %}Generar PDF (borrador){% endif %}"
                   data-pdf-url="{{ pdf_url }}"
                   data-registro-id="{{ registro.id }}">
             <i class="fa-solid fa-file-pdf"></i>
             PDF
           </button>
+          {% if not concluido %}
+          <span class="badge badge-warning badge-soft badge-sm" title="El PDF llevará la marca de agua BORRADOR hasta que se concluya">Borrador</span>
+          {% endif %}
           {% if toggle_concluido_url %}
-          {% for_role 'ITO' 'SEARCHER' %}
+          {% if puede_cambiar_concluido %}
           <label class="flex flex-col items-center gap-0.5 cursor-pointer select-none">
             <span class="text-xs text-base-content/70">Concluido</span>
             <input id="toggle-concluido" type="checkbox" class="toggle toggle-success"
@@ -119,10 +126,10 @@
                    data-url="{{ toggle_concluido_url }}"
                    data-csrf="{{ csrf_token }}">
           </label>
-          {% endfor_role %}
-          {% if request.user.is_visita or request.user.is_coord or request.user.is_gerencia %}
-          <span class="badge badge-sm {% if concluido %}badge-success{% else %}badge-ghost{% endif %}">
-            {% if concluido %}Concluido{% else %}Pendiente{% endif %}
+          {% else %}
+          <span class="badge badge-sm {% if concluido %}badge-success{% else %}badge-ghost{% endif %}"
+                {% if concluido %}title="Concluido: solo un administrador o el superusuario puede reabrirlo"{% endif %}>
+            {% if concluido %}<i class="fa-solid fa-lock mr-1"></i>Concluido{% else %}Pendiente{% endif %}
           </span>
           {% endif %}
           {% endif %}
@@ -178,11 +185,31 @@
 <!-- Modal confirmación concluido -->
 <dialog id="modal-concluido" class="modal">
   <div class="modal-box max-w-sm">
-    <h3 class="font-bold text-lg">¿Marcar como concluido?</h3>
-    <p class="py-3 text-sm text-base-content/70">Esta acción indica que el registro está finalizado y habilitará la generación del PDF.</p>
+    <div class="flex items-center gap-2 mb-2">
+      <i class="fa-solid fa-lock text-warning text-xl"></i>
+      <h3 class="font-bold text-lg">¿Marcar como concluido?</h3>
+    </div>
+    <p class="py-2 text-sm text-base-content/80">Al concluir, <strong>ya no se podrá modificar el formulario</strong>: datos, fotos, mapas ni fechas.</p>
+    <p class="pb-2 text-sm text-base-content/70">Solo un administrador o el superusuario podrá reabrirlo. El PDF dejará de llevar la marca de agua «Borrador».</p>
     <div class="modal-action">
       <button id="modal-concluido-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
-      <button id="modal-concluido-confirm" class="btn btn-success btn-sm text-white">Confirmar</button>
+      <button id="modal-concluido-confirm" class="btn btn-success btn-sm text-white">Concluir</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Modal confirmación reabrir (administrador / superusuario) -->
+<dialog id="modal-reabrir" class="modal">
+  <div class="modal-box max-w-sm">
+    <div class="flex items-center gap-2 mb-2">
+      <i class="fa-solid fa-lock-open text-warning text-xl"></i>
+      <h3 class="font-bold text-lg">¿Reabrir el registro?</h3>
+    </div>
+    <p class="py-2 text-sm text-base-content/80">Volverá a ser editable y el PDF saldrá otra vez como <strong>borrador</strong>.</p>
+    <div class="modal-action">
+      <button id="modal-reabrir-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+      <button id="modal-reabrir-confirm" class="btn btn-warning btn-sm">Reabrir</button>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -297,46 +324,50 @@ document.addEventListener('DOMContentLoaded', function() {
 
 const toggleConcluido = document.getElementById('toggle-concluido');
 const modalConcluido = document.getElementById('modal-concluido');
+const modalReabrir = document.getElementById('modal-reabrir');
 
+// Concluir bloquea el formulario y reabrir lo desbloquea: se recarga la página
+// para que todos los widgets reflejen el estado real (solo lectura / editable).
 async function guardarConcluido() {
-    const btnPdf = document.getElementById('btn-pdf');
     try {
         const resp = await fetch(toggleConcluido.dataset.url, {
             method: 'POST',
             headers: { 'X-CSRFToken': toggleConcluido.dataset.csrf, 'X-Requested-With': 'XMLHttpRequest' },
         });
-        const data = await resp.json();
-        if (btnPdf) {
-            if (data.concluido) {
-                btnPdf.classList.remove('btn-disabled', 'opacity-40', 'pointer-events-none');
-            } else {
-                btnPdf.classList.add('btn-disabled', 'opacity-40', 'pointer-events-none');
-            }
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            const msg = data.message || 'No se pudo cambiar el estado.';
+            if (window.Alert && window.Alert.error) window.Alert.error(msg, { autoHide: 4000 });
+            else alert(msg);
+            return;
         }
+        window.location.reload();
     } catch (e) {
         console.error('Error al cambiar estado concluido:', e);
-        toggleConcluido.checked = !toggleConcluido.checked;
+        alert('Error de red al cambiar el estado.');
     }
 }
 
-if (toggleConcluido && modalConcluido) {
+if (toggleConcluido && modalConcluido && modalReabrir) {
     toggleConcluido.addEventListener('change', function () {
-        if (this.checked) {
-            this.checked = false;
-            modalConcluido.showModal();
-        } else {
-            guardarConcluido();
-        }
+        const quiereConcluir = this.checked;
+        this.checked = !quiereConcluir;  // el estado real cambia solo tras confirmar
+        (quiereConcluir ? modalConcluido : modalReabrir).showModal();
     });
 
     document.getElementById('modal-concluido-confirm').addEventListener('click', function () {
         modalConcluido.close();
-        toggleConcluido.checked = true;
         guardarConcluido();
     });
-
     document.getElementById('modal-concluido-cancel').addEventListener('click', function () {
         modalConcluido.close();
+    });
+    document.getElementById('modal-reabrir-confirm').addEventListener('click', function () {
+        modalReabrir.close();
+        guardarConcluido();
+    });
+    document.getElementById('modal-reabrir-cancel').addEventListener('click', function () {
+        modalReabrir.close();
     });
 }
 
@@ -371,7 +402,7 @@ if (modalPdfOpciones && btnPdfEl) {
         modalPdfOpciones.showModal();
 
         const registroId = btnPdfEl.dataset.registroId;
-        fetch(`/reg_txtss/api/registros/${registroId}/pdf-secciones-fotos/`)
+        fetch(`/{{ app_namespace }}/api/registros/${registroId}/pdf-secciones-fotos/`)
             .then(r => r.json())
             .then(data => {
                 const secciones = data.secciones || [];

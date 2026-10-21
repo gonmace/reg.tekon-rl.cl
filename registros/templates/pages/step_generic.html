@@ -44,6 +44,13 @@
         </div>
       {% endif %}
 
+      <!-- Cámaras adicionales (p. ej. Libro de obras) -->
+      {% for extra in step.elements.photos_extra %}
+        <div class="flex items-center gap-1 ml-2">
+          {% include extra.boton_template with widget=extra %}
+        </div>
+      {% endfor %}
+
       <!-- Mapa (solo si hay widgets form; si no, el mapa ya es el botón principal) -->
       {% if step.elements.map.enabled and step.elements.form_widgets %}
         <div class="flex items-center gap-1 ml-2">

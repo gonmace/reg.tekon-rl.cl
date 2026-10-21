@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Configuración de correo{% endblock %}
+
+{% block pre_content %}{% csrf_token %}{% endblock pre_content %}
+
+{% block content %}
+<div id="correo-config" class="max-w-2xl mx-auto flex flex-col gap-4 py-2"
+     data-guardar-url="{% url 'correo:guardar' %}"
+     data-conexion-url="{% url 'correo:conexion' %}"
+     data-probar-url="{% url 'correo:probar' %}">
+
+  {% if activa.modo == 'consola' %}
+  <div class="alert alert-info text-sm" role="status">
+    <i class="fa-solid fa-terminal"></i>
+    <span>Modo consola: no hay servidor SMTP configurado, así que los correos se imprimen en la terminal del servidor y no se envían.</span>
+  </div>
+  {% endif %}
+  {% if site_url_local %}
+  <div class="alert alert-warning text-sm" role="status">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <span><code>SITE_URL</code> apunta a <strong>{{ site_url }}</strong>: los enlaces de las invitaciones saldrán con esa dirección. En producción debe ser el dominio real.</span>
+  </div>
+  {% endif %}
+
+  {# ── Configuración en uso ───────────────────────────────────────────── #}
+  <section class="card bg-base-100 border border-base-300 shadow-xs">
+    <div class="card-body">
+      <h2 class="card-title text-lg">
+        <i class="fa-solid fa-envelope text-primary"></i> Configuración en uso
+        {% if activa.origen == 'personalizada' %}<span class="badge badge-primary badge-soft">Personalizada</span>
+        {% else %}<span class="badge badge-ghost">.env</span>{% endif %}
+      </h2>
+      <dl class="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-x-4 gap-y-2 text-sm mt-1">
+        <dt class="text-base-content/60">Modo</dt>
+        <dd>{% if activa.modo == 'smtp' %}<span class="badge badge-success badge-soft">SMTP</span>{% else %}<span class="badge badge-warning badge-soft">Consola (no envía)</span>{% endif %}</dd>
+        <dt class="text-base-content/60">Servidor</dt><dd class="break-all">{{ activa.host|default:"—" }}{% if activa.host %}:{{ activa.port }}{% endif %}</dd>
+        <dt class="text-base-content/60">Seguridad</dt><dd>{{ activa.seguridad }}</dd>
+        <dt class="text-base-content/60">Usuario</dt><dd class="break-all">{{ activa.usuario|default:"—" }}</dd>
+        <dt class="text-base-content/60">Contraseña</dt>
+        <dd>{% if activa.password_definida %}<span class="tracking-widest">••••••••</span> <span class="text-xs text-base-content/60">definida</span>{% else %}<span class="text-error">No definida</span>{% endif %}</dd>
+        <dt class="text-base-content/60">Remitente</dt><dd class="break-all">{{ activa.remitente }}</dd>
+        <dt class="text-base-content/60">SITE_URL</dt><dd class="break-all">{{ site_url }}</dd>
+      </dl>
+    </div>
+  </section>
+
+  {# ── Elegir y editar la configuración ───────────────────────────────── #}
+  <section class="card bg-base-100 border border-base-300 shadow-xs">
+    <div class="card-body">
+      <h2 class="card-title text-lg"><i class="fa-solid fa-sliders text-primary"></i> Configuración a usar</h2>
+      <form id="correo-form" class="flex flex-col gap-3" autocomplete="off">
+
+        <label class="flex items-start gap-3 cursor-pointer rounded-box border border-base-300 p-3">
+          <input type="radio" name="origen" value="env" class="radio radio-sm radio-primary mt-1" {% if not usa_personalizada %}checked{% endif %}>
+          <span class="text-sm">
+            <span class="font-medium">Archivo .env (predeterminado)</span><br>
+            <span class="text-base-content/60">
+              {% if env.modo == 'smtp' %}{{ env.host }}:{{ env.port }} · {{ env.seguridad }} · {{ env.usuario|default:"sin usuario" }}
+              {% else %}Sin EMAIL_HOST: modo consola{% endif %}
+            </span>
+          </span>
+        </label>
+
+        <label class="flex items-start gap-3 cursor-pointer rounded-box border border-base-300 p-3">
+          <input type="radio" name="origen" value="personalizada" class="radio radio-sm radio-primary mt-1" {% if usa_personalizada %}checked{% endif %}>
+          <span class="text-sm">
+            <span class="font-medium">Configuración personalizada</span><br>
+            <span class="text-base-content/60">Para cambiar de cuenta de correo sin editar el .env.</span>
+          </span>
+        </label>
+
+        <fieldset id="correo-personalizada" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-1 sm:pl-8">
+          <label class="form-control sm:col-span-2">
+            <span class="label-text text-sm mb-1">Servidor SMTP</span>
+            <input type="text" name="host" value="{{ pers.host }}" class="input input-bordered w-full" placeholder="mail.tu-dominio.cl">
+          </label>
+          <label class="form-control">
+            <span class="label-text text-sm mb-1">Puerto</span>
+            <input type="number" name="port" value="{{ pers.port }}" min="1" max="65535" class="input input-bordered w-full">
+          </label>
+          <label class="form-control">
+            <span class="label-text text-sm mb-1">Seguridad</span>
+            <select name="seguridad" class="select select-bordered w-full">
+              <option value="ssl" {% if pers.seguridad == 'ssl' %}selected{% endif %}>SSL/TLS (puerto 465)</option>
+              <option value="tls" {% if pers.seguridad == 'tls' %}selected{% endif %}>STARTTLS (puerto 587)</option>
+              <option value="none" {% if pers.seguridad == 'none' %}selected{% endif %}>Sin cifrado</option>
+            </select>
+          </label>
+          <label class="form-control">
+            <span class="label-text text-sm mb-1">Usuario</span>
+            <input type="text" name="usuario" value="{{ pers.usuario }}" class="input input-bordered w-full" placeholder="correo@tu-dominio.cl" autocomplete="off">
+          </label>
+          <label class="form-control">
+            <span class="label-text text-sm mb-1">Contraseña{% if pers_password_guardada %} <span class="text-base-content/50">(guardada; vacío = mantener)</span>{% endif %}</span>
+            <input type="password" name="password" value="" class="input input-bordered w-full" autocomplete="new-password"
+                   placeholder="{% if pers_password_guardada %}••••••••{% else %}Contraseña SMTP{% endif %}">
+          </label>
+          <label class="form-control sm:col-span-2">
+            <span class="label-text text-sm mb-1">Remitente</span>
+            <input type="text" name="remitente" value="{{ pers.remitente }}" class="input input-bordered w-full" placeholder="Reportes Tekon <reportes@tu-dominio.cl>">
+          </label>
+          <p class="text-xs text-base-content/50 sm:col-span-2">
+            La contraseña se guarda en la base de datos sin cifrar y nunca se muestra en pantalla.
+          </p>
+        </fieldset>
+
+        <div class="flex justify-end">
+          <button type="submit" id="correo-guardar-btn" class="btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  {# ── Pruebas ────────────────────────────────────────────────────────── #}
+  <section class="card bg-base-100 border border-base-300 shadow-xs">
+    <div class="card-body">
+      <h2 class="card-title text-lg"><i class="fa-solid fa-vial text-primary"></i> Pruebas</h2>
+      <p class="text-xs text-base-content/60 -mt-1">Usan la configuración seleccionada arriba, aunque no la hayas guardado.</p>
+
+      <div class="flex flex-col gap-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" id="correo-conexion-btn" class="btn btn-sm btn-outline"><i class="fa-solid fa-plug"></i> Probar conexión</button>
+          <span class="text-xs text-base-content/60">Se conecta y autentica con el servidor, sin enviar ningún correo.</span>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
+          <label class="form-control flex-1">
+            <span class="label-text text-sm mb-1">Correo de destino</span>
+            <input type="email" id="correo-destino" value="{{ correo_prueba }}" class="input input-bordered w-full" placeholder="destino@ejemplo.com" autocomplete="email">
+          </label>
+          <button type="button" id="correo-enviar-btn" class="btn btn-sm sm:btn-md btn-save"><i class="fa-solid fa-paper-plane"></i> Enviar correo de prueba</button>
+        </div>
+      </div>
+      <div id="correo-resultado" class="hidden mt-3 text-sm" role="status" aria-live="polite"></div>
+    </div>
+  </section>
+</div>
+<script src="{% static 'js/correo-config.js' %}" defer></script>
+{% endblock content %}

@@ -14,6 +14,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
+from core.permissions import UsuariosAccessMixin
 from core.tables import UserTable
 from core.utils.breadcrumbs import BreadcrumbsMixin
 from .models import User
@@ -32,7 +33,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
-class UsersListView(LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
+class UsersListView(UsuariosAccessMixin, LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
     model = User
     table_class = UserTable
     template_name = 'users/users_list.html'
@@ -69,7 +70,7 @@ class UsersListView(LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
         return [{'label': 'Usuarios'}]
 
 
-class UserApiView(View):
+class UserApiView(UsuariosAccessMixin, View):
     """CRUD de usuarios vía JSON."""
 
     def post(self, request):
@@ -80,7 +81,8 @@ class UserApiView(View):
             return JsonResponse({'success': False, 'message': 'El correo electrónico es obligatorio'}, status=400)
         if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
             return JsonResponse({'success': False, 'message': 'Ingrese un correo electrónico válido'}, status=400)
-        if not password:
+        invitar = bool(data.get('invitar'))
+        if not password and not invitar:
             return JsonResponse({'success': False, 'message': 'La contraseña es obligatoria'}, status=400)
         if User.objects.filter(username=email).exists():
             return JsonResponse({'success': False, 'message': 'Ya existe un usuario con ese correo'}, status=400)
@@ -88,8 +90,8 @@ class UserApiView(View):
         contractor_id = data.get('contractor')
         contractor = Contractor.objects.filter(pk=contractor_id, is_active=True, is_deleted=False).first() if contractor_id else None
         user_type = data.get('user_type', User.ITO)
-        if request.user.is_gerencia and user_type != User.COORD:
-            return JsonResponse({'success': False, 'message': 'GERENCIA solo puede crear usuarios de tipo Coordinador'}, status=403)
+        if request.user.is_administrador and user_type != User.COORD:
+            return JsonResponse({'success': False, 'message': 'ADMINISTRADOR solo puede crear usuarios de tipo Coordinador'}, status=403)
         if request.user.is_coord and user_type not in User.ITO_LIKE_ROLES:
             return JsonResponse({'success': False, 'message': 'COORD solo puede crear usuarios ITO o Buscador'}, status=403)
         if request.user.is_coord and contractor and contractor != request.user.contractor:
@@ -97,14 +99,19 @@ class UserApiView(View):
         user = User(
             username=email,
             email=email,
-            first_name=data.get('first_name', '').strip(),
-            last_name=data.get('last_name', '').strip(),
+            first_name=data.get('first_name', '').strip() if not invitar else '',  # el invitado lo completa al activar
+            last_name=data.get('last_name', '').strip() if not invitar else '',
             user_type=user_type,
             contractor=contractor,
             report_access=data.get('report_access', []),
         )
-        user.set_password(password)
+        if invitar:
+            user.set_unusable_password()  # la crea el propio usuario desde el enlace de la invitación
+        else:
+            user.set_password(password)
         user.save()
+        if invitar:
+            return _responder_invitacion(user, request.user, creado=True)
         return JsonResponse({'success': True, 'message': 'Usuario creado correctamente'})
 
     def put(self, request, user_id):
@@ -117,8 +124,8 @@ class UserApiView(View):
             user.first_name = data.get('first_name', user.first_name).strip()
             user.last_name = data.get('last_name', user.last_name).strip()
             new_type = data.get('user_type', user.user_type)
-            if request.user.is_gerencia and new_type != User.COORD:
-                return JsonResponse({'success': False, 'message': 'GERENCIA solo puede asignar tipo Coordinador'}, status=403)
+            if request.user.is_administrador and new_type != User.COORD:
+                return JsonResponse({'success': False, 'message': 'ADMINISTRADOR solo puede asignar tipo Coordinador'}, status=403)
             if request.user.is_coord and new_type not in User.ITO_LIKE_ROLES:
                 return JsonResponse({'success': False, 'message': 'COORD solo puede asignar tipo ITO o Buscador'}, status=403)
             user.user_type = new_type
@@ -156,7 +163,40 @@ class UserApiView(View):
         return JsonResponse({'success': True, 'message': 'Usuario eliminado correctamente'})
 
 
-class UserEditModalView(View):
+def _responder_invitacion(user, invitador, creado=False):
+    """Envía la invitación y arma la respuesta JSON (el envío puede fallar aunque el usuario exista)."""
+    import logging
+    from .invitations import enviar_invitacion
+    try:
+        enviar_invitacion(user, invitador)
+    except Exception:
+        logging.getLogger(__name__).exception('No se pudo enviar la invitación a %s', user.pk)
+        base = 'Usuario creado, pero no se pudo enviar la invitación' if creado else 'No se pudo enviar la invitación'
+        return JsonResponse({'success': creado, 'message': f'{base}. Reintenta desde la lista de usuarios.'},
+                            status=200 if creado else 502)
+    msg = f'Usuario creado e invitación enviada a {user.email}' if creado else f'Invitación enviada a {user.email}'
+    return JsonResponse({'success': True, 'message': msg})
+
+
+class UserInviteView(UsuariosAccessMixin, View):
+    """Envía (o reenvía) la invitación para que el usuario cree su contraseña."""
+
+    def post(self, request, user_id):
+        user = User.objects.filter(id=user_id, is_deleted=False).first()
+        if not user:
+            return JsonResponse({'success': False, 'message': 'Usuario no encontrado'}, status=404)
+        if user.is_supermanager or user.is_superuser:
+            return JsonResponse({'success': False, 'message': 'No se puede invitar a este usuario'}, status=403)
+        if request.user.is_coord and not (
+            user.user_type in User.ITO_LIKE_ROLES and user.contractor_id == request.user.contractor_id
+        ):
+            return JsonResponse({'success': False, 'message': 'COORD solo puede invitar a usuarios ITO o Buscador de su empresa'}, status=403)
+        if not user.is_active:
+            return JsonResponse({'success': False, 'message': 'El usuario está inactivo'}, status=400)
+        return _responder_invitacion(user, request.user)
+
+
+class UserEditModalView(UsuariosAccessMixin, View):
     """Devuelve el HTML del formulario para el modal."""
 
     def get(self, request, user_id=None):
@@ -181,7 +221,7 @@ class UserEditModalView(View):
             form.fields['contractor'].queryset = Contractor.objects.filter(is_active=True, is_deleted=False).order_by('name')
         form.fields['contractor'].empty_label = 'Seleccionar empresa...'
 
-        if request.user.is_gerencia:
+        if request.user.is_administrador:
             form.fields['user_type'].choices = [(User.COORD, 'Coordinador')]
         elif request.user.is_coord:
             form.fields['user_type'].choices = [

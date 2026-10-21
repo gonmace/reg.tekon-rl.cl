@@ -17,7 +17,7 @@ para calcular el nivel de acceso del usuario actual en tiempo de render.
 | Supermanager | `allowed` | Normal, sin restricción |
 | ITO | `allowed` | Normal, sin restricción |
 | SEARCHER | `allowed` | Normal, sin restricción |
-| GERENCIA | `disabled` | Botón visible pero inactivo (opacity 0.4, sin click) |
+| ADMINISTRADOR | `disabled` | Botón visible pero inactivo (opacity 0.4, sin click) |
 | COORD | `disabled` | Botón visible pero inactivo (opacity 0.4, sin click) |
 | VISITA | `hidden` | Botón oculto (`display:none`) |
 

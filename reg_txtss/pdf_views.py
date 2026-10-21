@@ -27,4 +27,5 @@ def preview_reg_txtss_individual(request, registro_id):
     view = RegTxtssPDFView()
     view.kwargs = {'registro_id': registro_id}
     context = view.get_context_data()
+    context['es_preview'] = True
     return render(request, 'reportes_txtss/txtss.html', context)

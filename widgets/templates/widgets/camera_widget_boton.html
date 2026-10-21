@@ -3,9 +3,11 @@ widgets/camera_widget_boton.html
 {% endcomment %}
 <a href="{{ widget.url }}"
    class="btn btn-{{ widget.color }} btn-circle sombra active:scale-95 transition-transform duration-100 relative"
-   title="Fotos — {{ widget.count }}/{{ widget.min_count }}">
+   title="Imágenes — {{ widget.count }}/{{ widget.min_count }}">
   <i class="fa-solid fa-camera text-xl"></i>
-  {% if widget.count %}
+  {% if widget.min_count %}
+    <span class="badge badge-xs absolute -top-2 -right-2 font-bold">{{ widget.count }}/{{ widget.min_count }}</span>
+  {% elif widget.count %}
     <span class="badge badge-xs absolute -top-2 -right-2 font-bold">{{ widget.count }}</span>
   {% endif %}
 </a>

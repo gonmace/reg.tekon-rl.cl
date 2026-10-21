@@ -10,14 +10,16 @@ urlpatterns = [
     path('', include('core.urls.dashboard')),
     path('', include('core.urls.sitios')),
     path('', include('core.urls.contractors')),
+    path('', include('core.urls.correo')),
     path('reg_txtss/', include('reg_txtss.urls')),
+    path('reg_construccion/', include('reg_construccion.urls')),
     path('photos/', include('photos.urls')),
     path('', include('pdf_reports.urls')),
-    path('dashboard/', include('dashboard.urls')),
     path('api/', include('core.urls.api')),
     path('', include('users.urls')),
     path('actividades/', include('actividades.urls')),
     path('widgets/', include('widgets.urls')),
+    path('hijack/', include('hijack.urls')),
 ]
 
 if settings.DEBUG:

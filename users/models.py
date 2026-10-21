@@ -10,7 +10,7 @@ from django.dispatch import receiver
 
 class User(AbstractUser):
     COORD = "COORD"
-    GERENCIA = "GERENCIA"
+    ADMINISTRADOR = "ADMINISTRADOR"
     ITO = "ITO"
     SEARCHER = "SEARCHER"
     VISITA = "VISITA"
@@ -22,7 +22,7 @@ class User(AbstractUser):
     RESTRICTED_ROLES = (ITO, SEARCHER, COORD, VISITA)
 
     TYPE_CHOICES = [
-        (GERENCIA, "Gerencia"),
+        (ADMINISTRADOR, "Administrador"),
         (COORD, "Coordinador"),
         (ITO, "ITO"),
         (SEARCHER, "Buscador"),
@@ -31,7 +31,7 @@ class User(AbstractUser):
 
     REPORT_ACCESS_CHOICES = [
         ('txtss_postes',  'TX/TSS Postes'),
-        ('txtss_torres',  'TX/TSS Torres'),
+        ('txtss_torres',  'TX/TSS Ingenieria'),
         ('construccion',  'Construcción'),
     ]
     user_type = models.CharField(
@@ -130,6 +130,17 @@ class User(AbstractUser):
     def get_full_name(self):
         return f"{self.first_name} {self.last_name}"
 
+    @property
+    def display_name(self):
+        """Nombre para mostrar en la interfaz: nombre y apellido; si no los tiene, el usuario."""
+        return self.get_full_name.strip() or self.username
+
+    @property
+    def iniciales(self):
+        """Iniciales del avatar: nombre + apellido (o las 2 primeras letras del usuario)."""
+        partes = [p for p in (self.first_name, self.last_name) if p and p.strip()]
+        return ''.join(p.strip()[0] for p in partes[:2]).upper() or self.username[:2].upper()
+
     @staticmethod
     def get_users():
         return User.objects.filter(is_active=True)
@@ -169,7 +180,7 @@ class User(AbstractUser):
 
     def has_report_access(self, report_code):
         """True si el usuario puede ver el reporte. Vacío = acceso total."""
-        if not self.user_type or self.user_type == self.GERENCIA:
+        if not self.user_type or self.user_type == self.ADMINISTRADOR:
             return True
         access = self.report_access or []
         return len(access) == 0 or report_code in access
@@ -188,12 +199,12 @@ class User(AbstractUser):
         return self.user_type == User.COORD
 
     @property
-    def is_gerencia(self):
-        return self.user_type == User.GERENCIA
+    def is_administrador(self):
+        return self.user_type == User.ADMINISTRADOR
 
     @property
     def is_manager(self):
-        return self.is_gerencia
+        return self.is_administrador
 
     @property
     def is_ito(self):

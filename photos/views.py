@@ -7,7 +7,10 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
 from core.utils.breadcrumbs import BreadcrumbsMixin
-from core.permissions import NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin, registro_access_denied, can_access_registro
+from core.permissions import (
+    NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin, registro_access_denied, can_access_registro,
+    registro_bloqueado, registro_bloqueado_response,
+)
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 import json
@@ -70,13 +73,14 @@ def set_photos_template_for_step(step_name, template_name):
     # Usar un patrón que funcione para cualquier app_name
     PHOTOS_TEMPLATES[f"*_{step_name}"] = template_name
 
-def get_registro_from_id(registro_id):
+def get_registro_from_id(registro_id, request=None):
     """
-    Función helper para obtener el registro basado en el ID.
+    Obtiene el registro por ID. El modelo se resuelve por el namespace de la URL
+    (registros.registry); sin request, se asume TX/TSS.
     """
     try:
-        from reg_txtss.models import RegTxtss
-        return RegTxtss.objects.get(id=registro_id)
+        from registros.registry import model_from_request
+        return model_from_request(request).objects.get(id=registro_id)
     except Exception:
         pass
 
@@ -96,16 +100,17 @@ def get_app_name_from_registro(registro):
     app_mapping = {
         'reg_txtss': 'txtss',
         'registros_txtss': 'txtss',
+        'reg_construccion': 'construccion',
     }
     
     return app_mapping.get(app_label)
 
 
-def get_app_name_from_registro_id(registro_id):
+def get_app_name_from_registro_id(registro_id, request=None):
     """
     Función helper para obtener el app_name basado en el ID del registro.
     """
-    registro = get_registro_from_id(registro_id)
+    registro = get_registro_from_id(registro_id, request)
     return get_app_name_from_registro(registro)
 
 def get_app_name_from_request(request, registro):
@@ -132,8 +137,10 @@ def get_url_params_from_request(request):
         params = resolved_url.kwargs.copy()
         
         if 'app_name' not in params:
-            if request.path.startswith('/reg_txtss/'):
-                params['app_name'] = 'reg_txtss'
+            from registros.registry import namespace_from_request
+            ns = namespace_from_request(request)
+            if ns:
+                params['app_name'] = ns
         
         return params
     
@@ -167,15 +174,15 @@ def get_params_from_request(request, **kwargs):
     if not app_name and registro_id:
         try:
             # Intentar obtener el registro y usar get_reg_app_name
-            registro = get_registro_from_id(registro_id)
+            registro = get_registro_from_id(registro_id, request)
             if registro and hasattr(registro, 'get_reg_app_name'):
                 app_name = registro.get_reg_app_name()
         except Exception:
             pass
     
     if not app_name:
-        if request.path.startswith('/reg_txtss/'):
-            app_name = 'reg_txtss'
+        from registros.registry import namespace_from_request
+        app_name = namespace_from_request(request)
     
     return {
         'registro_id': registro_id,
@@ -249,13 +256,13 @@ class ListPhotosView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
         if not app_name:
             # Intentar obtener el registro y usar get_reg_app_name
             try:
-                registro = get_registro_from_id(registro_id)
+                registro = get_registro_from_id(registro_id, self.request)
                 if registro and hasattr(registro, 'get_reg_app_name'):
                     app_name = registro.get_reg_app_name()
                 else:
-                    app_name = get_app_name_from_registro_id(registro_id)
+                    app_name = get_app_name_from_registro_id(registro_id, self.request)
             except Exception:
-                app_name = get_app_name_from_registro_id(registro_id)
+                app_name = get_app_name_from_registro_id(registro_id, self.request)
             
             if not app_name:
                 raise Http404("No se pudo determinar la aplicación")
@@ -266,7 +273,7 @@ class ListPhotosView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
         if not step_name:
             raise Http404("No se pudo determinar la etapa")
 
-        registro = get_registro_from_id(registro_id)
+        registro = get_registro_from_id(registro_id, self.request)
         if not registro:
             raise Http404("Registro no encontrado")
 
@@ -330,7 +337,7 @@ class ListPhotosView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
         ]
         registro_id = self.kwargs.get('registro_id')
         if registro_id:
-            registro = get_registro_from_id(registro_id)
+            registro = get_registro_from_id(registro_id, self.request)
             if registro:
                 try:
                     sitio_cod = registro.sitio.pti_cell_id
@@ -366,17 +373,19 @@ class ListPhotosView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
                 registro_id = resolved_url.kwargs.get('registro_id')
                 paso_nombre = resolved_url.kwargs.get('paso_nombre')
         context['registro_id'] = registro_id
+        _registro = get_registro_from_id(registro_id, self.request) if registro_id else None
+        context['bloqueado'] = registro_bloqueado(_registro) if _registro else False
         context['upload_url'] = self.request.path.rstrip('/') + '/upload/'
         if not app_name:
             # Intentar obtener el registro y usar get_reg_app_name
             try:
-                registro = get_registro_from_id(registro_id)
+                registro = get_registro_from_id(registro_id, self.request)
                 if registro and hasattr(registro, 'get_reg_app_name'):
                     app_name = registro.get_reg_app_name()
                 else:
-                    app_name = get_app_name_from_registro_id(registro_id)
+                    app_name = get_app_name_from_registro_id(registro_id, self.request)
             except Exception:
-                app_name = get_app_name_from_registro_id(registro_id)
+                app_name = get_app_name_from_registro_id(registro_id, self.request)
             
             if not app_name:
                 raise Http404("No se pudo determinar la aplicación")
@@ -389,7 +398,7 @@ class ListPhotosView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
             title = step_name or 'sitio'
         context['title'] = title
         if registro_id:
-            registro = get_registro_from_id(registro_id)
+            registro = get_registro_from_id(registro_id, self.request)
             if registro:
                 context['registro_txtss'] = registro
                 context['sitio'] = registro.sitio
@@ -417,13 +426,13 @@ class UploadPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
         if not step_name:
             step_name = paso_nombre
         try:
-            registro = get_registro_from_id(registro_id)
+            registro = get_registro_from_id(registro_id, request)
             if not registro:
                 return JsonResponse({
                     'success': False,
                     'message': f'Registro con ID {registro_id} no encontrado'
                 }, status=400)
-            denied = registro_access_denied(request, registro)
+            denied = registro_access_denied(request, registro) or registro_bloqueado_response(registro)
             if denied:
                 return denied
             files = request.FILES.getlist('photos')
@@ -516,10 +525,10 @@ class UpdatePhotoView(LoginRequiredMixin, ItoLikeMixin, View):
             data = json.loads(request.body)
             photo_id = data.get('photo_id')
             descripcion = data.get('descripcion', '')
-            registro = get_registro_from_id(registro_id)
+            registro = get_registro_from_id(registro_id, request)
             if not registro:
                 return JsonResponse({'success': False, 'message': 'Registro no encontrado'}, status=404)
-            denied = registro_access_denied(request, registro)
+            denied = registro_access_denied(request, registro) or registro_bloqueado_response(registro)
             if denied:
                 return denied
             if not app_name:
@@ -572,10 +581,10 @@ class ReorderPhotosView(LoginRequiredMixin, ItoLikeMixin, View):
         try:
             data = json.loads(request.body)
             orden = data.get('orden', [])
-            registro = get_registro_from_id(registro_id)
+            registro = get_registro_from_id(registro_id, request)
             if not registro:
                 return JsonResponse({'success': False, 'message': 'Registro no encontrado'}, status=404)
-            denied = registro_access_denied(request, registro)
+            denied = registro_access_denied(request, registro) or registro_bloqueado_response(registro)
             if denied:
                 return denied
             if not app_name:
@@ -630,15 +639,18 @@ class DeletePhotoView(LoginRequiredMixin, SuperuserRequiredMixin, View):
         if not step_name:
             step_name = paso_nombre
         if not app_name:
-            registro = get_registro_from_id(registro_id)
+            registro = get_registro_from_id(registro_id, request)
             if registro:
                 app_name = get_app_name_from_registro(registro)
             if not app_name:
                 app_name = None
         try:
-            registro = get_registro_from_id(registro_id)
+            registro = get_registro_from_id(registro_id, request)
             if not registro:
                 return JsonResponse({'success': False, 'message': 'Registro no encontrado'}, status=404)
+            bloqueado = registro_bloqueado_response(registro)
+            if bloqueado:
+                return bloqueado
             if step_name == 'sitio':
                 model_class = type(registro)
                 etapa = 'sitio'
@@ -680,28 +692,51 @@ class DeletePhotoView(LoginRequiredMixin, SuperuserRequiredMixin, View):
 # ── Gallery (admin view — all photos) ──────────────────────────────────────
 
 def _get_reg_ids_for_sitio_filter(sitio_id=None, tipo_sitio=None):
-    """Return RegTxtss IDs filtered by site id or tipo_sitio."""
-    from reg_txtss.models import RegTxtss
-    qs = RegTxtss.objects.all()
-    if sitio_id:
-        qs = qs.filter(sitio_id=sitio_id)
-    if tipo_sitio:
-        qs = qs.filter(sitio__tipo_sitio=tipo_sitio)
-    return list(qs.values_list('id', flat=True))
+    """Return {model: [ids]} de los registros (de todos los reportes) filtrados por sitio o tipo."""
+    from registros.registry import all_registro_models
+    result = {}
+    for model in all_registro_models():
+        qs = model.objects.all()
+        if sitio_id:
+            qs = qs.filter(sitio_id=sitio_id)
+        if tipo_sitio:
+            qs = qs.filter(sitio__tipo_sitio=tipo_sitio)
+        ids = list(qs.values_list('id', flat=True))
+        if ids:
+            result[model] = ids
+    return result
 
 
 def _build_photos_q_from_reg_ids(reg_ids):
-    """Return a Q() covering all Photos linked to the given RegTxtss IDs."""
-    from reg_txtss.models import RegTxtss
-
+    """Return a Q() covering all Photos linked to the given registros ({model: [ids]})."""
     if not reg_ids:
         return Q(pk__in=[])
 
     q = Q()
-    ct_reg = ContentType.objects.get_for_model(RegTxtss)
-    q |= Q(content_type=ct_reg, object_id__in=reg_ids)
+    for model, ids in reg_ids.items():
+        ct_reg = ContentType.objects.get_for_model(model)
+        q |= Q(content_type=ct_reg, object_id__in=ids)
 
     return q
+
+
+def _photos_visibles(user):
+    """Imágenes que `user` puede ver en la galería.
+
+    Superusuario y ADMINISTRADOR ven todas; el resto, solo las de los reportes que ellos crearon
+    (`registro.user`; las imágenes no guardan quién las subió, el dueño del reporte es quien las sube).
+    """
+    from core.permissions import es_super_o_admin
+    from registros.registry import all_registro_models
+    qs = Photos.objects.all()
+    if es_super_o_admin(user):
+        return qs
+    q = Q(pk__in=[])
+    for model in all_registro_models():
+        if 'user' in {f.name for f in model._meta.get_fields()}:
+            q |= Q(content_type=ContentType.objects.get_for_model(model),
+                   object_id__in=model.objects.filter(user=user).values('pk'))
+    return qs.filter(q)
 
 
 class PhotoGalleryView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
@@ -712,22 +747,31 @@ class PhotoGalleryView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
 
     def get_queryset(self):
         from core.models import Site
-        from reg_txtss.models import RegTxtss
-        from django.db.models import Subquery, OuterRef
-        qs = Photos.objects.select_related('content_type')
+        from registros.registry import all_registro_models
+        from django.db.models import Subquery, OuterRef, Case, When, Value, CharField
+        qs = _photos_visibles(self.request.user).select_related('content_type')
         tipo = self.request.GET.get('tipo', '')
         sitio_id = self.request.GET.get('sitio', '')
         etapa = self.request.GET.get('etapa', '')
         size_min = self.request.GET.get('size_min', '')
         size_max = self.request.GET.get('size_max', '')
 
+        # Una subquery por modelo de registro, filtrada por content_type para que un
+        # id de RegTxtss no se confunda con el mismo id de otro reporte.
+        def _por_modelo(campo, solo_con_campo=False):
+            whens = []
+            for model in all_registro_models():
+                if solo_con_campo and campo.split('__')[0] not in {f.name for f in model._meta.get_fields()}:
+                    continue
+                whens.append(When(
+                    content_type=ContentType.objects.get_for_model(model),
+                    then=Subquery(model.objects.filter(pk=OuterRef('object_id')).values(campo)[:1]),
+                ))
+            return Case(*whens, default=Value(None), output_field=CharField())
+
         qs = qs.annotate(
-            sitio_pti_cell_id=Subquery(
-                RegTxtss.objects.filter(pk=OuterRef('object_id')).values('sitio__pti_cell_id')[:1]
-            ),
-            reg_alternativa=Subquery(
-                RegTxtss.objects.filter(pk=OuterRef('object_id')).values('alternativa')[:1]
-            ),
+            sitio_pti_cell_id=_por_modelo('sitio__pti_cell_id'),
+            reg_alternativa=_por_modelo('alternativa', solo_con_campo=True),
         )
 
         # Site and/or tipo filter (combined into one Q query)
@@ -777,20 +821,20 @@ class PhotoGalleryView(LoginRequiredMixin, BreadcrumbsMixin, ListView):
         context['size_max'] = self.request.GET.get('size_max', '')
         context['sort_filter'] = self.request.GET.get('sort', '')
         context['total_count'] = self.get_queryset().count()
+        visibles = _photos_visibles(self.request.user)
         context['etapas'] = (
-            Photos.objects.values_list('etapa', flat=True)
+            visibles.values_list('etapa', flat=True)
             .distinct().order_by('etapa')
         )
-        # Only sites that actually have at least one photo (trace Photos → RegTxtss → site)
-        from reg_txtss.models import RegTxtss
-        ct_reg = ContentType.objects.get_for_model(RegTxtss)
-        reg_ids_with_photos = set(
-            Photos.objects.filter(content_type=ct_reg).values_list('object_id', flat=True)
-        )
-        site_ids_with_photos = (
-            RegTxtss.objects.filter(pk__in=reg_ids_with_photos)
-            .values_list('sitio_id', flat=True).distinct()
-        )
+        # Only sites that actually have at least one photo (trace Photos → registro → site)
+        from registros.registry import all_registro_models
+        site_ids_with_photos = set()
+        for model in all_registro_models():
+            ct_reg = ContentType.objects.get_for_model(model)
+            reg_ids_with_photos = visibles.filter(content_type=ct_reg).values_list('object_id', flat=True)
+            site_ids_with_photos.update(
+                model.objects.filter(pk__in=reg_ids_with_photos).values_list('sitio_id', flat=True)
+            )
         context['sites'] = Site.objects.filter(pk__in=site_ids_with_photos).order_by('pti_cell_id')
 
         # Backfill lazy: genera thumbnails de la página actual que aún no los tienen

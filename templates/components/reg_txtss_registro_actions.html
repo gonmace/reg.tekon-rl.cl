@@ -1,14 +1,12 @@
 {% load access_tags %}
 <div class="flex items-center justify-center gap-1">
   <span class="reg-txtss-row-id" data-id="{{ record.id }}" style="display:none;"></span>
-  {% if record.concluido %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-error reg-txtss-pdf-btn"
           data-id="{{ record.id }}"
-          title="Generar PDF">
+          title="{% if record.concluido %}Generar PDF{% else %}Generar PDF (borrador){% endif %}">
     <i class="fa-solid fa-file-pdf"></i>
   </button>
-  {% endif %}
   {% for_role 'ITO' 'SEARCHER' %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-info reg-txtss-copy-btn"
@@ -18,13 +16,17 @@
     <i class="fa-solid fa-copy"></i>
   </button>
   {% endfor_role %}
-  {% supermanager_only %}
+  {% for_role 'ADMINISTRADOR' %}
+  {% if not record.concluido %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-edit reg-txtss-edit-btn"
           data-id="{{ record.id }}"
           title="Editar registro">
     <i class="fa-solid fa-pen-to-square"></i>
   </button>
+  {% endif %}
+  {% endfor_role %}
+  {% supermanager_only %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-delete reg-txtss-delete-btn"
           data-id="{{ record.id }}"

@@ -1,0 +1,27 @@
+{% comment %}Modales de Construcción Sitios (nuevo reporte y editar). La lógica vive en static/js/reg_construccion.js.{% endcomment %}
+<div id="obra-config" data-base-url="{% url 'reg_construccion:list' %}" hidden>{% csrf_token %}</div>
+
+<dialog id="obra-visita-modal" class="modal">
+  <div class="modal-box max-w-sm">
+    <h3 class="font-bold text-lg mb-1">Nuevo reporte</h3>
+    <p id="obra-visita-sitio" class="text-sm text-base-content/70 mb-4 truncate"></p>
+    <label class="form-control w-full">
+      <span class="label-text text-sm mb-1">Fecha del reporte</span>
+      <input id="obra-visita-fecha" type="date" class="input input-bordered w-full">
+    </label>
+    <p id="obra-visita-error" class="text-error text-sm mt-2 hidden"></p>
+    <div class="modal-action">
+      <button type="button" id="obra-visita-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+      <button type="button" id="obra-visita-crear" class="btn btn-save btn-sm">Crear reporte</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<dialog id="obra-edit-modal" class="modal">
+  <div class="modal-box max-w-lg">
+    <h3 class="font-bold text-lg mb-3">Datos del reporte</h3>
+    <div id="obra-edit-content"><span class="loading loading-spinner loading-sm"></span></div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>

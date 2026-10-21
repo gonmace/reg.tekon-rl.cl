@@ -56,8 +56,9 @@
       valid = false;
     }
 
+    const invitarChk = form.querySelector('[name="invitar"]');
     const firstName = form.querySelector('[name="first_name"]');
-    if (firstName && !firstName.value.trim()) {
+    if (firstName && !(invitarChk && invitarChk.checked) && !firstName.value.trim()) {
       showFieldError(firstName, 'El nombre es obligatorio');
       valid = false;
     }
@@ -69,7 +70,8 @@
     }
 
     const password = form.querySelector('[name="password"]');
-    if (password && !currentUserId && !password.value.trim()) {
+    const invitar = form.querySelector('[name="invitar"]');
+    if (password && !currentUserId && !(invitar && invitar.checked) && !password.value.trim()) {
       showFieldError(password, 'La contraseña es obligatoria');
       valid = false;
     }
@@ -99,6 +101,18 @@
         const form = document.querySelector('#userForm');
         if (form) {
           form.addEventListener('submit', (e) => { e.preventDefault(); saveUser(); });
+          // «Enviar invitación»: el usuario crea su contraseña, así que se oculta el campo
+          const invitar = form.querySelector('[name="invitar"]');
+          const bloque = form.querySelector('#passwordBlock');
+          const nombres = form.querySelector('#nameBlock');
+          if (invitar && bloque) {
+            invitar.addEventListener('change', () => {
+              bloque.classList.toggle('hidden', invitar.checked);
+              if (nombres) nombres.classList.toggle('hidden', invitar.checked);
+              if (invitar.checked) form.querySelector('[name="password"]').value = '';
+              clearFormErrors();
+            });
+          }
         }
       })
       .catch(() => notify('error', 'Error al cargar el formulario'));
@@ -111,6 +125,9 @@
     const formData = new FormData(form);
     const payload = {};
     formData.forEach((v, k) => (payload[k] = v));
+
+    const invitarCheckbox = form.querySelector('[name="invitar"]');
+    if (invitarCheckbox) payload['invitar'] = invitarCheckbox.checked;
 
     const isActiveCheckbox = form.querySelector('[name="is_active"]');
     if (isActiveCheckbox) payload['is_active'] = isActiveCheckbox.checked;
@@ -167,6 +184,26 @@
     );
   }
 
+  // ── Invitar ─────────────────────────────────────────────────────────
+  function inviteUser(userId, nombre, correo, btn) {
+    window.Alert?.confirm(
+      `Se enviará un correo a ${correo} con un enlace para que ${nombre} cree su contraseña.`,
+      () => {
+        if (btn) btn.disabled = true;
+        fetch(`/api/v1/users/${userId}/invite/`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCsrfToken(), Accept: 'application/json' },
+        })
+          .then((r) => r.json())
+          .then((data) => notify(data.success ? 'success' : 'error', data.message))
+          .catch(() => notify('error', 'Error al enviar la invitación'))
+          .finally(() => { if (btn) btn.disabled = false; });
+      },
+      null,
+      { title: 'Enviar invitación', confirmText: 'Enviar', confirmClass: 'btn-save', icon: 'fa-solid fa-envelope' }
+    );
+  }
+
   // ── Event listeners ─────────────────────────────────────────────────
   if (userModal) {
     userModal.addEventListener('close', () => { currentUserId = null; });
@@ -182,6 +219,12 @@
     if (editBtn) {
       e.preventDefault();
       loadUserForm(editBtn.dataset.id, editBtn.dataset.nombre);
+      return;
+    }
+    const inviteBtn = e.target.closest('.user-invite-btn');
+    if (inviteBtn) {
+      e.preventDefault();
+      inviteUser(inviteBtn.dataset.id, inviteBtn.dataset.nombre, inviteBtn.dataset.correo, inviteBtn);
       return;
     }
     const delBtn = e.target.closest('.user-delete-btn');

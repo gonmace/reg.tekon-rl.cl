@@ -1,0 +1,16 @@
+Hola {{ user.display_name }},
+{% if invitador %}
+{{ invitador.display_name }} te invitó a usar Reportes Tekon.
+{% else %}
+Te invitaron a usar Reportes Tekon.
+{% endif %}
+Para activar tu cuenta, crea tu contraseña con el siguiente enlace (válido por {{ dias_validez }} día{{ dias_validez|pluralize }}):
+
+{{ enlace }}
+
+Después podrás iniciar sesión con tu correo ({{ user.username }}) y la contraseña que elijas.
+
+Si no esperabas esta invitación, ignora este mensaje.
+
+—
+Reportes Tekon

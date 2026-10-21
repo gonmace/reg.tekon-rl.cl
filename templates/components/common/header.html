@@ -1,8 +1,8 @@
 {% load static %}
-<header class="bg-base-200 shadow-sm sticky top-0 flex items-center border-b border-base-300">
+<header class="bg-base-100/90 backdrop-blur sticky top-0 z-30 flex items-center border-b border-base-300">
     <div class="p-2">
         <button id="sidebarToggle"
-                class="md:hidden btn btn-primary btn-sm">
+                class="md:hidden btn btn-ghost btn-sm">
             <i class="fas fa-bars text-lg"></i>
         </button>
     </div>
@@ -12,7 +12,7 @@
         <div class="flex justify-between items-center">
             <div class="flex items-center ml-4 min-w-0">
                 <div class="flex flex-col leading-tight min-w-0">
-                    <h2 class="text-sm md:text-xl font-semibold text-primary truncate">
+                    <h2 class="text-sm md:text-xl font-semibold text-base-content truncate">
                         {% block header_title %}{{ header_title|default:"Dashboard" }}{% endblock header_title %}
                     </h2>
                     {% if header_subtitle %}
@@ -97,24 +97,33 @@
                     </div>
                 </div>
 
-                <!-- User info (static, no dropdown — logout está en el aside) -->
-                <div class="flex items-center gap-2 pr-2">
-                    <div class="bg-accent/10 rounded-full flex items-center justify-center w-8 h-8 overflow-hidden">
-                        {% if request.user.profile_image %}
-                            <img src="{{ request.user.profile_image.url }}" alt="Profile"
-                                 class="w-full h-full object-cover">
-                        {% else %}
-                            <i class="fas fa-user-circle text-accent"></i>
-                        {% endif %}
+                <!-- Menú de usuario -->
+                <div class="dropdown dropdown-end">
+                    <div tabindex="0" role="button" class="flex items-center gap-2 rounded-full pl-1 pr-2 py-1 hover:bg-base-300/60 cursor-pointer">
+                        <div class="bg-primary/10 text-primary rounded-full flex items-center justify-center w-8 h-8 overflow-hidden text-xs font-semibold">
+                            {% if request.user.profile_image %}
+                                <img src="{{ request.user.profile_image.url }}" alt="Perfil" class="w-full h-full object-cover">
+                            {% else %}
+                                {{ request.user.iniciales }}
+                            {% endif %}
+                        </div>
+                        <span class="hidden lg:inline text-sm font-medium">{{ request.user.display_name }}</span>
+                        <i class="fa-solid fa-chevron-down text-[10px] text-base-content/50"></i>
                     </div>
-                    <span class="hidden lg:inline px-3 py-1 bg-primary/10 text-primary rounded-lg text-sm">
-                        {{ request.user.username }}
-                    </span>
-                    {% if request.user.user_type %}
-                        <span class="hidden lg:inline px-2 py-0.5 bg-accent/10 text-accent rounded text-xs">
-                            {{ request.user.get_user_type }}
-                        </span>
-                    {% endif %}
+                    <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box border border-base-300 shadow-md w-56 p-2 mt-2 z-50">
+                        <li class="menu-title normal-case">
+                            <span class="block text-sm font-medium text-base-content">{{ request.user.display_name }}</span>
+                            <span class="block text-xs font-normal text-base-content/60">{{ request.user.get_user_type }}</span>
+                        </li>
+                        <li>
+                            <form method="post" action="{% url 'users:logout' %}" class="p-0">
+                                {% csrf_token %}
+                                <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-error">
+                                    <i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -145,5 +154,6 @@
             document.documentElement.classList.add('theme-loaded');
         }, 100);
     });
-</script><script src="{% static 'js/components/header.js' %}"></script>
+</script>
+<script src="{% static 'js/components/header.js' %}"></script>
 <script src="{% static 'js/components/notifications.js' %}"></script>

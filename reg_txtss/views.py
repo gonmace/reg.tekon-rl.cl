@@ -16,12 +16,16 @@ from registros.views.steps_views import (
     GenericRegistroTableListView,
 )
 from registros.views.activation_views import GenericActivarRegistroView
+from registros.views.dynamic_steps import (
+    DynamicPasoViewBase, MapaSaveViewBase, get_dynamic_steps,
+    make_formatear_registro, make_resumen_formatear, make_toggle_concluido,
+)
 from registros.config import RegistroConfig
 from .config import REGISTRO_CONFIG
 from .models import RegTxtss, ALTERNATIVA_CHOICES
 from core.permissions import (
     not_visita, superuser_required, NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin,
-    can_access_registro, registro_access_denied,
+    can_access_registro, registro_access_denied, registro_bloqueado_response,
 )
 
 
@@ -101,7 +105,7 @@ class ListRegistrosPostesView(ListRegistrosView):
 
 
 class ListRegistrosTorresView(ListRegistrosView):
-    """Vista para listar registros TX/TSS de Torres."""
+    """Vista para listar registros TX/TSS Ingenieria (sitios tipo TORRE)."""
 
     def get_queryset(self):
         return super().get_queryset().filter(sitio__tipo_sitio='TORRE')
@@ -118,12 +122,12 @@ class ListRegistrosTorresView(ListRegistrosView):
         return table
 
     def get_page_title(self):
-        return 'Torres'
+        return 'Ingenieria'
 
     def get_breadcrumbs(self):
         return [
             {'label': 'Inicio', 'url': reverse('dashboard:dashboard')},
-            {'label': 'TX/TSS de Torres'},
+            {'label': 'TX/TSS Ingenieria'},
         ]
 
     def get_context_data(self, **kwargs):
@@ -235,9 +239,9 @@ class PasosPostesView(_PasosConfigRedirectView):
 
 class PasosTorresView(_PasosConfigRedirectView):
     _app_namespace = 'reg_txtss_torres'
-    _nombre = 'TX/TSS Torres'
+    _nombre = 'TX/TSS Ingenieria'
     _tipo_sitio = 'TORRE'
-    _back_label = 'TX/TSS Torres'
+    _back_label = 'TX/TSS Ingenieria'
     _back_url_name = 'reg_txtss:list_torres'
 
 
@@ -290,12 +294,17 @@ def copy_registro(request, registro_id):
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
+def _puede_editar_registro(user):
+    """Cambiar el ITO/Buscador y la alternativa: superusuario y ADMINISTRADOR."""
+    return user.is_supermanager or user.is_administrador
+
+
 @login_required
 @require_GET
 def get_edit_form(request, registro_id):
     """Devuelve el HTML del formulario de edición de un registro."""
     registro = get_object_or_404(RegTxtss, pk=registro_id)
-    if not request.user.is_supermanager and registro.user != request.user:
+    if not _puede_editar_registro(request.user):
         return JsonResponse({'error': 'Sin permisos'}, status=403)
 
     from users.models import User
@@ -311,12 +320,15 @@ def get_edit_form(request, registro_id):
 
 
 @login_required
-@superuser_required
 @require_POST
 def update_registro(request, registro_id):
-    """Actualiza buscador y alternativa de un registro."""
+    """Actualiza buscador y alternativa de un registro (superusuario y ADMINISTRADOR)."""
     from .forms import RegTxtssAdminEditForm
-    get_object_or_404(RegTxtss, pk=registro_id)
+    if not _puede_editar_registro(request.user):
+        return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
+    bloqueado = registro_bloqueado_response(get_object_or_404(RegTxtss, pk=registro_id))
+    if bloqueado:
+        return bloqueado
 
     form = RegTxtssAdminEditForm({
         'user': request.POST.get('user_id') or '',
@@ -350,53 +362,21 @@ def delete_registro(request, registro_id):
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
-def _get_dynamic_steps(registro):
-    """Builds step_data entries for the TipoActividad configured for this registro's site type."""
-    from actividades.models import TipoActividad
-    from actividades.views import _compute_form_widgets, _compute_camera_info, _compute_map_info, _compute_paso_derived
-    from django.contrib.contenttypes.models import ContentType
-
+def _tipo_namespace(registro):
+    """TipoActividad de TX/TSS según el tipo de sitio del registro."""
     tipo_sitio = getattr(getattr(registro, 'sitio', None), 'tipo_sitio', None)
     if tipo_sitio == 'POSTE':
-        namespace = 'reg_txtss_postes'
-    elif tipo_sitio == 'TORRE':
-        namespace = 'reg_txtss_torres'
-    else:
-        return []
+        return 'reg_txtss_postes'
+    if tipo_sitio == 'TORRE':
+        return 'reg_txtss_torres'
+    return None
 
-    try:
-        tipo = TipoActividad.objects.get(app_namespace=namespace)
-    except TipoActividad.DoesNotExist:
-        return []
 
-    ct = ContentType.objects.get_for_model(RegTxtss)
-    steps = []
-    for cp in tipo.config_pasos.order_by('orden').select_related('pasodef'):
-        paso = cp.pasodef
-        paso_url = reverse('reg_txtss:paso_dinamico', kwargs={'registro_id': registro.id, 'paso_nombre': paso.nombre})
-        photos_url = f'/reg_txtss/{registro.id}/{paso.nombre}/photos/'
-
-        form_widgets = _compute_form_widgets(paso, registro, ct, paso_url)
-        camera_info = _compute_camera_info(paso, registro, ct, photos_url, paso_url)
-        map_info = _compute_map_info(paso, registro, ct, paso_url)
-        computed = _compute_paso_derived(paso, registro, ct)
-
-        steps.append((paso.nombre, {
-            'title': paso.titulo,
-            'step_name': paso.nombre,
-            'registro_id': registro.id,
-            'is_table': False,
-            'elements': {
-                'form_widgets': form_widgets,
-                'photos': camera_info,
-                'map': map_info,
-                'table': None,
-            },
-            'datos_clave_template': None,
-            'sub_elementos_data': {},
-            'computed': computed,
-        }))
-    return steps
+def _get_dynamic_steps(registro):
+    return get_dynamic_steps(
+        registro, model=RegTxtss, url_namespace='reg_txtss',
+        tipo_namespace=_tipo_namespace(registro),
+    )
 
 
 @login_required
@@ -407,7 +387,7 @@ def update_fecha(request, registro_id):
         return JsonResponse({'success': False, 'message': 'Solo ITO y Buscador pueden cambiar la fecha'}, status=403)
     from datetime import date as date_type
     registro = get_object_or_404(RegTxtss, pk=registro_id)
-    denied = registro_access_denied(request, registro)
+    denied = registro_access_denied(request, registro) or registro_bloqueado_response(registro)
     if denied:
         return denied
     try:
@@ -427,6 +407,9 @@ def update_fecha(request, registro_id):
 def update_alternativa(request, registro_id):
     """Actualiza el campo alternativa de un registro."""
     registro = get_object_or_404(RegTxtss, pk=registro_id)
+    bloqueado = registro_bloqueado_response(registro)
+    if bloqueado:
+        return bloqueado
     try:
         data = json.loads(request.body)
         alternativa = data.get('alternativa') or None
@@ -440,307 +423,23 @@ def update_alternativa(request, registro_id):
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
-class DynamicPasoView(LoginRequiredMixin, ItoLikeMixin, View):
-    """Vista GET/POST para pasos dinámicos (configurados en actividades) de RegTxtss."""
+class DynamicPasoView(DynamicPasoViewBase):
+    """Pasos dinámicos (configurados en actividades) de RegTxtss."""
+    registro_model = RegTxtss
+    url_namespace = 'reg_txtss'
 
-    def _get_objects(self, registro_id, paso_nombre):
-        from actividades.models import PasoDefinicion, TipoActividad
-        from django.core.exceptions import PermissionDenied
-        registro = get_object_or_404(RegTxtss, pk=registro_id)
-        if not can_access_registro(self.request.user, registro):
-            raise PermissionDenied('No tienes acceso a este registro.')
-        tipo_sitio = getattr(getattr(registro, 'sitio', None), 'tipo_sitio', None)
-        namespace = 'reg_txtss_postes' if tipo_sitio == 'POSTE' else 'reg_txtss_torres'
-        tipo = get_object_or_404(TipoActividad, app_namespace=namespace)
-        paso = get_object_or_404(PasoDefinicion, nombre=paso_nombre, asignaciones__tipo=tipo)
-        return registro, paso
-
-    def _render(self, request, registro, paso, form, datos=None):
-        from actividades.views import _enrich_widgets, _get_campos_form, resolve_paso_template, _get_sitio_lat_lon
-        from actividades.models import PasoWidget, DatoPaso
-        from core.models.google_maps import GoogleMapsImage
-        from django.contrib.contenttypes.models import ContentType
-        from photos.models import Photos
-        widgets = _enrich_widgets(paso, registro, form)
-        widget_slug = request.GET.get('widget')
-        if widget_slug:
-            widgets = [w for w in widgets if w.widget_slug == widget_slug]
-        campos_form = _get_campos_form(paso, form)
-        has_map = any(w.widget_tipo in ('MAP_1', 'MAP_2', 'MAP_3') for w in widgets)
-        has_camera = any(w.widget_slug == 'camera_widget' for w in widgets)
-        sitio = registro.sitio
-        lat, lon = _get_sitio_lat_lon(sitio, paso.nombre)
-        upload_url = f'/reg_txtss/{registro.id}/paso/{paso.nombre}/photos/upload/'
-        save_url = reverse('reg_txtss:mapa_save', kwargs={'registro_id': registro.id, 'paso_nombre': paso.nombre})
-        ct = ContentType.objects.get_for_model(RegTxtss)
-        imagen_guardada = has_map and GoogleMapsImage.objects.filter(
-            content_type=ct, object_id=registro.id, etapa=paso.nombre
-        ).exists()
-        foto_count = 0
-        foto_min = 0
-        if has_camera:
-            foto_count = Photos.objects.filter(
-                content_type=ct, object_id=registro.id, etapa=paso.nombre
-            ).count()
-            camera_pw = paso.paso_widgets.filter(widget_slug='camera_widget').first()
-            foto_min = camera_pw.config.get('foto_min', 4) if camera_pw else 4
-
-        lat1 = lon1 = lat2 = lon2 = label1 = label2 = color1 = color2 = None
-        map2_pw = paso.paso_widgets.filter(widget_slug='mapa_2_puntos').first()
-        if map2_pw:
-            cfg = map2_pw.config
-            label1 = cfg.get('label1', 'A')
-            color1 = cfg.get('color1', '#e74c3c')
-            label2 = cfg.get('label2', 'B')
-            color2 = cfg.get('color2', '#0054ff')
-            for paso_clave, lat_key, lon_key in [('paso1', 'lat1', 'lon1'), ('paso2', 'lat2', 'lon2')]:
-                paso_n = (cfg.get(paso_clave) or '').strip().lower()
-                if not paso_n:
-                    continue
-                d = DatoPaso.objects.filter(content_type=ct, object_id=registro.id, paso_nombre=paso_n).first()
-                datos_n = d.datos if d else {}
-                lat_v = datos_n.get('lat') or datos_n.get('latitud')
-                lon_v = datos_n.get('lon') or datos_n.get('longitud')
-                if not (lat_v and lon_v):
-                    lat_v, lon_v = _get_sitio_lat_lon(sitio, paso_n)
-                if lat_key == 'lat1':
-                    lat1, lon1 = lat_v, lon_v
-                else:
-                    lat2, lon2 = lat_v, lon_v
-
-        from actividades.models import ContextoRegistro
-        ctx_obj = ContextoRegistro.objects.filter(content_type=ct, object_id=registro.id).first()
-        registro_contexto_flat = ctx_obj.contexto.get('flat', {}) if ctx_obj else {}
-
-        return render(request, resolve_paso_template(paso), {
-            'registro': registro,
-            'paso': paso,
-            'sitio': sitio,
-            'form': form,
-            'datos': datos or {},
-            'widgets': widgets,
-            'has_form_widgets': any(w.is_form for w in widgets),
-            'campos_form': campos_form,
-            'has_map_widget': has_map,
-            'imagen_guardada': imagen_guardada,
-            'foto_count': foto_count,
-            'foto_min': foto_min,
-            'lat': lat,
-            'lon': lon,
-            'lat1': lat1, 'lon1': lon1,
-            'lat2': lat2, 'lon2': lon2,
-            'label1': label1, 'color1': color1,
-            'label2': label2, 'color2': color2,
-            'upload_url': upload_url,
-            'save_url': save_url,
-            'header_title': paso.titulo,
-            'back_url': reverse('reg_txtss:steps', kwargs={'registro_id': registro.id}),
-            'app_namespace': 'reg_txtss',
-            'registro_contexto_flat': registro_contexto_flat,
-        })
-
-    def get(self, request, registro_id, paso_nombre):
-        from actividades.models import DatoPaso
-        from actividades.forms import build_dynamic_form
-        from django.contrib.contenttypes.models import ContentType
-        registro, paso = self._get_objects(registro_id, paso_nombre)
-        ct = ContentType.objects.get_for_model(RegTxtss)
-        dato = DatoPaso.objects.filter(content_type=ct, object_id=registro.id, paso_nombre=paso_nombre).first()
-        datos = dato.datos if dato else {}
-        widget_slug = request.GET.get('widget')
-        form = build_dynamic_form(paso, initial=datos, widget_slug=widget_slug)
-        return self._render(request, registro, paso, form, datos=datos)
-
-    def post(self, request, registro_id, paso_nombre):
-        from actividades.models import DatoPaso
-        from actividades.forms import build_dynamic_form
-        from django.contrib.contenttypes.models import ContentType
-        registro, paso = self._get_objects(registro_id, paso_nombre)
-        widget_slug = request.GET.get('widget')
-        form = build_dynamic_form(paso, data=request.POST, widget_slug=widget_slug)
-        if form.is_valid():
-            ct = ContentType.objects.get_for_model(RegTxtss)
-            dato, _ = DatoPaso.objects.get_or_create(
-                content_type=ct,
-                object_id=registro.id,
-                paso_nombre=paso_nombre,
-                defaults={'datos': {}},
-            )
-            dato.datos = {**dato.datos, **form.cleaned_data}
-            dato.save()
-            from actividades.context_builder import rebuild_contexto
-            rebuild_contexto(registro)
-            from actividades.views import regenerar_mapas_2_puntos_afectados
-            regenerar_mapas_2_puntos_afectados(registro, ct, paso_nombre)
-            return redirect('reg_txtss:steps', registro_id=registro_id)
-        return self._render(request, registro, paso, form)
+    def get_tipo_namespace(self, registro):
+        # Compatibilidad: todo lo que no es POSTE usa la config de torres.
+        return _tipo_namespace(registro) or 'reg_txtss_torres'
 
 
-class MapaSaveView(LoginRequiredMixin, ItoLikeMixin, View):
-    """Guarda imagen estática del mapa para un paso dinámico de RegTxtss."""
-
-    def post(self, request, registro_id, paso_nombre):
-        import json as _json
-        from django.core.files.base import ContentFile
-        from django.contrib.contenttypes.models import ContentType
-        from core.models.google_maps import GoogleMapsImage
-        from core.utils.coordenadas import obtener_imagen_google_maps, calcular_zoom_optimo
-
-        registro = get_object_or_404(RegTxtss, pk=registro_id)
-        denied = registro_access_denied(request, registro)
-        if denied:
-            return denied
-
-        try:
-            body = _json.loads(request.body) if request.body else {}
-        except _json.JSONDecodeError:
-            body = {}
-
-        coordenadas_body = body.get('coordenadas')
-        if coordenadas_body and isinstance(coordenadas_body, list):
-            coordenadas = [
-                {'lat': float(c['lat']), 'lon': float(c['lon']),
-                 'label': (c.get('label') or 'M')[0].upper(),
-                 'color': c.get('color', '#3b82f6'), 'size': 'mid'}
-                for c in coordenadas_body if c.get('lat') is not None and c.get('lon') is not None
-            ]
-            if not coordenadas:
-                return JsonResponse({'success': False, 'error': 'Sin coordenadas válidas'}, status=400)
-            # Zoom máximo que garantiza que TODOS los puntos queden visibles:
-            # se ignora el zoom del body (vista Leaflet) porque si el usuario
-            # zoomea de más, la imagen estática (centrada en el punto medio)
-            # cortaría puntos en los bordes.
-            zoom = calcular_zoom_optimo(coordenadas, tamano='640x640')
-        else:
-            lat = body.get('lat')
-            lon = body.get('lon')
-            if lat is None or lon is None:
-                return JsonResponse({'success': False, 'error': 'Sin coordenadas'}, status=400)
-            zoom = int(body.get('zoom', 20))
-            color = body.get('color', '#3b82f6')
-            label = (body.get('label', 'M') or 'M')[0].upper()
-            coordenadas = [{'lat': float(lat), 'lon': float(lon), 'label': label, 'color': color, 'size': 'mid'}]
-
-        imagen_bytes = obtener_imagen_google_maps(
-            coordenadas=coordenadas, zoom=zoom, maptype='hybrid', scale=2, tamano='640x640'
-        )
-        if not imagen_bytes:
-            return JsonResponse({'success': False, 'error': 'Error al generar la imagen'}, status=500)
-
-        sitio = registro.sitio
-        sitio_codigo = getattr(sitio, 'pti_cell_id', 'SIN_CODIGO') if sitio else 'SIN_CODIGO'
-        operador = getattr(sitio, 'operator_id', 'SIN_OPERADOR') if sitio else 'SIN_OPERADOR'
-        filename = '{}_{}_{}.png'.format(sitio_codigo, operador, paso_nombre)
-
-        ct = ContentType.objects.get_for_model(RegTxtss)
-        obj, _ = GoogleMapsImage.objects.update_or_create(
-            content_type=ct,
-            object_id=registro.id,
-            etapa=paso_nombre,
-            defaults={
-                'zoom': zoom,
-                'maptype': 'hybrid',
-                'scale': 2,
-                'tamano': '640x640',
-                'coordenadas_json': _json.dumps(coordenadas),
-                'was_created': True,
-            }
-        )
-        # Borrar archivo anterior ANTES de guardar el nuevo para que el
-        # nombre quede siempre limpio (sin sufijos aleatorios de Django).
-        if obj.imagen:
-            obj.imagen.delete(save=False)
-        obj.imagen.save(filename, ContentFile(imagen_bytes), save=True)
-
-        from actividades.context_builder import rebuild_contexto
-        rebuild_contexto(registro)
-
-        return JsonResponse({'success': True, 'image_url': obj.imagen.url})
+class MapaSaveView(MapaSaveViewBase):
+    registro_model = RegTxtss
 
 
-@login_required
-@require_POST
-def toggle_concluido(request, registro_id):
-    if not (request.user.is_supermanager or request.user.is_ito_like):
-        return JsonResponse({'success': False, 'message': 'Solo ITO y Buscador pueden cambiar el estado concluido'}, status=403)
-    registro = get_object_or_404(RegTxtss, id=registro_id)
-    denied = registro_access_denied(request, registro)
-    if denied:
-        return denied
-    registro.concluido = not registro.concluido
-    registro.save()
-    return JsonResponse({'concluido': registro.concluido})
-
-
-@login_required
-@superuser_required
-@require_POST
-def formatear_registro(request, registro_id):
-
-    from django.contrib.contenttypes.models import ContentType
-    from actividades.models import DatoPaso, ContextoRegistro
-    from photos.models import Photos
-    from core.models.google_maps import GoogleMapsImage
-
-    registro = get_object_or_404(RegTxtss, id=registro_id)
-    ct = ContentType.objects.get_for_model(RegTxtss)
-
-    # Borrar fotos (archivos incluidos)
-    fotos = Photos.objects.filter(content_type=ct, object_id=registro.id)
-    for foto in fotos:
-        if foto.imagen:
-            foto.imagen.delete(save=False)
-    fotos.delete()
-
-    # Borrar imágenes de mapas (archivos incluidos)
-    mapas = GoogleMapsImage.objects.filter(content_type=ct, object_id=registro.id)
-    for mapa in mapas:
-        if mapa.imagen:
-            mapa.imagen.delete(save=False)
-    mapas.delete()
-
-    # Borrar datos de widgets (formularios)
-    DatoPaso.objects.filter(content_type=ct, object_id=registro.id).delete()
-
-    # Borrar contexto acumulado
-    ContextoRegistro.objects.filter(content_type=ct, object_id=registro.id).delete()
-
-    # Resetear concluido
-    registro.concluido = False
-    registro.save()
-
-    return JsonResponse({'success': True})
-
-
-@login_required
-@superuser_required
-def resumen_formatear(request, registro_id):
-
-    from django.contrib.contenttypes.models import ContentType
-    from actividades.models import DatoPaso, ContextoRegistro
-    from photos.models import Photos
-    from core.models.google_maps import GoogleMapsImage
-
-    registro = get_object_or_404(RegTxtss, id=registro_id)
-    ct = ContentType.objects.get_for_model(RegTxtss)
-
-    fotos = Photos.objects.filter(content_type=ct, object_id=registro.id, is_deleted=False).count()
-    mapas = GoogleMapsImage.objects.filter(content_type=ct, object_id=registro.id, is_deleted=False).count()
-
-    # Contar widgets de formulario con datos reales desde el contexto
-    widgets = 0
-    try:
-        ctx_obj = ContextoRegistro.objects.get(content_type=ct, object_id=registro.id)
-        pasos = ctx_obj.contexto.get('pasos', {})
-        for paso_data in pasos.values():
-            if isinstance(paso_data, dict):
-                for widget_data in paso_data.values():
-                    if isinstance(widget_data, dict) and widget_data.get('level', 1) > 1:
-                        widgets += 1
-    except ContextoRegistro.DoesNotExist:
-        pass
-
-    return JsonResponse({'fotos': fotos, 'mapas': mapas, 'widgets': widgets})
+toggle_concluido = make_toggle_concluido(RegTxtss)
+formatear_registro = make_formatear_registro(RegTxtss)
+resumen_formatear = make_resumen_formatear(RegTxtss)
 
 
 @login_required
