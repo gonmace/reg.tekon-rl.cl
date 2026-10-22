@@ -1,4 +1,5 @@
 # Makefile — reportesTekon (reg.tekon-rl.cl)
+SHELL := /bin/bash
 # Producción: `make deploy` en el VPS. Desarrollo local: `make dev`.
 
 COMPOSE     ?= docker compose
@@ -25,12 +26,16 @@ check:
 	python3 manage.py check
 
 # ── Producción ────────────────────────────────────────────────────────────────
-# Respaldo (no fatal) → git pull → rebuild + up → espera healthcheck.
+# Respaldo (fatal si db corre y falla) → git pull → rebuild + up → espera healthcheck.
 deploy:
 	@[ -f .env ] || { echo "Error: no se encontró .env"; exit 1; }
 	@echo "━━━ Desplegando reg.tekon-rl.cl ($(DOMAIN)) ━━━"
 	@echo "▶ Respaldando la base de datos..."
-	@$(MAKE) --no-print-directory backup || echo "  ⚠ No se pudo respaldar (¿primer despliegue?); se continúa."
+	@if [ -n "$$($(COMPOSE) ps -q --status running db 2>/dev/null)" ]; then \
+		$(MAKE) --no-print-directory backup || { echo "  ✗ Respaldo fallido: deploy abortado, no se tocó nada."; exit 1; }; \
+	else \
+		echo "  ⚠ Contenedor db no está corriendo (¿primer despliegue?); se omite el respaldo."; \
+	fi
 	@echo "▶ Actualizando código ($(BRANCH))..."
 	git pull origin $(BRANCH)
 	@echo "▶ Reconstruyendo contenedores..."
@@ -47,15 +52,17 @@ deploy:
 	@echo "✓ Despliegue completado → https://$(DOMAIN)"
 
 # Respaldo pg_dump comprimido desde el contenedor `db`; conserva los últimos BACKUP_KEEP.
+# Escribe a .tmp y solo lo renombra si pg_dump terminó bien (pipefail) y el volcado es real.
 backup:
-	@mkdir -p $(BACKUP_DIR)
-	@set -a && . ./.env && set +a; \
+	@set -eo pipefail; mkdir -p $(BACKUP_DIR); set -a; . ./.env; set +a; \
 	f="$(BACKUP_DIR)/db_$$(date +%Y%m%d_%H%M%S).sql.gz"; \
-	if $(COMPOSE) exec -T db pg_dump -U "$$POSTGRES_USER" "$$POSTGRES_DB" | gzip > "$$f" && [ -s "$$f" ]; then \
-		echo "  ✓ $$f"; \
+	if $(COMPOSE) exec -T db pg_dump -U "$$POSTGRES_USER" "$$POSTGRES_DB" | gzip > "$$f.tmp" \
+	   && [ "$$(gzip -dc "$$f.tmp" | wc -c)" -gt 1000 ] \
+	   && gzip -dc "$$f.tmp" | grep -q 'PostgreSQL database dump complete'; then \
+		mv "$$f.tmp" "$$f"; echo "  ✓ $$f"; \
 		ls -t $(BACKUP_DIR)/db_*.sql.gz | tail -n +$$(($(BACKUP_KEEP) + 1)) | xargs -r rm -f --; \
 	else \
-		rm -f "$$f"; exit 1; \
+		rm -f "$$f.tmp"; echo "  ✗ pg_dump falló o el volcado está incompleto"; exit 1; \
 	fi
 
 # Aplica nginx.conf al host (requiere sudo). Ajusta la ruta si tu nginx usa otra.
