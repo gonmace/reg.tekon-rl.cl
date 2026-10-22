@@ -38,7 +38,7 @@ class UsersListView(UsuariosAccessMixin, LoginRequiredMixin, BreadcrumbsMixin, S
     model = User
     table_class = UserTable
     template_name = 'users/users_list.html'
-    paginate_by = 20
+    table_pagination = False  # se muestran todos los usuarios
 
     def get_queryset(self):
         qs = User.objects.filter(is_deleted=False).exclude(user_type='').select_related('contractor').order_by('user_type', 'first_name', 'last_name')
