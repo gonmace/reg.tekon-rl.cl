@@ -15,7 +15,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework import status
 from core.forms import SiteForm
-from core.permissions import SuperOrAdminRequiredMixin
+from core.permissions import SuperOrAdminRequiredMixin, es_super_o_admin
 from django.template.loader import render_to_string
 import json
 import logging
@@ -115,7 +115,7 @@ class SiteViewSet(viewsets.ModelViewSet):
 
 class SiteEditModalView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
-        return self.request.user.is_supermanager
+        return es_super_o_admin(self.request.user)
 
     def get(self, request, site_id):
         site = get_object_or_404(Site, id=site_id)

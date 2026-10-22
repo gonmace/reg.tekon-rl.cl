@@ -8,6 +8,7 @@ from django.utils.html import format_html
 
 from core.models.contractors import Contractor
 from core.models.sites import Site
+from core.permissions import es_super_o_admin
 from users.models import User
 
 
@@ -51,7 +52,7 @@ class SiteTable(tables.Table):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        if not (self.user and self.user.is_superuser):
+        if not es_super_o_admin(self.user):
             self.exclude = ('acciones',)
 
 

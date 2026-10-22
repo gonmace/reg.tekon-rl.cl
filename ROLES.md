@@ -20,7 +20,8 @@
 | Acceso a Usuarios / crear usuarios | ✅ | ❌ | ✅ propia | ❌ | ❌ | ❌ |
 | Invitar por correo (el usuario crea su contraseña) | ✅ | ❌ | ✅ ITO/Buscador de su empresa | ❌ | ❌ | ❌ |
 | Cambiar el ITO/Buscador de un registro o visita (botón Editar de Acciones; no concluidos) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Editar/eliminar registros, sitios, fotos; borrar/comprimir imágenes; acceso a Pasos, Widgets y Configuración de correo | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Editar/eliminar sitios | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Editar/eliminar registros, fotos; borrar/comprimir imágenes; acceso a Pasos, Widgets y Configuración de correo | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Ver las páginas de Sitios y Empresas | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ## Template tags — `{% load access_tags %}`
