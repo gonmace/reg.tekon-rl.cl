@@ -40,6 +40,7 @@ pillow==11.3.0
 
 # PDF
 django-weasyprint==2.4.0
+weasyprint==68.1  # fijada: >=69 elimina default_url_fetcher y rompe django-weasyprint 2.4.0
 
 # Tablas
 django-tables2==2.7.5
