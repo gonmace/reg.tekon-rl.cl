@@ -30,7 +30,7 @@ class CorreoBase(TestCase):
         empresa = Contractor.objects.create(name='AJ', code='AJ')
         cls.root = User.objects.create_superuser('root', 'root@x.cl', 'pw', user_type='')
         cls.admin = User.objects.create_user('adm@x.cl', 'adm@x.cl', 'pw', user_type=User.ADMINISTRADOR)
-        cls.coord = User.objects.create_user('coord@x.cl', 'coord@x.cl', 'pw', user_type=User.COORD, contractor=empresa)
+        cls.coord = User.objects.create_user('coord@x.cl', 'coord@x.cl', 'pw', user_type=User.ADMINISTRADOR, contractor=empresa)
 
     def post(self, nombre, datos):
         return self.client.post(reverse(f'correo:{nombre}'), json.dumps(datos), content_type='application/json')

@@ -15,7 +15,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework import status
 from core.forms import SiteForm
-from core.permissions import SuperOrAdminRequiredMixin, es_super_o_admin
+from core.permissions import SitiosEmpresasAccessMixin, puede_editar_sitios_empresas
 from django.template.loader import render_to_string
 import json
 import logging
@@ -23,7 +23,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SitiosView(SuperOrAdminRequiredMixin, LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
+class SitiosView(SitiosEmpresasAccessMixin, LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
     model = Site
     table_class = SiteTable
     template_name = 'pages/sitios.html'
@@ -63,9 +63,9 @@ class SitiosView(SuperOrAdminRequiredMixin, LoginRequiredMixin, BreadcrumbsMixin
         return context
 
 class IsSiteManagerOrReadOnly(BasePermission):
-    """Lectura para cualquier usuario autenticado; escritura (crear/editar/borrar)
-    solo para supermanager, coordinación o administrador. Los sitios son datos
-    maestros compartidos, no pertenecen a un usuario."""
+    """Lectura para cualquier usuario autenticado; crear y borrar solo el superusuario; editar
+    (PUT/PATCH), el superusuario y el administrador global. Los sitios son datos maestros
+    compartidos, no pertenecen a un usuario."""
     message = 'No tienes permisos para modificar sitios.'
 
     def has_permission(self, request, view):
@@ -74,11 +74,9 @@ class IsSiteManagerOrReadOnly(BasePermission):
             return False
         if request.method in SAFE_METHODS:
             return True
-        return bool(
-            user.is_supermanager
-            or getattr(user, 'is_coord', False)
-            or getattr(user, 'is_administrador', False)
-        )
+        if request.method in ('PUT', 'PATCH'):
+            return puede_editar_sitios_empresas(user)
+        return bool(user.is_supermanager)
 
 
 class SiteViewSet(viewsets.ModelViewSet):
@@ -115,11 +113,22 @@ class SiteViewSet(viewsets.ModelViewSet):
 
 class SiteEditModalView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
-        return es_super_o_admin(self.request.user)
+        return puede_editar_sitios_empresas(self.request.user)
+
+    @staticmethod
+    def _visita_obra(request, site):
+        """Con `?obra=1` (listado de Construcción) el form incluye el contratista de la última
+        visita; si esa visita está concluida (solo lectura) el campo no se ofrece."""
+        if request.GET.get('obra') != '1':
+            return None
+        from reg_construccion.models import RegConstruccion
+        from core.permissions import registro_bloqueado
+        visita = RegConstruccion.objects.filter(sitio=site).order_by('-fecha', '-id').first()
+        return None if visita is None or registro_bloqueado(visita) else visita
 
     def get(self, request, site_id):
         site = get_object_or_404(Site, id=site_id)
-        form = SiteForm(instance=site)
+        form = SiteForm(instance=site, visita=self._visita_obra(request, site))
         
         # Renderizar el formulario usando Crispy Forms
         form_html = render_to_string('sites/update_site_form.html', {
@@ -181,7 +190,7 @@ class SiteEditModalView(LoginRequiredMixin, UserPassesTestMixin, View):
                         # Si no se puede convertir o el usuario no existe, eliminar el campo
                         del data['user']
                         
-            form = SiteForm(data, instance=site)
+            form = SiteForm(data, instance=site, visita=self._visita_obra(request, site))
             
             if form.is_valid():
                 form.save()

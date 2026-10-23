@@ -81,7 +81,7 @@ class GenericRegistrosTable(tables.Table):
         super().__init__(*args, **kwargs)
         
         # Agregar columnas adicionales para superusuarios
-        if self.user and self.user.is_superuser:
+        if self.user and self.user.is_supermanager:
             # Las columnas ya están definidas en la clase, solo necesitamos actualizar la secuencia
             self.Meta.sequence = ('pti_id', 'operador_id', 'nombre_sitio', 'estado', 'ito', 'constructor', 'acciones')
     
@@ -108,7 +108,7 @@ class GenericRegistrosTable(tables.Table):
         else:
             display_text, badge_class = ('Sin estado', 'badge badge-neutral')
 
-        if self.user and self.user.is_superuser:
+        if self.user and self.user.is_supermanager:
             return format_html(
                 '<div class="estado-cell-container">'
                 '<span class="estado-text" style="cursor: pointer;" data-registro-id="{}">'
@@ -128,7 +128,7 @@ class GenericRegistrosTable(tables.Table):
     
     def render_ito(self, value, record):
         """Renderizar la columna ITO con funcionalidad de edición para superusuarios."""
-        if self.user and self.user.is_superuser:
+        if self.user and self.user.is_supermanager:
             return format_html(
                 '<div class="ito-cell-container">'
                 '<span class="ito-text" style="cursor: pointer;" data-registro-id="{}">'
@@ -145,7 +145,7 @@ class GenericRegistrosTable(tables.Table):
     
     def render_constructor(self, value, record):
         """Renderizar la columna Constructor con funcionalidad de edición para superusuarios."""
-        if self.user and self.user.is_superuser:
+        if self.user and self.user.is_supermanager:
             return format_html(
                 '<div class="constructor-cell-container">'
                 '<span class="constructor-text" style="cursor: pointer;" data-registro-id="{}">'

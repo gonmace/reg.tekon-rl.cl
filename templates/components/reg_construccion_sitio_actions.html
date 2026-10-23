@@ -1,3 +1,4 @@
+{% load access_tags %}
 <div class="flex items-center justify-center gap-1">
   <span class="obra-sitio-id" data-id="{{ record.pk }}"
         data-url="{% url 'reg_construccion:visitas_sitio' sitio_id=record.pk %}" style="display:none;"></span>
@@ -5,10 +6,16 @@
      class="btn btn-sm btn-ghost btn-circle text-accent" title="Abrir el último reporte" hx-boost="false">
     <i class="fa-solid fa-arrow-up-right-from-square"></i>
   </a>
-  {% if not request.user.is_visita and not request.user.is_administrador %}
+  {% con_permiso 'cargar_datos' %}
   <button type="button" class="btn btn-sm btn-ghost btn-circle text-accent obra-nueva-btn"
           data-id="{{ record.ultimo_id }}" data-nombre="{{ record.name }}" title="Nuevo reporte (otra fecha)">
     <i class="fa-solid fa-calendar-plus"></i>
   </button>
-  {% endif %}
+  {% endcon_permiso %}
+  {% editor_sitios %}
+  <button type="button" class="btn btn-sm btn-ghost btn-circle text-edit site-edit-btn"
+          data-id="{{ record.pk }}" data-nombre="{{ record.name }}" data-obra="1" title="Editar sitio">
+    <i class="fa-solid fa-pen-to-square"></i>
+  </button>
+  {% endeditor_sitios %}
 </div>

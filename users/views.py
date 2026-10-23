@@ -14,11 +14,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from core.permissions import UsuariosAccessMixin
+from core.permisos_catalogo import ACCIONES, ROLES_CONFIGURABLES, por_defecto
+from core.permissions import (
+    SuperuserRequiredMixin, UsuariosAccessMixin, permiso_de_rol, puede_editar_usuario,
+)
 from core.tables import UserTable
 from core.utils.breadcrumbs import BreadcrumbsMixin
 from .models import User
-from .permissions import puede_editar_usuario
+from .permissions import excepciones_de_usuario, matriz_permisos, roles_asignables, validar_rol_empresa
 from .serializers import UserSerializer
 
 
@@ -41,9 +44,10 @@ class UsersListView(UsuariosAccessMixin, LoginRequiredMixin, BreadcrumbsMixin, S
     table_pagination = False  # se muestran todos los usuarios
 
     def get_queryset(self):
-        qs = User.objects.filter(is_deleted=False).exclude(user_type='').select_related('contractor').order_by('user_type', 'first_name', 'last_name')
-        if self.request.user.is_coord:
-            qs = qs.filter(contractor_id=self.request.user.contractor_id)
+        qs = User.objects.filter(is_deleted=False).exclude(user_type='').select_related('contractor').prefetch_related('permisos_extra').order_by('user_type', 'first_name', 'last_name')
+        actor = self.request.user
+        if not (actor.is_supermanager or actor.is_admin_global):
+            qs = qs.filter(contractor_id=actor.contractor_id)
         q = self.request.GET.get('q', '').strip()
         if q:
             qs = qs.filter(
@@ -67,6 +71,8 @@ class UsersListView(UsuariosAccessMixin, LoginRequiredMixin, BreadcrumbsMixin, S
             .annotate(total=Count('id'))
         )
         context['user_role_counts'] = {item['user_type']: item['total'] for item in counts}
+        context['matriz_permisos'] = matriz_permisos()
+        context['puede_editar_permisos'] = self.request.user.is_supermanager
         return context
 
     def get_breadcrumbs(self):
@@ -82,6 +88,50 @@ def _validar_password(password, user=None):
     except ValidationError as e:
         return ' '.join(e.messages)
     return None
+
+
+def _aplicar_permisos_extra(actor, user, datos):
+    """Guarda las excepciones de permisos de `user` ({accion: 'allow'|'deny'|'inherit'}). Solo el superusuario,
+    y nunca sobre otro superusuario ni sobre VISITA (que no escribe)."""
+    from core.models.permisos import PermisoUsuario
+    if not actor.is_supermanager or user.is_supermanager or user.is_visita or not isinstance(datos, dict):
+        return
+    for accion, estado in datos.items():
+        if accion not in ACCIONES:
+            continue
+        if estado == 'inherit':
+            PermisoUsuario.objects.filter(user=user, accion=accion).delete()
+        elif estado in ('allow', 'deny'):
+            PermisoUsuario.objects.update_or_create(user=user, accion=accion, defaults={'permitido': estado == 'allow'})
+
+
+class PermisosRolView(SuperuserRequiredMixin, View):
+    """Guarda la matriz de permisos por rol (solo superusuario). Se guardan solo las diferencias con el valor por defecto."""
+
+    def post(self, request):
+        from core.models.permisos import PermisoRol, invalidar_cache_permisos
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+        except ValueError:
+            return JsonResponse({'success': False, 'message': 'Datos inválidos'}, status=400)
+        if data.get('restaurar'):
+            PermisoRol.objects.all().delete()
+            invalidar_cache_permisos()
+            return JsonResponse({'success': True, 'message': 'Permisos restaurados a los valores por defecto'})
+        cambios = data.get('cambios')
+        if not isinstance(cambios, list):
+            return JsonResponse({'success': False, 'message': 'Datos inválidos'}, status=400)
+        for c in cambios:
+            rol, accion, permitido = c.get('rol'), c.get('accion'), c.get('permitido')
+            if rol not in ROLES_CONFIGURABLES or accion not in ACCIONES or not isinstance(permitido, bool):
+                return JsonResponse({'success': False, 'message': 'Permiso inválido'}, status=400)
+        for c in cambios:
+            if c['permitido'] == por_defecto(c['rol'], c['accion']):
+                PermisoRol.objects.filter(rol=c['rol'], accion=c['accion']).delete()
+            else:
+                PermisoRol.objects.update_or_create(rol=c['rol'], accion=c['accion'], defaults={'permitido': c['permitido']})
+        invalidar_cache_permisos()
+        return JsonResponse({'success': True, 'message': 'Permisos actualizados'})
 
 
 class UserApiView(UsuariosAccessMixin, View):
@@ -104,14 +154,11 @@ class UserApiView(UsuariosAccessMixin, View):
         contractor_id = data.get('contractor')
         contractor = Contractor.objects.filter(pk=contractor_id, is_active=True, is_deleted=False).first() if contractor_id else None
         user_type = data.get('user_type', User.ITO)
-        if request.user.is_administrador and user_type != User.COORD:
-            return JsonResponse({'success': False, 'message': 'ADMINISTRADOR solo puede crear usuarios de tipo Coordinador'}, status=403)
-        if request.user.is_coord and user_type not in User.ITO_LIKE_ROLES:
-            return JsonResponse({'success': False, 'message': 'COORD solo puede crear usuarios ITO o Buscador'}, status=403)
-        if request.user.is_coord:
-            if contractor and contractor != request.user.contractor:
-                return JsonResponse({'success': False, 'message': 'COORD solo puede crear usuarios de su empresa'}, status=403)
+        if not (request.user.is_supermanager or request.user.is_admin_global) and contractor is None:
             contractor = request.user.contractor
+        error = validar_rol_empresa(request.user, user_type, contractor)
+        if error:
+            return JsonResponse({'success': False, 'message': error}, status=403)
         if password:
             error = _validar_password(password)
             if error:
@@ -130,6 +177,7 @@ class UserApiView(UsuariosAccessMixin, View):
         else:
             user.set_password(password)
         user.save()
+        _aplicar_permisos_extra(request.user, user, data.get('permisos_extra'))
         if invitar:
             return _responder_invitacion(user, request.user, creado=True)
         return JsonResponse({'success': True, 'message': 'Usuario creado correctamente'})
@@ -146,22 +194,20 @@ class UserApiView(UsuariosAccessMixin, View):
             user.first_name = data.get('first_name', user.first_name).strip()
             user.last_name = data.get('last_name', user.last_name).strip()
             new_type = data.get('user_type', user.user_type)
-            if request.user.is_administrador and new_type != User.COORD:
-                return JsonResponse({'success': False, 'message': 'ADMINISTRADOR solo puede asignar tipo Coordinador'}, status=403)
-            if request.user.is_coord and new_type not in User.ITO_LIKE_ROLES:
-                return JsonResponse({'success': False, 'message': 'COORD solo puede asignar tipo ITO o Buscador'}, status=403)
-            user.user_type = new_type
-            if 'is_active' in data:
-                user.is_active = bool(data['is_active'])
+            new_contractor = user.contractor
             contractor_id = data.get('contractor')
             if contractor_id:
                 from core.models.contractors import Contractor
                 new_contractor = Contractor.objects.filter(pk=contractor_id, is_active=True, is_deleted=False).first()
-                if request.user.is_coord and new_contractor != request.user.contractor:
-                    return JsonResponse({'success': False, 'message': 'COORD solo puede asignar usuarios a su empresa'}, status=403)
-                user.contractor = new_contractor
             elif 'contractor' in data:
-                user.contractor = None
+                new_contractor = None
+            error = validar_rol_empresa(request.user, new_type, new_contractor)
+            if error:
+                return JsonResponse({'success': False, 'message': error}, status=403)
+            user.user_type = new_type
+            user.contractor = new_contractor
+            if 'is_active' in data:
+                user.is_active = bool(data['is_active'])
             if 'report_access' in data:
                 user.report_access = data['report_access'] if isinstance(data['report_access'], list) else []
             password = data.get('password', '').strip()
@@ -171,6 +217,7 @@ class UserApiView(UsuariosAccessMixin, View):
                     return JsonResponse({'success': False, 'message': error}, status=400)
                 user.set_password(password)
             user.save()
+            _aplicar_permisos_extra(request.user, user, data.get('permisos_extra'))
             return JsonResponse({'success': True, 'message': 'Usuario actualizado correctamente'})
         except Exception as e:
             import logging
@@ -214,10 +261,8 @@ class UserInviteView(UsuariosAccessMixin, View):
             return JsonResponse({'success': False, 'message': 'Usuario no encontrado'}, status=404)
         if user.is_supermanager or user.is_superuser:
             return JsonResponse({'success': False, 'message': 'No se puede invitar a este usuario'}, status=403)
-        if request.user.is_coord and not (
-            user.user_type in User.ITO_LIKE_ROLES and user.contractor_id == request.user.contractor_id
-        ):
-            return JsonResponse({'success': False, 'message': 'COORD solo puede invitar a usuarios ITO o Buscador de su empresa'}, status=403)
+        if not puede_editar_usuario(request.user, user):
+            return JsonResponse({'success': False, 'message': 'No tienes permisos para invitar a este usuario'}, status=403)
         if not user.is_active:
             return JsonResponse({'success': False, 'message': 'El usuario está inactivo'}, status=400)
         return _responder_invitacion(user, request.user)
@@ -244,19 +289,14 @@ class UserEditModalView(UsuariosAccessMixin, View):
         form = UserForm(instance=user)
 
         from core.models.contractors import Contractor
-        if request.user.is_coord and request.user.contractor:
-            form.fields['contractor'].queryset = Contractor.objects.filter(pk=request.user.contractor.pk)
+        if not (request.user.is_supermanager or request.user.is_admin_global):
+            form.fields['contractor'].queryset = Contractor.objects.filter(pk=request.user.contractor_id)
         else:
             form.fields['contractor'].queryset = Contractor.objects.filter(is_active=True, is_deleted=False).order_by('name')
         form.fields['contractor'].empty_label = 'Seleccionar empresa...'
 
-        if request.user.is_administrador:
-            form.fields['user_type'].choices = [(User.COORD, 'Coordinador')]
-        elif request.user.is_coord:
-            form.fields['user_type'].choices = [
-                (User.ITO, 'ITO'),
-                (User.SEARCHER, 'Buscador'),
-            ]
+        etiquetas = dict(User.TYPE_CHOICES)
+        form.fields['user_type'].choices = [(r, etiquetas[r]) for r in roles_asignables(request.user)]
 
         input_class = 'input input-bordered w-full'
         select_class = 'select select-bordered w-full'
@@ -283,6 +323,7 @@ class UserEditModalView(UsuariosAccessMixin, View):
             'report_access_choices': User.REPORT_ACCESS_CHOICES,
             'current_report_access': list(user.report_access) if user else [],
             'restricted_roles': list(User.RESTRICTED_ROLES),
+            'excepciones': excepciones_de_usuario(user) if (user and request.user.is_supermanager and not user.is_visita) else [],
         }).content.decode('utf-8')
 
         return JsonResponse({'success': True, 'form_html': form_html})

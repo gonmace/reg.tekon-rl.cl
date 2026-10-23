@@ -3,6 +3,7 @@ from datetime import datetime
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 
+from core.permissions import puede_gestionar_usuarios, tiene_permiso
 from core.utils.breadcrumbs import BreadcrumbsMixin
 from reg_construccion import dashboard as obra
 
@@ -26,7 +27,7 @@ class DashboardView(LoginRequiredMixin, BreadcrumbsMixin, TemplateView):
             'acceso_construccion': acceso_construccion,
             'fecha_actual': fecha_actual,
             'numero_semana': fecha_actual.isocalendar()[1],
-            'puede_activar': user.is_supermanager or user.is_coord or user.is_administrador,
+            'puede_activar': tiene_permiso(user, 'activar_registro'),
             'dias_sin_visita': obra.DIAS_SIN_VISITA,
         })
 
@@ -40,7 +41,7 @@ class DashboardView(LoginRequiredMixin, BreadcrumbsMixin, TemplateView):
             context.update({
                 'acceso_postes': user.has_report_access('txtss_postes'),
                 'acceso_ingenieria': user.has_report_access('txtss_torres'),
-                've_usuarios': user.is_supermanager or user.is_coord or user.is_administrador,
+                've_usuarios': puede_gestionar_usuarios(user),
             })
 
         return context

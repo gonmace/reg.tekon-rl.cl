@@ -7,7 +7,6 @@
   Usuarios
   {% if user_role_counts %}
     <span class="inline-flex items-center justify-center bg-error text-error-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1.5 align-middle" title="Administrador">{{ user_role_counts.ADMINISTRADOR|default:0 }}</span>
-    <span class="inline-flex items-center justify-center bg-warning text-warning-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle" title="Coordinador">{{ user_role_counts.COORD|default:0 }}</span>
     <span class="inline-flex items-center justify-center bg-info text-info-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle" title="ITO">{{ user_role_counts.ITO|default:0 }}</span>
     <span class="inline-flex items-center justify-center bg-accent text-accent-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle" title="Buscador">{{ user_role_counts.SEARCHER|default:0 }}</span>
     <span class="inline-flex items-center justify-center bg-neutral text-neutral-content rounded-full text-xs font-bold min-w-6 h-6 px-1.5 ml-1 align-middle" title="Visita">{{ user_role_counts.VISITA|default:0 }}</span>
@@ -50,155 +49,84 @@
   {{ block.super }}
   <div class="px-2 pb-4 md:px-4">
     <div class="bg-base-100 rounded-box p-4">
-      <h3 class="font-bold text-lg mb-3">Roles y alcance</h3>
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h3 class="font-bold text-lg">Roles y permisos</h3>
+        {% if puede_editar_permisos %}
+        <div class="flex gap-2">
+          <button type="button" id="permisosRestaurarBtn" class="btn btn-sm btn-ghost">
+            <i class="fa-solid fa-rotate-left mr-1"></i> Valores por defecto
+          </button>
+          <button type="button" id="permisosGuardarBtn" class="btn btn-save btn-sm" disabled>
+            <i class="fa-solid fa-check mr-1"></i> Guardar cambios
+          </button>
+        </div>
+        {% endif %}
+      </div>
       <div class="overflow-x-auto">
-        <table class="table table-sm w-full">
+        <table class="table table-sm w-full" id="permisosTabla" data-url="{% url 'users:permisos_rol' %}">
           <thead>
             <tr>
               <th class="min-w-56">Acción</th>
               <th class="text-center"><span class="badge badge-primary">Super</span></th>
               <th class="text-center"><span class="badge bg-error text-error-content border-0">Administrador</span></th>
-              <th class="text-center"><span class="badge bg-warning text-warning-content border-0">Coordinador</span></th>
               <th class="text-center"><span class="badge bg-info text-info-content border-0">ITO</span></th>
               <th class="text-center"><span class="badge bg-accent text-accent-content border-0">Buscador</span></th>
               <th class="text-center"><span class="badge bg-neutral text-neutral-content border-0">Visita</span></th>
             </tr>
           </thead>
           <tbody>
-            <tr><th colspan="7" class="bg-base-200 text-xs uppercase tracking-wide">Alcance</th></tr>
+            <tr><th colspan="6" class="bg-base-200 text-xs uppercase tracking-wide">Alcance (fijo)</th></tr>
             <tr>
               <td class="text-sm">Registros que ve</td>
               <td class="text-center"><span class="text-xs">Todos</span></td>
-              <td class="text-center"><span class="text-xs">Todas las empresas</span></td>
-              <td class="text-center"><span class="text-xs">Los de su empresa</span></td>
+              <td class="text-center"><span class="text-xs">Sin empresa: todos<br>Con empresa: los de su empresa</span></td>
               <td class="text-center"><span class="text-xs">Solo los suyos</span></td>
               <td class="text-center"><span class="text-xs">Solo los suyos</span></td>
               <td class="text-center"><span class="text-xs">Todos (solo lectura)</span></td>
             </tr>
-            <tr><th colspan="7" class="bg-base-200 text-xs uppercase tracking-wide">Usuarios y registros</th></tr>
+            {% for grupo in matriz_permisos %}
+            <tr><th colspan="6" class="bg-base-200 text-xs uppercase tracking-wide">{{ grupo.nombre }}</th></tr>
+            {% for fila in grupo.filas %}
             <tr>
-              <td class="text-sm">Acceso a Usuarios y crear usuarios</td>
+              <td class="text-sm">{{ fila.label }}</td>
               <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><span class="text-xs">Su empresa</span></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
+              {% for celda in fila.celdas %}
+              <td class="text-center">
+                {% if puede_editar_permisos %}
+                <input type="checkbox" class="checkbox checkbox-sm checkbox-primary permiso-check"
+                       data-rol="{{ celda.rol }}" data-accion="{{ fila.key }}"
+                       data-defecto="{{ celda.defecto|yesno:'1,0' }}" data-inicial="{{ celda.permitido|yesno:'1,0' }}"
+                       {% if celda.permitido %}checked{% endif %}
+                       title="{% if celda.permitido != celda.defecto %}Distinto del valor por defecto{% else %}Valor por defecto{% endif %}">
+                {% elif celda.permitido %}<i class="fa-solid fa-check text-success" title="Sí"></i>{% else %}<i class="fa-solid fa-xmark text-base-content/30" title="No"></i>{% endif %}
+              </td>
+              {% endfor %}
               <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
             </tr>
+            {% endfor %}
+            {% endfor %}
+            <tr><th colspan="6" class="bg-base-200 text-xs uppercase tracking-wide">Solo superusuario (fijo)</th></tr>
             <tr>
-              <td class="text-sm">Invitar por correo (crear su contraseña)</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><span class="text-xs">ITO y Buscador de su empresa</span></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
+              <td class="text-sm">Eliminar registros, fotos y reportes</td>
+              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
             </tr>
             <tr>
-              <td class="text-sm">Activar y copiar registros</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
+              <td class="text-sm">Crear, importar y eliminar sitios y empresas</td>
+              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
             </tr>
             <tr>
-              <td class="text-sm">Llenar pasos y subir fotos</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
+              <td class="text-sm">Pasos, widgets, catálogo y configuración de correo</td>
+              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td><td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
             </tr>
-            <tr>
-              <td class="text-sm">Concluir un registro</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-            </tr>
-            <tr>
-              <td class="text-sm">Reabrir un registro concluido</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-            </tr>
+            <tr><th colspan="6" class="bg-base-200 text-xs uppercase tracking-wide">Todos (fijo)</th></tr>
             <tr>
               <td class="text-sm">Descargar PDF</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-            </tr>
-            <tr>
-              <td class="text-sm">Eliminar registros</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-            </tr>
-            <tr><th colspan="7" class="bg-base-200 text-xs uppercase tracking-wide">Construcción Sitios</th></tr>
-            <tr>
-              <td class="text-sm">Nuevo reporte y editar datos del reporte</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><span class="text-xs">De su empresa</span></td>
-              <td class="text-center"><span class="text-xs">De las suyas</span></td>
-              <td class="text-center"><span class="text-xs">De las suyas</span></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-            </tr>
-            <tr>
-              <td class="text-sm">Definir ítems (plantilla, agregar, borrar)</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-            </tr>
-            <tr>
-              <td class="text-sm">Cargar «% actual» de los ítems</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-            </tr>
-            <tr><th colspan="7" class="bg-base-200 text-xs uppercase tracking-wide">Administración</th></tr>
-            <tr>
-              <td class="text-sm">Sitios y Empresas</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-            </tr>
-            <tr>
-              <td class="text-sm">Pasos, widgets y configuración de correo</td>
-              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
-              <td class="text-center"><i class="fa-solid fa-xmark text-base-content/30" title="No"></i></td>
+              <td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td><td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td><td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td><td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td><td class="text-center"><i class="fa-solid fa-check text-success" title="Sí"></i></td>
             </tr>
           </tbody>
         </table>
       </div>
-      <p class="text-xs opacity-70 mt-3">Un registro concluido es de solo lectura para todos, incluido el superusuario, hasta que un administrador lo reabra. En Construcción Sitios, un reporte concluido tampoco se puede eliminar, y «Nuevo reporte» solo se ofrece desde el último reporte del sitio.</p>
+      <p class="text-xs opacity-70 mt-3">Un administrador con empresa solo ve y administra lo de su empresa; sin empresa, de todas. Los permisos de la tabla se pueden dar o quitar por rol y, desde «Editar usuario», solo a un usuario. Un registro concluido es de solo lectura para todos, incluido el superusuario, hasta que alguien con permiso para reabrir lo reabra. En Construcción Sitios, un reporte concluido tampoco se puede eliminar.</p>
     </div>
   </div>
 {% endblock content %}

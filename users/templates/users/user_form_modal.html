@@ -110,6 +110,25 @@
     </div>
     {% endif %}
 
+    {% if excepciones %}
+    <details id="permisosExtraSection" class="collapse collapse-arrow border border-base-300 rounded-lg">
+        <summary class="collapse-title text-sm font-medium">Excepciones de permisos</summary>
+        <div class="collapse-content flex flex-col gap-2">
+            <p class="text-xs text-base-content/60">«Heredar» usa el permiso de su rol. Aquí puedes darle o quitarle un permiso solo a este usuario.</p>
+            {% for e in excepciones %}
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-sm">{{ e.label }} <span class="text-xs text-base-content/50">· su rol: {{ e.hereda|yesno:"sí,no" }}</span></span>
+                <select name="permiso_extra__{{ e.key }}" data-permiso-extra="{{ e.key }}" class="select select-bordered select-sm w-32 shrink-0">
+                    <option value="inherit" {% if e.estado == 'inherit' %}selected{% endif %}>Heredar</option>
+                    <option value="allow" {% if e.estado == 'allow' %}selected{% endif %}>Permitir</option>
+                    <option value="deny" {% if e.estado == 'deny' %}selected{% endif %}>Denegar</option>
+                </select>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
     <div class="flex gap-2 justify-center mt-6">
         <button type="button" class="btn btn-cancel" onclick="closeUserModal()">
             <i class="fa-solid fa-xmark mr-1"></i> Cancelar

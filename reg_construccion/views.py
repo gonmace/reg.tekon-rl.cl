@@ -15,7 +15,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from core.models.sites import Site
-from core.permissions import not_visita, registro_bloqueado_response, superuser_required
+from core.permissions import not_visita, registro_bloqueado_response, superuser_required, tiene_permiso
 from .permissions import (
     MENSAJE_POSTERIOR_CONCLUIDA, hay_posterior_concluida, puede_cambiar_ito, puede_gestionar, puede_ver,
 )
@@ -263,17 +263,17 @@ class DynamicPasoView(DynamicPasoViewBase):
         return TIPO_NAMESPACE
 
     def puede_escribir(self, user):
-        # Coordinación completa la visita; el ADMINISTRADOR solo define la estructura de ítems (ver `post`).
-        return user.is_supermanager or user.is_ito_like or user.is_coord or user.is_administrador
+        # Quien solo define los ítems (`definir_items_obra`) puede guardar únicamente la tabla de avance (ver `post`).
+        return tiene_permiso(user, 'cargar_datos') or tiene_permiso(user, 'definir_items_obra')
 
     def puede_escribir_widget(self, user, widget_slug):
-        if user.is_administrador:
-            return widget_slug == 'tabla_avance_widget'
-        return self.puede_escribir(user)
+        if tiene_permiso(user, 'cargar_datos'):
+            return True
+        return widget_slug == 'tabla_avance_widget' and tiene_permiso(user, 'definir_items_obra')
 
     def post(self, request, *args, **kwargs):
-        if request.user.is_administrador and request.GET.get('widget') != 'tabla_avance_widget':
-            return _json_error('El administrador solo puede definir los ítems del avance', 403)
+        if not self.puede_escribir_widget(request.user, request.GET.get('widget')):
+            return _json_error('Solo puedes definir los ítems del avance', 403)
         if request.GET.get('widget') == 'tabla_avance_widget':
             registro = RegConstruccion.objects.filter(pk=kwargs.get('registro_id'), is_deleted=False).first()
             if registro and hay_posterior_concluida(registro):
@@ -336,7 +336,7 @@ def nueva_visita(request, registro_id):
         return _json_error(MENSAJE_POSTERIOR_CONCLUIDA, 403)
 
     ultima = RegConstruccion.objects.filter(sitio_id=base.sitio_id, is_deleted=False).order_by('-fecha', '-id').first()
-    user = request.user if request.user.is_ito_like else base.user
+    user = request.user if request.user.is_ito_like else base.user  # ITO/Buscador quedan como responsables
     try:
         nueva = RegConstruccion.objects.create(
             sitio=base.sitio, user=user, fecha=fecha, contratista=ultima.contratista,
@@ -353,10 +353,10 @@ def nueva_visita(request, registro_id):
 
 
 def _form_edicion(user, registro, data=None):
-    """Superusuario y ADMINISTRADOR pueden cambiar el ITO; el ADMINISTRADOR solo eso."""
+    """Con `cambiar_responsable` se puede cambiar el ITO; sin poder cargar datos, solo eso."""
     return RegConstruccionEditForm(
         data, instance=registro,
-        cambiar_ito=puede_cambiar_ito(user),
+        cambiar_ito=puede_cambiar_ito(user, registro),
         solo_ito=not puede_gestionar(user, registro),
     )
 
@@ -365,7 +365,7 @@ def _form_edicion(user, registro, data=None):
 @require_GET
 def get_edit_form(request, registro_id):
     registro = get_object_or_404(RegConstruccion, pk=registro_id, is_deleted=False)
-    if not (puede_gestionar(request.user, registro) or puede_cambiar_ito(request.user)):
+    if not (puede_gestionar(request.user, registro) or puede_cambiar_ito(request.user, registro)):
         return _json_error('Sin permisos', 403)
     form = _form_edicion(request.user, registro)
     return render(request, 'reg_construccion/partials/edit_form.html', {'form': form, 'registro': registro})
@@ -376,7 +376,7 @@ def get_edit_form(request, registro_id):
 @require_POST
 def update_registro(request, registro_id):
     registro = get_object_or_404(RegConstruccion, pk=registro_id, is_deleted=False)
-    if not (puede_gestionar(request.user, registro) or puede_cambiar_ito(request.user)):
+    if not (puede_gestionar(request.user, registro) or puede_cambiar_ito(request.user, registro)):
         return _json_error('Sin permisos', 403)
     bloqueado = registro_bloqueado_response(registro)
     if bloqueado:

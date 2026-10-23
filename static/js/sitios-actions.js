@@ -34,7 +34,7 @@
     pti_cell_id: 'PTI ID', operator_id: 'Operador ID', name: 'Nombre Sitio',
     tipo_sitio: 'Tipo de sitio', tipo_estructura: 'Tipo de estructura', alt: 'Altura (m)',
     region: 'Región', comuna: 'Comuna', tipo_coordenada: 'Tipo de coordenada',
-    lat: 'Latitud', lon: 'Longitud',
+    lat: 'Latitud', lon: 'Longitud', contratista: 'Contratista',
   };
 
   // {campo: ['mensaje', ...]} → "PTI ID: Ya existe Sitio con este PTI ID."
@@ -143,8 +143,10 @@
     applyTipoSitioFilter();
   }
 
-  function openEditModal(siteId) {
-    fetch(`/api/v1/sitios/${siteId}/edit-modal/`, {
+  function openEditModal(siteId, obra) {
+    // obra: listado de Construcción → el form incluye el contratista del último reporte
+    const qs = obra ? '?obra=1' : '';
+    fetch(`/api/v1/sitios/${siteId}/edit-modal/${qs}`, {
       headers: { 'X-CSRFToken': getCookie('csrftoken'), Accept: 'application/json' },
     })
       .then((r) => r.json())
@@ -158,7 +160,7 @@
         editModal.showModal();
         const form = document.getElementById('edit-site-form');
         if (form) {
-          bindFormSubmit(form, `/api/v1/sitios/${siteId}/edit-modal/`, data.message);
+          bindFormSubmit(form, `/api/v1/sitios/${siteId}/edit-modal/${qs}`, data.message);
           bindTipoSelector(data.site_data);
         }
       })
@@ -283,7 +285,7 @@
     const editBtn = e.target.closest('.site-edit-btn');
     if (editBtn) {
       e.preventDefault();
-      openEditModal(editBtn.dataset.id);
+      openEditModal(editBtn.dataset.id, editBtn.dataset.obra === '1');
       return;
     }
     const delBtn = e.target.closest('.site-delete-btn');

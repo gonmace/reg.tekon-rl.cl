@@ -1,4 +1,5 @@
 import django_tables2 as tables
+from core.permissions import tiene_permiso
 from django.utils.html import format_html
 from registros.tables import GenericRegistrosTable
 from .models import RegTxtss
@@ -74,7 +75,7 @@ class RegTxtssTable(GenericRegistrosTable):
         display = value or '—'
         badge_cls = self.ALT_BADGE_CLASS.get(value, 'badge-neutral')
 
-        if self.user and self.user.is_superuser and not record.concluido:
+        if self.user and self.user.is_supermanager and not record.concluido:
             options = ''.join(
                 f'<option value="{c}"{"selected" if c == value else ""}>{c}</option>'
                 for c in choices
@@ -97,7 +98,7 @@ class RegTxtssTable(GenericRegistrosTable):
         fecha_str = value.strftime('%d/%m/%Y') if value else '—'
         fecha_iso = value.isoformat() if value else ''
         user = getattr(self, 'user', None)
-        can_edit = user and (user.is_supermanager or user.is_ito_like) and not record.concluido
+        can_edit = user and tiene_permiso(user, 'cargar_datos') and not record.concluido
         if can_edit:
             return format_html(
                 '<div class="fecha-cell-container flex items-center justify-center gap-1">'

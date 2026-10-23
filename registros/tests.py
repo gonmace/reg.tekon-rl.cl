@@ -33,7 +33,9 @@ class ConcluidoMixin:
         cls.empresa = Contractor.objects.create(name='AJ', code='AJ')
         cls.root = User.objects.create_superuser('root', 'r@x.cl', 'pw', user_type='')
         cls.admin = User.objects.create_user('admin', 'a@x.cl', 'pw', user_type=User.ADMINISTRADOR, contractor=cls.empresa)
-        cls.coord = User.objects.create_user('coord', 'c@x.cl', 'pw', user_type=User.COORD, contractor=cls.empresa)
+        cls.admin_global = User.objects.create_user('admin_global', 'g@x.cl', 'pw', user_type=User.ADMINISTRADOR)
+        cls.otra = Contractor.objects.create(name='Otra', code='OT')
+        cls.admin_otra = User.objects.create_user('admin_otra', 'o@x.cl', 'pw', user_type=User.ADMINISTRADOR, contractor=cls.otra)
         cls.ito = User.objects.create_user('ito', 'i@x.cl', 'pw', user_type=User.ITO, contractor=cls.empresa)
         cls.visita = User.objects.create_user('visita', 'v@x.cl', 'pw', user_type=User.VISITA, contractor=cls.empresa)
         cls.preparar()
@@ -78,14 +80,30 @@ class ConcluidoMixin:
         self.assertEqual(self.alternar(self.root).status_code, 200)
         self.assertTrue(self.recargar().concluido)
 
-    def test_coord_y_visita_no_cambian_el_estado(self):
-        for user in (self.coord, self.visita):
+    def test_visita_y_admin_de_otra_empresa_no_cambian_el_estado(self):
+        for user in (self.admin_otra, self.visita):
             self.assertEqual(self.alternar(user).status_code, 403, user.username)
         self.assertFalse(self.recargar().concluido)
         self.concluir()
-        for user in (self.coord, self.visita):
+        for user in (self.admin_otra, self.visita):
             self.assertEqual(self.alternar(user).status_code, 403, user.username)
         self.assertTrue(self.recargar().concluido)
+
+    def test_admin_global_concluye_y_reabre(self):
+        self.assertEqual(self.alternar(self.admin_global).status_code, 200)
+        self.assertTrue(self.recargar().concluido)
+        self.assertEqual(self.alternar(self.admin_global).status_code, 200)
+        self.assertFalse(self.recargar().concluido)
+
+    def test_permisos_configurados_mandan_sobre_el_rol(self):
+        from django.core.cache import cache
+        from core.models.permisos import PermisoRol, PermisoUsuario
+        cache.clear()
+        self.addCleanup(cache.clear)
+        PermisoRol.objects.create(rol='ITO', accion='concluir', permitido=False)
+        self.assertEqual(self.alternar(self.ito).status_code, 403)
+        PermisoUsuario.objects.create(user=self.ito, accion='concluir', permitido=True)  # excepción por usuario
+        self.assertEqual(self.alternar(User.objects.get(pk=self.ito.pk)).status_code, 200)
 
     # ── bloqueo ──────────────────────────────────────────────────────────────
     def post_paso(self, user, texto):

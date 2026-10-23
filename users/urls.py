@@ -8,6 +8,7 @@ app_name = 'users'
 urlpatterns = [
     path('usuarios/', views.UsersListView.as_view(), name='list'),
     path('api/v1/users/', views.UserApiView.as_view(), name='api'),
+    path('api/v1/permisos-rol/', views.PermisosRolView.as_view(), name='permisos_rol'),
     path('api/v1/users/<int:user_id>/', views.UserApiView.as_view(), name='api_detail'),
     path('api/v1/users/<int:user_id>/invite/', views.UserInviteView.as_view(), name='invite'),
     path('api/v1/users/create-modal/', views.UserEditModalView.as_view(), name='create_modal'),

@@ -7,7 +7,7 @@
           title="{% if record.concluido %}Generar PDF{% else %}Generar PDF (borrador){% endif %}">
     <i class="fa-solid fa-file-pdf"></i>
   </button>
-  {% for_role 'ITO' 'SEARCHER' %}
+  {% con_permiso 'cargar_datos' %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-info reg-txtss-copy-btn"
           data-id="{{ record.id }}"
@@ -15,8 +15,8 @@
           title="Copiar con siguiente alternativa">
     <i class="fa-solid fa-copy"></i>
   </button>
-  {% endfor_role %}
-  {% for_role 'ADMINISTRADOR' %}
+  {% endcon_permiso %}
+  {% con_permiso 'cambiar_responsable' %}
   {% if not record.concluido %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-edit reg-txtss-edit-btn"
@@ -25,7 +25,7 @@
     <i class="fa-solid fa-pen-to-square"></i>
   </button>
   {% endif %}
-  {% endfor_role %}
+  {% endcon_permiso %}
   {% supermanager_only %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-delete reg-txtss-delete-btn"
