@@ -160,7 +160,7 @@
 {% block extra_js %}
 <script>
 // Configuración para el JavaScript genérico
-window.isSuperuser = {{ user.is_superuser|yesno:"true,false" }};
+window.isSuperuser = {{ user.is_supermanager|yesno:"true,false" }};
 window.USUARIOS_URL = '{{ usuarios_url|default:"" }}';
 window.ACTIVAR_URL = '{{ activar_url|default:"" }}';
 

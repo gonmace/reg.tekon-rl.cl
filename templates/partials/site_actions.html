@@ -1,6 +1,6 @@
 {% load access_tags %}
 <div class="flex items-center justify-center gap-1">
-  {% for_role 'ADMINISTRADOR' %}
+  {% editor_sitios %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-edit site-edit-btn"
           data-id="{{ record.id }}"
@@ -8,6 +8,8 @@
           title="Editar sitio">
     <i class="fa-solid fa-pen-to-square"></i>
   </button>
+  {% endeditor_sitios %}
+  {% supermanager_only %}
   <button type="button"
           class="btn btn-sm btn-ghost btn-circle text-delete site-delete-btn"
           data-id="{{ record.id }}"
@@ -15,5 +17,5 @@
           title="Eliminar sitio">
     <i class="fa-solid fa-trash"></i>
   </button>
-  {% endfor_role %}
+  {% endsupermanager_only %}
 </div>

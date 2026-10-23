@@ -1,15 +1,9 @@
-from django.db import models
-
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-# from core.permissions import ROLE_PERMISSIONS
 
 
 class User(AbstractUser):
-    COORD = "COORD"
     ADMINISTRADOR = "ADMINISTRADOR"
     ITO = "ITO"
     SEARCHER = "SEARCHER"
@@ -19,11 +13,10 @@ class User(AbstractUser):
     ITO_LIKE_ROLES = (ITO, SEARCHER)
 
     # Roles que requieren configuración explícita de acceso a reportes
-    RESTRICTED_ROLES = (ITO, SEARCHER, COORD, VISITA)
+    RESTRICTED_ROLES = (ADMINISTRADOR, ITO, SEARCHER, VISITA)
 
     TYPE_CHOICES = [
         (ADMINISTRADOR, "Administrador"),
-        (COORD, "Coordinador"),
         (ITO, "ITO"),
         (SEARCHER, "Buscador"),
         (VISITA, "Visita"),
@@ -114,8 +107,10 @@ class User(AbstractUser):
 
     def clean(self):
         super().clean()
-        if self.user_type and not self.contractor_id:
-            raise ValidationError({'contractor': 'Los usuarios con rol asignado deben pertenecer a una empresa.'})
+        if not self.user_type and self.contractor_id:
+            raise ValidationError({'contractor': 'El superusuario no puede pertenecer a una empresa.'})
+        if self.user_type and self.user_type != self.ADMINISTRADOR and not self.contractor_id:
+            raise ValidationError({'contractor': 'Este rol debe pertenecer a una empresa.'})
 
     def save(self, *args, **kwargs):
         """Guarda el modelo y actualiza el estado original"""
@@ -180,7 +175,7 @@ class User(AbstractUser):
 
     def has_report_access(self, report_code):
         """True si el usuario puede ver el reporte. Vacío = acceso total."""
-        if not self.user_type or self.user_type == self.ADMINISTRADOR:
+        if not self.user_type or self.is_admin_global:
             return True
         access = self.report_access or []
         return len(access) == 0 or report_code in access
@@ -195,24 +190,18 @@ class User(AbstractUser):
         return User.objects.filter(is_active=True, is_deleted=False).exclude(user_type='')
 
     @property
-    def is_coord(self):
-        return self.user_type == User.COORD
-
-    @property
     def is_administrador(self):
         return self.user_type == User.ADMINISTRADOR
 
     @property
-    def is_manager(self):
-        return self.is_administrador
+    def is_admin_global(self):
+        """ADMINISTRADOR sin empresa: ve y administra todas las empresas."""
+        return self.user_type == User.ADMINISTRADOR and not self.contractor_id
 
     @property
-    def is_ito(self):
-        return self.user_type == User.ITO
-
-    @property
-    def is_searcher(self):
-        return self.user_type == User.SEARCHER
+    def is_admin_empresa(self):
+        """ADMINISTRADOR con empresa: limitado a los datos de su empresa."""
+        return self.user_type == User.ADMINISTRADOR and bool(self.contractor_id)
 
     @property
     def is_ito_like(self):
@@ -228,11 +217,6 @@ class User(AbstractUser):
         """ITO, Buscador y Visita: acceso restringido al sistema."""
         return self.user_type in (User.ITO, User.SEARCHER, User.VISITA)
 
-    # Compat: mantener is_admin como sinónimo de is_coord (Coord reemplazó a Admin)
-    @property
-    def is_admin(self):
-        return self.user_type == User.COORD
-
     @property
     def is_supermanager(self):
         """Sin rol asignado = superusuario."""
@@ -243,35 +227,3 @@ class User(AbstractUser):
         if not self.user_type:
             return 'Superusuario'
         return dict(User.TYPE_CHOICES).get(self.user_type, self.user_type)
-
-    # def get_role_permissions(self):
-    #     """Obtiene los permisos asociados al rol del usuario"""
-    #     return ROLE_PERMISSIONS.get(self.user_type, [])
-
-    # def has_role_permission(self, permission):
-    #     """Verifica si el usuario tiene un permiso específico de su rol"""
-    #     return permission in self.get_role_permissions()
-
-
-# @receiver(post_save, sender=User)
-# def assign_role_permissions(sender, instance, created, **kwargs):
-#     """
-#     Asigna automáticamente los permisos según el rol del usuario
-#     """
-#     if created or "user_type" in instance.get_dirty_fields():
-#         # Obtener los permisos del rol
-#         role_permissions = ROLE_PERMISSIONS.get(instance.user_type, [])
-
-#         # Asignar los permisos al usuario
-#         for permission in role_permissions:
-#             app_label, codename = permission.split(".")
-#             from django.contrib.auth.models import Permission
-
-#             try:
-#                 perm = Permission.objects.get(
-#                     codename=codename, content_type__app_label=app_label
-#                 )
-#                 instance.user_permissions.add(perm)
-#             except Permission.DoesNotExist:
-#                 pass
-

@@ -124,15 +124,20 @@ class NombreParaMostrarTests(TestCase):
 
 
 class AccesoUsuariosTests(TestCase):
-    """El ADMINISTRADOR no entra a Usuarios; superusuario y COORD sí."""
+    """Usuarios: superusuario y ADMINISTRADOR (global o de empresa) entran; ITO no."""
 
     @classmethod
     def setUpTestData(cls):
         empresa = Contractor.objects.create(name='AJ', code='AJ')
         cls.root = User.objects.create_superuser('root', 'r@x.cl', 'pw', user_type='')
         cls.admin = User.objects.create_user('adm', 'a@x.cl', 'pw', user_type=User.ADMINISTRADOR)
-        cls.coord = User.objects.create_user('coord', 'c@x.cl', 'pw', user_type=User.COORD, contractor=empresa)
+        cls.coord = User.objects.create_user('coord', 'c@x.cl', 'pw', user_type=User.ADMINISTRADOR, contractor=empresa)
         cls.ito = User.objects.create_user('ito', 'i@x.cl', 'pw', user_type=User.ITO, contractor=empresa)
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.addCleanup(cache.clear)
 
     def _menu(self, user):
         from django.test import RequestFactory
@@ -144,15 +149,22 @@ class AccesoUsuariosTests(TestCase):
     def test_menu_usuarios(self):
         self.assertIn('Usuarios', self._menu(self.root))
         self.assertIn('Usuarios', self._menu(self.coord))
-        self.assertNotIn('Usuarios', self._menu(self.admin))
+        self.assertIn('Usuarios', self._menu(self.admin))
         self.assertNotIn('Usuarios', self._menu(self.ito))
+
+    def test_se_puede_quitar_el_acceso_a_usuarios_a_un_rol_o_a_un_usuario(self):
+        from core.models.permisos import PermisoRol, PermisoUsuario
+        PermisoRol.objects.create(rol='ADMINISTRADOR', accion='gestionar_usuarios', permitido=False)
+        self.assertNotIn('Usuarios', self._menu(self.admin))
+        PermisoUsuario.objects.create(user=self.admin, accion='gestionar_usuarios', permitido=True)
+        self.assertIn('Usuarios', self._menu(User.objects.get(pk=self.admin.pk)))
 
     def test_pagina_y_api_de_usuarios(self):
         url, api = reverse('users:list'), reverse('users:api')
-        for user in (self.root, self.coord):
+        for user in (self.root, self.coord, self.admin):
             self.client.force_login(user)
             self.assertEqual(self.client.get(url).status_code, 200, user.username)
-        for user in (self.admin, self.ito):
+        for user in (self.ito,):
             self.client.force_login(user)
             self.assertEqual(self.client.get(url).status_code, 302, user.username)   # → dashboard
             self.assertEqual(self.client.post(api, '{}', content_type='application/json').status_code, 403, user.username)
@@ -167,7 +179,7 @@ class InvitacionTests(TestCase):
         cls.empresa = Contractor.objects.create(name='AJ', code='AJ')
         cls.otra = Contractor.objects.create(name='OT', code='OT')
         cls.root = User.objects.create_superuser('root', 'r@x.cl', 'pw', user_type='')
-        cls.coord = User.objects.create_user('coord@x.cl', 'coord@x.cl', 'pw', user_type=User.COORD, contractor=cls.empresa,
+        cls.coord = User.objects.create_user('coord@x.cl', 'coord@x.cl', 'pw', user_type=User.ADMINISTRADOR, contractor=cls.empresa,
                                              first_name='Cora', last_name='Díaz')
         cls.ito = User.objects.create_user('ito@x.cl', 'ito@x.cl', 'pw', user_type=User.ITO, contractor=cls.empresa)
         cls.ito_otra = User.objects.create_user('ito2@x.cl', 'ito2@x.cl', 'pw', user_type=User.ITO, contractor=cls.otra)
@@ -229,12 +241,14 @@ class InvitacionTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(self.client.post(url(self.ito_otra)).status_code, 403)         # de otra empresa
         self.assertEqual(self.client.post(url(self.root)).status_code, 403)             # superusuario
-        for user in (self.admin, self.ito):
+        for user in (self.ito,):
             self.client.force_login(user)
             self.assertEqual(self.client.post(url(self.ito)).status_code, 403, user.username)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.post(url(self.ito_otra)).status_code, 200)         # global: cualquier empresa
         self.client.force_login(self.root)
         self.assertEqual(self.client.post(url(self.ito_otra)).status_code, 200)
-        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(len(mail.outbox), 3)
         self.assertEqual(self.client.post(reverse('users:invite', kwargs={'user_id': 99999})).status_code, 404)
 
     def test_falla_el_envio_pero_el_usuario_queda_creado(self):

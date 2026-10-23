@@ -13,11 +13,11 @@ from django.views import View
 from django_tables2 import SingleTableView
 from core.models.contractors import Contractor
 from core.tables import ContractorTable
-from core.permissions import SuperOrAdminRequiredMixin
+from core.permissions import SitiosEmpresasAccessMixin
 from core.utils.breadcrumbs import BreadcrumbsMixin
 
 
-class ContractorsView(SuperOrAdminRequiredMixin, LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
+class ContractorsView(SitiosEmpresasAccessMixin, LoginRequiredMixin, BreadcrumbsMixin, SingleTableView):
     model = Contractor
     table_class = ContractorTable
     template_name = 'pages/contractors.html'
@@ -48,7 +48,7 @@ class ContractorsView(SuperOrAdminRequiredMixin, LoginRequiredMixin, Breadcrumbs
         return [{'label': 'Contratistas'}]
 
 
-class ContractorViewSet(SuperOrAdminRequiredMixin, View):
+class ContractorViewSet(SitiosEmpresasAccessMixin, View):
     """ViewSet para operaciones CRUD de contratistas."""
     
     def get(self, request):
@@ -69,7 +69,9 @@ class ContractorViewSet(SuperOrAdminRequiredMixin, View):
         return JsonResponse(data, safe=False)
 
     def post(self, request):
-        """Crear nuevo contratista."""
+        """Crear nuevo contratista (solo superusuario)."""
+        if not request.user.is_supermanager:
+            return JsonResponse({'success': False, 'message': 'Acción restringida al superusuario'}, status=403)
         try:
             data = json.loads(request.body.decode('utf-8'))
 
@@ -150,7 +152,9 @@ class ContractorViewSet(SuperOrAdminRequiredMixin, View):
             }, status=500)
 
     def delete(self, request, contractor_id):
-        """Soft-delete de contratista."""
+        """Soft-delete de contratista (solo superusuario)."""
+        if not request.user.is_supermanager:
+            return JsonResponse({'success': False, 'message': 'Acción restringida al superusuario'}, status=403)
         try:
             contractor = Contractor.objects.get(id=contractor_id, is_deleted=False)
             contractor.is_deleted = True
@@ -173,11 +177,13 @@ class ContractorViewSet(SuperOrAdminRequiredMixin, View):
             }, status=500)
 
 
-class ContractorEditModalView(SuperOrAdminRequiredMixin, View):
+class ContractorEditModalView(SitiosEmpresasAccessMixin, View):
     """Vista para mostrar/editar contratista en modal."""
     
     def get(self, request, contractor_id=None):
         """Mostrar formulario de contratista."""
+        if not contractor_id and not request.user.is_supermanager:
+            return JsonResponse({'success': False, 'message': 'Acción restringida al superusuario'}, status=403)
         if contractor_id:
             try:
                 contractor = Contractor.objects.get(id=contractor_id)
@@ -219,6 +225,8 @@ class ContractorEditModalView(SuperOrAdminRequiredMixin, View):
 
     def post(self, request, contractor_id=None):
         """Procesar formulario de contratista."""
+        if not contractor_id and not request.user.is_supermanager:
+            return JsonResponse({'success': False, 'message': 'Acción restringida al superusuario'}, status=403)
         if contractor_id:
             try:
                 contractor = Contractor.objects.get(id=contractor_id)

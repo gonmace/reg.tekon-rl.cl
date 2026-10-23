@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models import Q
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Row, Column, Submit, Button, Div, Field
 from .models.sites import Site
@@ -56,8 +57,9 @@ class SiteForm(forms.ModelForm):
             # Duplicar 'class' rompe el render (HTML inválido).
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, visita=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.visita = visita
 
         # En edición, precargar lat/lon del Mandato (default del selector)
         if self.instance and self.instance.pk:
@@ -103,6 +105,21 @@ class SiteForm(forms.ModelForm):
             ),
         )
 
+        # Contratista: vive en la visita (no en el sitio); se edita sobre la última visita.
+        if visita is not None:
+            from .models.contractors import Contractor
+            self.fields['contratista'] = forms.ModelChoiceField(
+                queryset=Contractor.objects.filter(
+                    Q(is_active=True, is_deleted=False) | Q(pk=visita.contratista_id)).order_by('name'),
+                required=False,
+                initial=visita.contratista_id, label='Contratista (último reporte)',
+                empty_label='— Sin contratista —',
+            )
+            self.helper.layout.insert(-1, Div(
+                Div(Field('contratista'), css_class='w-full px-2'),
+                css_class='flex flex-wrap -mx-2 mb-4',
+            ))
+
     # ModelForm omite las restricciones únicas condicionales cuando el campo de la
     # condición (is_deleted) no está en el formulario; se valida explícitamente aquí.
     def _unico_entre_activos(self, campo, mensaje):
@@ -132,4 +149,9 @@ class SiteForm(forms.ModelForm):
         setattr(site, lon_field, lon)
         if commit:
             site.save()
+            if self.visita is not None and 'contratista' in self.cleaned_data:
+                nuevo = self.cleaned_data['contratista']
+                if (nuevo.pk if nuevo else None) != self.visita.contratista_id:
+                    self.visita.contratista = nuevo
+                    self.visita.save(update_fields=['contratista'])
         return site

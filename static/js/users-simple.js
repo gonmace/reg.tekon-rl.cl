@@ -64,7 +64,9 @@
     }
 
     const contractor = form.querySelector('[name="contractor"]');
-    if (contractor && !contractor.value) {
+    const userType = form.querySelector('[name="user_type"]');
+    const esAdmin = userType && userType.value === 'ADMINISTRADOR';  // el administrador global no tiene empresa
+    if (contractor && !contractor.value && !esAdmin) {
       showFieldError(contractor, 'La empresa es obligatoria');
       valid = false;
     }
@@ -145,6 +147,16 @@
     delete payload['report_access'];
     const reportCheckboxes = form.querySelectorAll('[name="report_access"]:checked');
     payload['report_access'] = Array.from(reportCheckboxes).map((cb) => cb.value);
+
+    // Excepciones de permisos (solo las ve el superusuario): {accion: 'inherit'|'allow'|'deny'}
+    const extras = form.querySelectorAll('[data-permiso-extra]');
+    if (extras.length) {
+      payload['permisos_extra'] = {};
+      extras.forEach((sel) => {
+        payload['permisos_extra'][sel.dataset.permisoExtra] = sel.value;
+        delete payload[sel.name];
+      });
+    }
 
     const url = currentUserId ? `/api/v1/users/${currentUserId}/` : '/api/v1/users/';
     const method = currentUserId ? 'PUT' : 'POST';
@@ -241,5 +253,61 @@
       e.preventDefault();
       deleteUser(delBtn.dataset.id, delBtn.dataset.nombre);
     }
+  });
+})();
+
+// ── Matriz de permisos por rol (solo el superusuario la edita) ─────────
+(function () {
+  const tabla = document.getElementById('permisosTabla');
+  const guardar = document.getElementById('permisosGuardarBtn');
+  const restaurar = document.getElementById('permisosRestaurarBtn');
+  if (!tabla || !guardar) return;
+
+  function csrf() {
+    const m = document.cookie.match(new RegExp('(^|;\\s*)csrftoken=([^;]*)'));
+    return m ? decodeURIComponent(m[2]) : '';
+  }
+  function notify(type, msg) { window.Alert?.[type]?.(msg, { autoHide: 3000 }); }
+  function enviar(body, onOk) {
+    fetch(tabla.dataset.url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf(), 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) { notify('success', data.message); onOk(); }
+        else { notify('error', data.message || 'No se pudo guardar'); }
+      })
+      .catch(() => notify('error', 'Error de red o del servidor.'));
+  }
+
+  const checks = () => Array.from(tabla.querySelectorAll('.permiso-check'));
+  function cambiados() { return checks().filter((c) => (c.checked ? '1' : '0') !== c.dataset.inicial); }
+  function marcar() {
+    checks().forEach((c) => {
+      const distinto = (c.checked ? '1' : '0') !== c.dataset.defecto;
+      c.style.outline = distinto ? '2px solid var(--color-warning)' : '';  // distinto del valor por defecto
+      c.style.outlineOffset = distinto ? '2px' : '';
+    });
+    guardar.disabled = cambiados().length === 0;
+  }
+  tabla.addEventListener('change', (e) => { if (e.target.classList.contains('permiso-check')) marcar(); });
+  marcar();
+
+  guardar.addEventListener('click', () => {
+    const cambios = cambiados().map((c) => ({ rol: c.dataset.rol, accion: c.dataset.accion, permitido: c.checked }));
+    if (!cambios.length) return;
+    guardar.disabled = true;
+    enviar({ cambios }, () => window.location.reload());
+  });
+
+  restaurar?.addEventListener('click', () => {
+    window.Alert?.confirm(
+      'Todos los permisos por rol vuelven a sus valores por defecto. Las excepciones por usuario no se tocan.',
+      () => enviar({ restaurar: true }, () => window.location.reload()),
+      null,
+      { title: 'Restaurar permisos', confirmText: 'Restaurar', confirmClass: 'btn-save', icon: 'fa-solid fa-rotate-left' }
+    );
   });
 })();

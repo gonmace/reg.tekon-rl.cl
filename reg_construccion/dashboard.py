@@ -43,9 +43,9 @@ def visitas_del_alcance(user):
 
 
 def _cache_key(prefix, user):
-    if user is None or user.is_supermanager or user.is_visita or user.is_administrador:
+    if user is None or user.is_supermanager or user.is_visita or user.is_admin_global:
         scope = 'all'
-    elif user.is_coord and user.contractor_id:
+    elif user.is_admin_empresa:
         scope = f'c{user.contractor_id}'
     else:
         scope = f'u{user.id}'

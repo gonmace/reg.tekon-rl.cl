@@ -8,7 +8,7 @@ from django.utils.html import format_html
 
 from core.models.contractors import Contractor
 from core.models.sites import Site
-from core.permissions import es_super_o_admin
+from core.permissions import puede_editar_sitios_empresas
 from users.models import User
 
 
@@ -52,7 +52,7 @@ class SiteTable(tables.Table):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        if not es_super_o_admin(self.user):
+        if not puede_editar_sitios_empresas(self.user):
             self.exclude = ('acciones',)
 
 
@@ -135,6 +135,8 @@ class UserTable(tables.Table):
 
     def render_contractor(self, value, record):
         if not record.contractor_id:
+            if record.is_administrador:
+                return format_html('<span class="text-base-content/60 text-xs">Todas</span>')
             return format_html('<span class="text-base-content/40 text-xs">—</span>')
         return format_html('<span class="text-sm">{}</span>', record.contractor.code)
 
@@ -143,12 +145,17 @@ class UserTable(tables.Table):
             return format_html('<span class="badge badge-primary text-xs">Superusuario</span>')
         badge_classes = {
             User.ADMINISTRADOR:  'badge-error',
-            User.COORD:     'badge-warning',
             User.ITO:       'badge-info',
             User.SEARCHER:  'badge-accent',
             User.VISITA:    'badge-neutral',
         }
         cls = badge_classes.get(record.user_type, 'badge-ghost')
+        extras = len(record.permisos_extra.all())  # prefetched en la vista
+        if extras:
+            return format_html(
+                '<span class="badge {} text-xs">{}</span> '
+                '<i class="fa-solid fa-sliders text-warning text-xs" title="{} excepción(es) de permisos"></i>',
+                cls, record.get_user_type, extras)
         return format_html('<span class="badge {} text-xs">{}</span>', cls, record.get_user_type)
 
     def render_last_login(self, value, record):

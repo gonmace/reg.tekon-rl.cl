@@ -30,12 +30,12 @@
                     </option>
                 {% endfor %}
             </select>
-            {% for_role 'COORD' 'ADMINISTRADOR' %}
+            {% con_permiso 'activar_registro' %}
             <button class="btn btn-primary btn-sm" id="activar-registro-btn" type="button">
                 <i class="fa-solid fa-plus"></i>
                 Nueva Fecha
             </button>
-            {% endfor_role %}
+            {% endcon_permiso %}
         </div>
     </div>
 </div>

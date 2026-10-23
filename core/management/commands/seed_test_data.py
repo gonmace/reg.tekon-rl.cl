@@ -59,7 +59,7 @@ class Command(BaseCommand):
                     'email': f'{username}@test.local',
                     'first_name': nombre,
                     'last_name': apellido,
-                    'user_type': random.choice(['ADMINISTRADOR', 'COORD', 'ITO', 'SEARCHER', 'VISITA']),
+                    'user_type': random.choice(['ADMINISTRADOR', 'ITO', 'SEARCHER', 'VISITA']),
                     'phone': f'+56 9 {random.randint(1000, 9999)} {random.randint(1000, 9999)}',
                     'is_active': True,
                 },

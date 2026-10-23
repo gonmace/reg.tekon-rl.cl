@@ -6,20 +6,22 @@
      title="{% if record.concluido %}Generar PDF{% else %}Generar PDF (borrador){% endif %}" hx-boost="false">
     <i class="fa-solid fa-file-pdf"></i>
   </a>
-  {% if not request.user.is_visita %}
-  {% if record.es_ultima and not request.user.is_administrador %}
+  {% if record.es_ultima %}
+  {% con_permiso 'cargar_datos' %}
   <button type="button" class="btn btn-sm btn-ghost btn-circle text-accent obra-nueva-btn"
           data-id="{{ record.id }}" data-nombre="{{ record.sitio.name }}" title="Nuevo reporte (otra fecha)">
     <i class="fa-solid fa-calendar-plus"></i>
   </button>
+  {% endcon_permiso %}
   {% endif %}
+  {% editable %}
   {% if not record.concluido %}
   <button type="button" class="btn btn-sm btn-ghost btn-circle text-edit obra-edit-btn"
           data-id="{{ record.id }}" title="Editar datos del reporte">
     <i class="fa-solid fa-pen-to-square"></i>
   </button>
   {% endif %}
-  {% endif %}
+  {% endeditable %}
   {% if not record.concluido %}
   {% supermanager_only %}
   <button type="button" class="btn btn-sm btn-ghost btn-circle text-delete obra-delete-btn"

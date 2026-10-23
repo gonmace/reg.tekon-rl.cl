@@ -27,7 +27,7 @@
 {% endblock %}
 
 {% block table_actions %}
-  {% if user.is_superuser %}
+  {% if user.is_supermanager %}
   <button id="addSiteBtn" class="btn btn-add btn-sm">
     <i class="fa-solid fa-plus mr-1"></i> Agregar Sitio
   </button>

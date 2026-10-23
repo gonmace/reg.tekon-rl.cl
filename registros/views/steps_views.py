@@ -15,7 +15,7 @@ from registros.mixins.breadcrumbs_mixin import RegistroBreadcrumbsMixin
 from registros.components.registro_config import RegistroConfig, ElementoGenerico
 from registros.components.editable_table import EditableTableElemento
 from registros.forms.activar import create_activar_registro_form
-from core.permissions import puede_cambiar_concluido, registro_bloqueado
+from core.permissions import alcance_registros, puede_cambiar_concluido, registro_bloqueado
 from registros.tables import create_registros_table
 from typing import Dict, Any
 
@@ -91,13 +91,7 @@ class GenericRegistroTableListView(LoginRequiredMixin, BreadcrumbsMixin, SingleT
         if fk_names:
             queryset = queryset.select_related(*fk_names)
 
-        user = self.request.user
-        if user.is_supermanager or user.is_visita or user.is_administrador:
-            pass  # ven todos los registros
-        elif user.is_coord and user.contractor:
-            queryset = queryset.filter(user__contractor=user.contractor)
-        else:
-            queryset = queryset.filter(user=user)
+        queryset = alcance_registros(queryset, self.request.user)
 
         # Búsqueda por ?q= sobre campos comunes y opcionales del modelo
         from django.db.models import Q

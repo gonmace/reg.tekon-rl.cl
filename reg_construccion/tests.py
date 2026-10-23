@@ -30,7 +30,7 @@ class BaseTest(TestCase):
         cls.contratista = Contractor.objects.create(name='AJ', code='AJ')
         cls.otra = Contractor.objects.create(name='OTRA', code='OT')
         cls.root = User.objects.create_superuser('root', 'r@x.cl', 'pw', user_type='')
-        cls.coord = User.objects.create_user('coord', 'c@x.cl', 'pw', user_type=User.COORD, contractor=cls.contratista)
+        cls.coord = User.objects.create_user('coord', 'c@x.cl', 'pw', user_type=User.ADMINISTRADOR, contractor=cls.contratista)
         cls.ito = User.objects.create_user('ito', 'i@x.cl', 'pw', user_type=User.ITO, contractor=cls.contratista)
         cls.ito2 = User.objects.create_user('ito2', 'i2@x.cl', 'pw', user_type=User.ITO, contractor=cls.contratista)
         cls.torre = Site.objects.create(pti_cell_id='CL-VS-1458', operator_id='25_179', name='Quillota',
@@ -141,15 +141,12 @@ class VistasTests(BaseTest):
             self.client.force_login(user)
             r = self.client.get(reverse('reg_construccion:api_edit_form', kwargs={'registro_id': reg.pk}))
             self.assertContains(r, 'name="user"')
-            # el administrador no toca la cabecera: solo se aplica `user`
             r = self.client.post(url, {'user': destino.pk, 'fecha': '2026-03-01', 'revision': 9, 'estado_obra': 'construccion'})
             self.assertEqual(r.status_code, 200, r.content)
             reg.refresh_from_db()
             self.assertEqual(reg.user, destino)
-            if user is admin:
-                self.assertEqual(reg.fecha, date(2026, 1, 10))
-        # un COORD/ITO no puede reasignar aunque envíe `user`
-        self.client.force_login(self.coord)
+        # un ITO no puede reasignar aunque envíe `user`
+        self.client.force_login(self.ito)
         self.client.post(url, {'user': self.ito2.pk, 'fecha': '2026-01-10', 'revision': 0, 'estado_obra': 'construccion'})
         reg.refresh_from_db()
         self.assertEqual(reg.user, self.ito)
@@ -201,23 +198,34 @@ class VistasTests(BaseTest):
             self.assertEqual([p['nombre'] for p in guardado['partidas']], ['Zapata'])
             self.assertEqual(guardado['plantilla'], 'Torre estándar')
 
-    def test_coord_ito_no_pueden_cambiar_la_estructura(self):
-        """Coordinación e ITO solo cargan el % actual: los ítems enviados se descartan."""
+    def test_ito_no_puede_cambiar_la_estructura(self):
+        """El ITO solo carga el % actual: los ítems enviados se descartan."""
         reg = self.visita(date(2026, 1, 10))
         self.guardar_avance(reg, partidas((60, 0), (40, 0)))
-        for user in (self.coord, self.ito):
+        for user in (self.ito,):
             r = self._post_estructura(user, reg, actual=25)
             self.assertEqual(r.status_code, 302, r.content)
             ct = ContentType.objects.get_for_model(RegConstruccion)
             guardado = DatoPaso.objects.get(content_type=ct, object_id=reg.pk, paso_nombre=PASO_AVANCE).datos['partidas']
             self.assertEqual([p['nombre'] for p in guardado], ['Partida 0', 'Partida 1'])  # sin «Zapata»
 
-    def test_administrador_no_escribe_otros_pasos(self):
+    def test_sin_cargar_datos_solo_se_define_la_estructura(self):
+        """Quien tiene `definir_items_obra` pero no `cargar_datos` guarda únicamente la tabla de avance."""
+        from core.models.permisos import PermisoUsuario
         admin = User.objects.create_user('adm2', 'adm2@x.cl', 'pw', user_type=User.ADMINISTRADOR)
+        PermisoUsuario.objects.create(user=admin, accion='cargar_datos', permitido=False)
         reg = self.visita(date(2026, 1, 10))
         self.client.force_login(admin)
         url = reverse('reg_construccion:paso_dinamico', kwargs={'registro_id': reg.pk, 'paso_nombre': 'obra_objetivos'})
         self.assertEqual(self.client.post(url + '?widget=lista_widget', {'entradas': '["x"]'}).status_code, 403)
+        self.assertEqual(self._post_estructura(admin, reg).status_code, 302)
+
+    def test_administrador_carga_todos_los_pasos(self):
+        admin = User.objects.create_user('adm4', 'adm4@x.cl', 'pw', user_type=User.ADMINISTRADOR)
+        reg = self.visita(date(2026, 1, 10))
+        self.client.force_login(admin)
+        url = reverse('reg_construccion:paso_dinamico', kwargs={'registro_id': reg.pk, 'paso_nombre': 'obra_objetivos'})
+        self.assertNotEqual(self.client.post(url + '?widget=lista_widget', {'entradas': '["x"]'}).status_code, 403)
 
     def test_pdf_se_genera(self):
         reg = self.visita(date(2026, 1, 10))
@@ -480,7 +488,7 @@ class ListadoMaestroDetalleTests(BaseTest):
         super().setUpTestData()
         cls.torre2 = Site.objects.create(pti_cell_id='CL-VS-2000', operator_id='30_1', name='Valparaíso Alto',
                                          tipo_sitio=Site.TORRE)
-        cls.admin = User.objects.create_user('admin', 'a@x.cl', 'pw', user_type=User.ADMINISTRADOR, contractor=cls.contratista)
+        cls.admin = User.objects.create_user('admin', 'a@x.cl', 'pw', user_type=User.ADMINISTRADOR)  # global: sin empresa
         cls.visitante = User.objects.create_user('visitante', 'v@x.cl', 'pw', user_type=User.VISITA, contractor=cls.contratista)
         cls.ito3 = User.objects.create_user('ito3', 'i3@x.cl', 'pw', user_type=User.ITO, contractor=cls.otra)
 
@@ -552,7 +560,7 @@ class ListadoMaestroDetalleTests(BaseTest):
         esperado = {
             self.ito: {self.torre.pk},            # solo donde tiene visitas
             self.ito3: {self.torre2.pk},
-            self.coord: {self.torre.pk},          # su contratista
+            self.coord: {self.torre.pk},          # administrador de empresa: su contratista
             self.admin: {self.torre.pk, self.torre2.pk},
             self.visitante: {self.torre.pk, self.torre2.pk},
             self.root: {self.torre.pk, self.torre2.pk},
@@ -717,7 +725,9 @@ class AccesoSitiosEmpresasImagenesTests(BaseTest):
                                            app='reg_construccion', imagen='photos/b.jpg')
         self.assertEqual(set(_photos_visibles(self.ito).values_list('pk', flat=True)), {foto_mia.pk})
         self.assertEqual(set(_photos_visibles(self.ito2).values_list('pk', flat=True)), {foto_ajena.pk})
-        self.assertEqual(set(_photos_visibles(self.coord).values_list('pk', flat=True)), set())  # no creó ninguno
+        # administrador de empresa: los reportes de su empresa (ambos ITO son de AJ)
+        self.assertEqual(set(_photos_visibles(self.coord).values_list('pk', flat=True)), {foto_mia.pk, foto_ajena.pk})
+        self.assertEqual(set(_photos_visibles(self.visitante).values_list('pk', flat=True)), {foto_mia.pk, foto_ajena.pk})
         for user in (self.root, self.admin):
             self.assertEqual(set(_photos_visibles(user).values_list('pk', flat=True)), {foto_mia.pk, foto_ajena.pk})
 

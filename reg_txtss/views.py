@@ -24,8 +24,9 @@ from registros.config import RegistroConfig
 from .config import REGISTRO_CONFIG
 from .models import RegTxtss, ALTERNATIVA_CHOICES
 from core.permissions import (
-    not_visita, superuser_required, NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin,
-    can_access_registro, registro_access_denied, registro_bloqueado_response,
+    not_visita, superuser_required, NotVisitaMixin, SuperuserRequiredMixin,
+    alcance_registros, can_access_registro, puede_escribir_registro, registro_access_denied,
+    registro_bloqueado_response, tiene_permiso,
 )
 
 
@@ -253,7 +254,7 @@ class PasosTorresView(_PasosConfigRedirectView):
 def copy_registro(request, registro_id):
     """Crea una copia del registro con la siguiente alternativa (A→B→C→D→E)."""
     registro = get_object_or_404(RegTxtss, pk=registro_id)
-    if not request.user.is_supermanager and registro.user != request.user:
+    if not puede_escribir_registro(request.user, registro):
         return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
 
     orden = [c[0] for c in ALTERNATIVA_CHOICES]
@@ -294,9 +295,9 @@ def copy_registro(request, registro_id):
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
-def _puede_editar_registro(user):
-    """Cambiar el ITO/Buscador y la alternativa: superusuario y ADMINISTRADOR."""
-    return user.is_supermanager or user.is_administrador
+def _puede_editar_registro(user, registro):
+    """Cambiar el ITO/Buscador y la alternativa: permiso `cambiar_responsable` dentro del alcance."""
+    return tiene_permiso(user, 'cambiar_responsable') and can_access_registro(user, registro)
 
 
 @login_required
@@ -304,7 +305,7 @@ def _puede_editar_registro(user):
 def get_edit_form(request, registro_id):
     """Devuelve el HTML del formulario de edición de un registro."""
     registro = get_object_or_404(RegTxtss, pk=registro_id)
-    if not _puede_editar_registro(request.user):
+    if not _puede_editar_registro(request.user, registro):
         return JsonResponse({'error': 'Sin permisos'}, status=403)
 
     from users.models import User
@@ -324,9 +325,10 @@ def get_edit_form(request, registro_id):
 def update_registro(request, registro_id):
     """Actualiza buscador y alternativa de un registro (superusuario y ADMINISTRADOR)."""
     from .forms import RegTxtssAdminEditForm
-    if not _puede_editar_registro(request.user):
+    registro = get_object_or_404(RegTxtss, pk=registro_id)
+    if not _puede_editar_registro(request.user, registro):
         return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
-    bloqueado = registro_bloqueado_response(get_object_or_404(RegTxtss, pk=registro_id))
+    bloqueado = registro_bloqueado_response(registro)
     if bloqueado:
         return bloqueado
 
@@ -382,9 +384,9 @@ def _get_dynamic_steps(registro):
 @login_required
 @require_POST
 def update_fecha(request, registro_id):
-    """Actualiza la fecha de inspección. Solo ITO y Buscador (y supermanager)."""
-    if not (request.user.is_supermanager or request.user.is_ito_like):
-        return JsonResponse({'success': False, 'message': 'Solo ITO y Buscador pueden cambiar la fecha'}, status=403)
+    """Actualiza la fecha de inspección (permiso `cargar_datos`)."""
+    if not tiene_permiso(request.user, 'cargar_datos'):
+        return JsonResponse({'success': False, 'message': 'No tienes permiso para cambiar la fecha'}, status=403)
     from datetime import date as date_type
     registro = get_object_or_404(RegTxtss, pk=registro_id)
     denied = registro_access_denied(request, registro) or registro_bloqueado_response(registro)
@@ -456,8 +458,7 @@ def locate_registro(request, registro_id):
         .order_by('orden_estado', '-fecha')
     )
 
-    if not request.user.is_supermanager and not request.user.is_visita:
-        qs = qs.filter(user=request.user)
+    qs = alcance_registros(qs, request.user)
 
     ids = list(qs.values_list('id', flat=True))
     try:

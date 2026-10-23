@@ -6,7 +6,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
 from core.utils.breadcrumbs import BreadcrumbsMixin
 from core.permissions import (
-    NotVisitaMixin, SuperuserRequiredMixin, ItoLikeMixin, registro_access_denied, can_access_registro,
+    NotVisitaMixin, SuperuserRequiredMixin, alcance_registros, registro_access_denied, can_access_registro,
+    puede_escribir_registro,
     registro_bloqueado, registro_bloqueado_response,
 )
 from django.contrib.contenttypes.models import ContentType
@@ -72,18 +73,8 @@ def set_photos_template_for_step(step_name, template_name):
     PHOTOS_TEMPLATES[f"*_{step_name}"] = template_name
 
 def fotos_denied(request, registro):
-    """403 si el usuario no puede escribir fotos en el registro, o None.
-
-    Construcción: superusuario, coordinación del contratista y el ITO/Buscador dueño
-    (`puede_gestionar`). TX/TSS: ITO/Buscador dueño y superusuario (como antes).
-    """
-    user = request.user
-    if registro._meta.app_label == 'reg_construccion':
-        from reg_construccion.permissions import puede_gestionar
-        permitido = puede_gestionar(user, registro)
-    else:
-        permitido = (user.is_supermanager or user.is_ito_like) and can_access_registro(user, registro)
-    if permitido:
+    """403 si el usuario no puede escribir fotos en el registro (permiso `cargar_datos` dentro de su alcance), o None."""
+    if puede_escribir_registro(request.user, registro):
         return None
     return JsonResponse({'success': False, 'message': 'Sin permisos para este registro'}, status=403)
 
@@ -735,19 +726,18 @@ def _build_photos_q_from_reg_ids(reg_ids):
 def _photos_visibles(user):
     """Imágenes que `user` puede ver en la galería.
 
-    Superusuario y ADMINISTRADOR ven todas; el resto, solo las de los reportes que ellos crearon
-    (`registro.user`; las imágenes no guardan quién las subió, el dueño del reporte es quien las sube).
+    Las del alcance de `user` sobre los reportes (`alcance_registros`: todo, su empresa o solo los suyos);
+    las imágenes no guardan quién las subió, el dueño del reporte es quien las sube.
     """
-    from core.permissions import es_super_o_admin
     from registros.registry import all_registro_models
     qs = Photos.objects.all()
-    if es_super_o_admin(user):
+    if user.is_supermanager or user.is_admin_global:
         return qs
     q = Q(pk__in=[])
     for model in all_registro_models():
         if 'user' in {f.name for f in model._meta.get_fields()}:
             q |= Q(content_type=ContentType.objects.get_for_model(model),
-                   object_id__in=model.objects.filter(user=user).values('pk'))
+                   object_id__in=alcance_registros(model.objects.all(), user).values('pk'))
     return qs.filter(q)
 
 

@@ -12,6 +12,8 @@ Lo acumulado NO se guarda: se calcula recorriendo las visitas del sitio por fech
 """
 import json
 import uuid
+
+from core.permissions import tiene_permiso
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django import forms
@@ -164,8 +166,8 @@ def _plantillas(config):
 
 
 def puede_editar_estructura(user):
-    """Plantilla, agregar y borrar ítems: solo superusuario y ADMINISTRADOR (el resto solo carga el % actual)."""
-    return bool(user and (user.is_supermanager or user.is_administrador))
+    """Plantilla, agregar y borrar ítems: permiso `definir_items_obra` (el resto solo carga el % actual)."""
+    return tiene_permiso(user, 'definir_items_obra')
 
 
 @register_widget
@@ -232,14 +234,14 @@ class TablaAvanceWidget(WidgetBase):
         if 'partidas' not in cleaned:
             return
         if puede_editar_estructura(request.user):
-            if not request.user.is_administrador:
+            if tiene_permiso(request.user, 'cargar_datos'):
                 return
-            # ADMINISTRADOR define los ítems pero no carga el % actual: conserva el ya guardado.
+            # Define los ítems pero no carga datos: conserva el % actual ya guardado.
             guardado = {p.get('id'): p.get('actual', 0.0) for p in stored.get('partidas') or []}
             for p in cleaned.get('partidas') or []:
                 p['actual'] = guardado.get(p.get('id'), 0.0)
             return
-        # Resto de roles (ITO, Buscador, Coordinación): solo cambian el % actual de partidas ya definidas.
+        # Resto de usuarios (ITO, Buscador, ...): solo cambian el % actual de partidas ya definidas.
         referencia = avance_registro(registro, paso.nombre)['filas']
         enviados = {p['id']: p for p in cleaned.get('partidas') or []}
         cleaned['partidas'] = [

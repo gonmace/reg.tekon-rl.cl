@@ -22,8 +22,8 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 
 from core.permissions import (
-    MENSAJE_BLOQUEADO, MENSAJE_SOLO_ADMIN_REABRE, ItoLikeMixin, can_access_registro, puede_cambiar_concluido,
-    registro_access_denied, registro_bloqueado, registro_bloqueado_response, superuser_required,
+    MENSAJE_BLOQUEADO, MENSAJE_SOLO_ADMIN_REABRE, CargaDatosMixin, can_access_registro, puede_cambiar_concluido,
+    registro_access_denied, registro_bloqueado, registro_bloqueado_response, superuser_required, tiene_permiso,
 )
 
 
@@ -82,8 +82,8 @@ class DynamicPasoViewBase(LoginRequiredMixin, View):
     url_namespace = None
 
     def puede_escribir(self, user):
-        """Quién puede hacer POST. Por defecto ITO, Buscador y supermanager."""
-        return user.is_supermanager or user.is_ito_like
+        """Quién puede hacer POST. Por defecto, el permiso `cargar_datos`."""
+        return tiene_permiso(user, 'cargar_datos')
 
     def puede_escribir_widget(self, user, widget_slug):
         """Si los controles de guardado del widget van habilitados para `user` (por defecto, `puede_escribir`)."""
@@ -253,7 +253,7 @@ class DynamicPasoViewBase(LoginRequiredMixin, View):
         return self._render(request, registro, paso, form)
 
 
-class MapaSaveViewBase(LoginRequiredMixin, ItoLikeMixin, View):
+class MapaSaveViewBase(LoginRequiredMixin, CargaDatosMixin, View):
     """Guarda la imagen estática del mapa de un paso dinámico."""
 
     registro_model = None

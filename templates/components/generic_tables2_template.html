@@ -28,13 +28,13 @@
 
 {% block table_actions %}
   {% if show_activate_button %}
-  {% for_role 'COORD' 'ADMINISTRADOR' %}
+  {% con_permiso 'activar_registro' %}
   <button type="button" class="btn btn-add btn-sm" id="activar-registro-btn"
           onclick="document.getElementById('activar-registro-modal').showModal()">
     <i class="fa-solid fa-plus mr-1"></i>
     {{ activate_button_text|default:"Activar Registro" }}
   </button>
-  {% endfor_role %}
+  {% endcon_permiso %}
   {% endif %}
 {% endblock %}
 
