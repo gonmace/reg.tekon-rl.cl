@@ -335,7 +335,7 @@ class ActividadesInspeccionadasTests(BaseTest):
                 self.assertEqual(Photos.objects.filter(object_id=reg.pk, etapa='obra_objetivos').count(), 0)
                 r = self.client.get(reverse('reg_construccion:pdf', kwargs={'registro_id': reg.pk}))
                 self.assertEqual(len(r.context_data['fotos_libro']), 1)
-                self.assertEqual(r.context_data['fotos_libro'][0]['descripcion'], 'Fotografía 1')
+                self.assertEqual(r.context_data['fotos_libro'][0]['descripcion'], 'Imagen 1')
                 self.assertEqual(r.context_data['fotos_actividades'], [])
         finally:
             shutil.rmtree(media, ignore_errors=True)

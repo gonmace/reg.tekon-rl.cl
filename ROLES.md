@@ -59,7 +59,8 @@ Todo esto dentro del alcance: un ADMINISTRADOR de empresa o un ITO solo actúan 
 | Acción | Quién |
 |--------|-------|
 | Crear, importar y **eliminar** sitios y empresas | Solo superusuario |
-| Eliminar registros, fotos, reportes; borrar/comprimir imágenes | Solo superusuario |
+| Eliminar registros, reportes; borrar/comprimir imágenes en lote (galería) | Solo superusuario |
+| Eliminar una foto dentro de un registro en borrador | `cargar_datos` (ITO, Buscador, Administrador) en su alcance |
 | Pasos, Widgets, Catálogo, Formatear, Configuración de correo | Solo superusuario |
 | Impersonar | Solo `is_superuser` de Django (ver abajo) |
 | Descargar PDF | Todos, dentro de su alcance |

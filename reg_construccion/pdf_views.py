@@ -105,7 +105,7 @@ class RegConstruccionPDFView(LoginRequiredMixin, WeasyTemplateView):
         fotos = _get_fotos_pdf(registro, paso, ct)
         for n, foto in enumerate(fotos, start=desde):
             leyenda = foto['descripcion'].strip()
-            foto['descripcion'] = f'Fotografía {n}: {leyenda}' if leyenda else f'Fotografía {n}'
+            foto['descripcion'] = f'Imagen {n}: {leyenda}' if leyenda else f'Imagen {n}'
         return fotos
 
     def get_context_data(self, **kwargs):

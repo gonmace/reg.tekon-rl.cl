@@ -31,7 +31,7 @@ Estados:
 <div class="imgs-desc-widget bg-base-100 rounded-lg p-4 sombra"
      data-upload-url="{{ upload_url }}"
      data-foto-min="{{ foto_min|default:0 }}"
-     data-superuser="{{ request.user.is_supermanager|yesno:'true,false' }}">
+     data-superuser="{% if access_val == 'allowed' %}true{% else %}false{% endif %}">
 
   <!-- Descripciones disponibles (leídas por JS) -->
   <script type="application/json" class="imd-descs-data">

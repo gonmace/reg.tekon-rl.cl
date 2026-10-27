@@ -29,7 +29,7 @@ Estados:
      data-upload-url="{{ upload_url }}"
      data-foto-min="{{ foto_min|default:0 }}"
      data-foto-count="{{ foto_count|default:0 }}"
-     data-superuser="{{ request.user.is_supermanager|yesno:'true,false' }}">
+     data-superuser="{% if access_val == 'allowed' %}true{% else %}false{% endif %}">
 
   <input type="file" id="cam-{{ wid }}" class="sr-only camera-file-input" accept="image/*" multiple
          {% if access_val != 'allowed' %}disabled{% endif %}>

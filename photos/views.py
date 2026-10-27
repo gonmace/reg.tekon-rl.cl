@@ -631,7 +631,7 @@ class ReorderPhotosView(LoginRequiredMixin, NotVisitaMixin, View):
         except Exception as e:
             return JsonResponse({'success': False, 'message': f'Error al reordenar: {str(e)}'}, status=400)
 
-class DeletePhotoView(LoginRequiredMixin, SuperuserRequiredMixin, View):
+class DeletePhotoView(LoginRequiredMixin, NotVisitaMixin, View):
     def post(self, request, photo_id, registro_id=None, paso_nombre=None, app_name=None, step_name=None):
         resolved_url = request.resolver_match
         if resolved_url and hasattr(resolved_url, 'kwargs'):
@@ -651,7 +651,7 @@ class DeletePhotoView(LoginRequiredMixin, SuperuserRequiredMixin, View):
             registro = get_registro_from_id(registro_id, request)
             if not registro:
                 return JsonResponse({'success': False, 'message': 'Registro no encontrado'}, status=404)
-            bloqueado = registro_bloqueado_response(registro)
+            bloqueado = fotos_denied(request, registro) or registro_bloqueado_response(registro)
             if bloqueado:
                 return bloqueado
             if step_name == 'sitio':
